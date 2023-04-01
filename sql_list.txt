@@ -1,0 +1,65 @@
+SELECT
+DISTINCT
+INTO
+TOP
+AS
+FROM
+WHERE
+AND
+OR
+BETWEEN
+SOME
+LIKE
+IN
+IS
+NULL
+NOT
+COUNT
+SUM
+AVG
+MIN
+MAX
+GROUP BY
+HAVING
+ORDER BY
+DESC
+OFFSET
+FETCH
+INNER JOIN
+LEFT JOIN
+RIGHT JOIN
+FULL JOIN
+EXISTS
+UNION
+UNION ALL
+(
+)
++
+-
+*
+/
+%
+&
+|
+^
+=
+>
+<
+>=
+<=
+<>
++=
+-=
+*=
+/=
+%=
+&=
+^-=
+|*=
+,
+ 
+;
+--
+/*
+*/
+.

@@ -2,3 +2,4 @@ scraped/**
 venv/**
 wget-log
 parsed-scrape.txt
+.DS_Store

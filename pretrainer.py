@@ -1,6 +1,8 @@
 import os
 import re
 
+#from bs4 import BeautifulSoup
+
 class Pretrainer():
 
     scraped_path: str
@@ -15,8 +17,16 @@ class Pretrainer():
             for file in files:
                 yield os.path.join(path, file)
 
+    # Modification of retrieving HTML text-only solution by jbochi:
+    # https://stackoverflow.com/questions/1936466/how-to-scrape-only-visible-webpage-text-with-beautifulsoup
+    #def __text_from_html(body):
+    #    soup = BeautifulSoup(body, 'html.parser')
+    #    texts = soup.findAll(text=True)
+    #    #visible_texts = filter(tag_visible, texts)  
+    #    return u" ".join(t.strip() for t in texts)
+
     def parse(self):
-        unique_tokens = set();
+        unique_tokens = set()
         for path in self.__getRecursivePathGenerator(self.scraped_path):
             try:
                 with open(path, 'r') as f:

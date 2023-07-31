@@ -3,3 +3,4 @@ venv/**
 wget-log
 parsed-scrape.txt
 .DS_Store
+__pycache__

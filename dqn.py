@@ -3,7 +3,6 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 import pandas as pd
-import numpy as np
 import json
 import sys
 from enum import Enum
@@ -65,7 +64,10 @@ class DQN:
 
         return model, model_target
     
-    def __create_empty_state(self):
+    def add_to_available_actions_count(self, count: int):
+        self.__available_actions_count += count
+    
+    def create_empty_state(self):
         return np.array([0] * self.__hyperparameters.feature_count, dtype='float32')
     
     def run(self, model: keras.Sequential, model_target: keras.Sequential):

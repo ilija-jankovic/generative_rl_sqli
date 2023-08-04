@@ -35,10 +35,10 @@ class DQN:
         return keras.Sequential([
             layers.Input(shape=(self.__hyperparameters.feature_count,1,)),
             layers.Flatten(),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(self.__hyperparameters.action_count, activation='linear')
+            layers.Dense(256, activation='relu'),
+            layers.Dense(256, activation='relu'),
+            layers.Dense(256, activation='relu'),
+            layers.Dense(self.__hyperparameters.action_count, activation='softmax')
         ])
 
     def create_model(self):
@@ -74,9 +74,7 @@ class DQN:
         episode_count = 0
         frame_count = 0
 
-        epsilon = 0
-        # Number of frames for exploration
-        epsilon_greedy_frames = 1000000.0
+        epsilon = self.__epsilon_config.epsilon
         # Maximum replay length
         # Note: The Deepmind paper suggests 1000000 however this causes memory issues
         max_memory_length = 1000000
@@ -100,7 +98,7 @@ class DQN:
                 frame_count += 1
 
                 # Use epsilon-greedy for exploration
-                if frame_count < self.__epsilon_config.num_random_frames or epsilon > np.random.rand(1)[0]:
+                if frame_count < self.__epsilon_config.random_frame_count or epsilon > np.random.rand(1)[0]:
                     action = np.random.randint(
                         self.available_actions_range.start, self.available_actions_range.stop)
                 else:
@@ -116,7 +114,7 @@ class DQN:
                     action = tf.argmax(masked_probs).numpy()
 
                 # Decay probability of taking random action
-                epsilon -= self.__epsilon_config.epsilon_interval / epsilon_greedy_frames
+                epsilon -= self.__epsilon_config.epsilon_interval / self.__epsilon_config.greedy_frame_count
                 epsilon = max(epsilon, self.__epsilon_config.epsilon_min)
 
                 # Apply the sampled action in our environment

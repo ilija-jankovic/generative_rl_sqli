@@ -15,7 +15,7 @@ url = 'http://localhost.proxyman.io:3000/rest/user/login'
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
 # os.system('wget -m -k -K -E -l 7 -t 6 -w 5 http://localhost:3000 -P ./scraped')
 
-feature_count = 500
+feature_count = 10
 
 visible_chars = [chr(i) for i in range(32, 127)]
 
@@ -23,8 +23,7 @@ with open('parsed-scrape.txt', 'r') as f:
     data = f.read()
 f.close()
 
-#found_words = list(filter(lambda s: s != '', data.split(' ')))
-found_words = []
+found_words = list(filter(lambda s: s != '', data.split(' ')))
 
 with open('sql_list.txt', 'r') as f:
     data = f.read()
@@ -41,18 +40,19 @@ sql_list = data.split('\n')
 visible_chars *= max(1, int(len(found_words)/len(visible_chars)))
 sql_list *= max(1, int(len(visible_chars)/len(sql_list)))
 
-# For selecting indicies in a non-terminating state to replace characters
-# with.
-replacement_indicies: List[int] = []
-replacement_actions = [SpecialAction.REPLACE for _ in range(feature_count)]
 
-mutation_actions = visible_chars + sql_list + found_words
+mutation_actions = visible_chars + sql_list
 
 # Half of action space terminates to prefer smaller queries, which implies
 # more payloads executed.
 terminating_actions = [SpecialAction.TERMINATE for _ in range(len(mutation_actions))]
 
-actions = replacement_actions + mutation_actions + terminating_actions
+# For selecting indicies in a non-terminating state to replace characters
+# with.
+replacement_indicies: List[int] = []
+replacement_actions = [SpecialAction.REPLACE for _ in range(feature_count)]
+
+actions = mutation_actions + terminating_actions
 
 terminated = False
 state: np.ndarray
@@ -62,7 +62,7 @@ def __get_payload():
 
     chrs = state.tolist()
     chrs = [chr(int(i)) for i in chrs if i != 0.0]
-    return ''.join(chrs)
+    return '\' ' + ''.join(chrs) + '--'
 
 def __get_inverse_mutation_mask(with_replacements: bool = True):
     return range(len(replacement_actions), len(actions)) \
@@ -87,8 +87,8 @@ def __perform_termination_action():
     reward = 0
 
     for token in unique_tokens:
-        if(token not in actions):
-            actions.append(token)
+        if(token not in found_words):
+            found_words.append(token)
             reward += 1
 
     # Update the mask to account for potentially appended actions.
@@ -98,6 +98,7 @@ def __perform_termination_action():
         print('\nPayload: ' + payload)
 
     state = dqn.create_empty_state()
+
     return state, reward, True
 
 def __get_filled_state_length():
@@ -161,11 +162,14 @@ def __perform_mutation_action(action: str):
         __set_mutation_mask(with_replacements=True)
 
         return state, 0, False
+    
+    payload = ''
 
     # Append character(s) to the state if the state is not
     # completely filled (0.0 represents an empty character slot).
     for i in range(len(state)):
         if(state[i] != 0.0):
+            payload += chr(int(state[i]))
             continue
 
         for j in range(len(action)):
@@ -174,7 +178,9 @@ def __perform_mutation_action(action: str):
                 break
 
             state[state_index] = ord(action[j])
-        return state, 0, False
+
+        reward = -payload.count(action)
+        return state, reward, False
 
     # Return a negative reward if the state is completely filled, as
     # the action has not achieved anything.
@@ -195,10 +201,10 @@ def __perform_action(action_index: int):
 
 dqn = DQN(
     RLHyperparametersModel(
-        gamma=0.99,
-        learning_rate=0.001,
-        batch_size=1,
-        training_episodes=5000,
+        gamma=0.98,
+        learning_rate=0.00025,
+        batch_size=64,
+        training_episodes=10000,
         test_episodes=100,
         max_steps_per_episode=100,
         feature_count=feature_count,
@@ -206,9 +212,10 @@ dqn = DQN(
     ),
     EpsilonModel(
         start=1.0,
-        min=0.05,
+        min=0.1,
         max=1.0,
-        num_random_frames=2000
+        random_frame_count=500,
+        greedy_frame_count=100000
     ),
     available_actions_range=__get_inverse_mutation_mask(),
     perform_action_callback=__perform_action

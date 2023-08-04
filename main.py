@@ -14,8 +14,6 @@ url = 'http://localhost.proxyman.io:3000/rest/user/login'
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
 # os.system('wget -m -k -K -E -l 7 -t 6 -w 5 http://localhost:3000 -P ./scraped')
 
-termination = ['TERMINATE' for _ in range(1000)]
-
 visible_chars = [chr(i) for i in range(32, 127)]
 
 with open('parsed-scrape.txt', 'r') as f:
@@ -30,7 +28,15 @@ f.close()
 
 sql_list = data.split('\n')
 
-actions: List[str] = termination + visible_chars + sql_list + found_words
+visible_chars *= max(1, int(len(found_words)/len(visible_chars)))
+
+sql_list *= max(1, int(len(visible_chars)/len(sql_list)))
+
+non_terminating_actions = visible_chars + sql_list + found_words
+
+terminating_actions = ['TERMINATE' for _ in range(len(non_terminating_actions))]
+
+actions: List[str] = terminating_actions + non_terminating_actions
 
 terminated = False
 state: np.ndarray

@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
-from collections import deque
 from typing import Callable, Tuple
 
 from models.epsilon_model import EpsilonModel
@@ -80,8 +79,6 @@ class DQN:
         frame_count = 0
 
         epsilon = 0
-        # Number of frames to take random action and observe output
-        epsilon_random_frames = 500
         # Number of frames for exploration
         epsilon_greedy_frames = 1000000.0
         # Maximum replay length
@@ -107,7 +104,7 @@ class DQN:
                 frame_count += 1
 
                 # Use epsilon-greedy for exploration
-                if frame_count < epsilon_random_frames or epsilon > np.random.rand(1)[0]:
+                if frame_count < self.__epsilon_config.num_random_frames or epsilon > np.random.rand(1)[0]:
                     rand_max = min(self.__available_actions_count, self.__hyperparameters.action_count)
                     action = np.random.randint(0, rand_max)
                 else:

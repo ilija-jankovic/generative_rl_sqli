@@ -20,7 +20,8 @@ with open('parsed-scrape.txt', 'r') as f:
     data = f.read()
 f.close()
 
-found_words = list(filter(lambda s: s != '', data.split(' ')))
+#found_words = list(filter(lambda s: s != '', data.split(' ')))
+found_words = []
 
 with open('sql_list.txt', 'r') as f:
     data = f.read()
@@ -60,9 +61,6 @@ def __perform_action(action_index: int):
                 state_index = i + j
                 if(state_index >= len(state)):
                     break
-                
-                if(len(action[j]) != 1):
-                    print(action)
 
                 state[state_index] = ord(action[j])
             return state, 0, False
@@ -70,7 +68,6 @@ def __perform_action(action_index: int):
         return state, -1, False
 
     payload = __get_payload()
-    print(payload)
     res = requests.post(url, data={
         'email': payload
     })
@@ -84,19 +81,23 @@ def __perform_action(action_index: int):
     for token in unique_tokens:
         if(token not in actions):
             actions.append(token)
+            print(token)
             reward += 1
 
-    dqn.add_to_available_actions_count(reward)
+    if(reward > 0):
+        print('\nPayload: ' + payload)
+
+    #dqn.add_to_available_actions_count(reward)
 
     state = dqn.create_empty_state()
     return state, reward, True
 
 dqn = DQN(
     RLHyperparametersModel(
-        gamma=0.98,
-        learning_rate=0.01,
+        gamma=0.99,
+        learning_rate=0.001,
         batch_size=1,
-        training_episodes=900,
+        training_episodes=5000,
         test_episodes=100,
         max_steps_per_episode=100,
         feature_count=10000,
@@ -105,7 +106,8 @@ dqn = DQN(
     EpsilonModel(
         start=1.0,
         min=0.05,
-        max=1.0
+        max=1.0,
+        num_random_frames=2000
     ),
     available_actions_count=len(actions),
     perform_action_callback=__perform_action

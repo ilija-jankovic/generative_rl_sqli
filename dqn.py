@@ -2,15 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
-import pandas as pd
-import json
-import sys
-from enum import Enum
-import time
-import hashlib
-import matplotlib.pyplot as plt
 from collections import deque
-from typing import Callable
+from typing import Callable, Tuple
 
 from models.epsilon_model import EpsilonModel
 from models.rl_hyperparameters_model import RLHyperparametersModel
@@ -25,14 +18,14 @@ class DQN:
     # Number of valid actions starting from index 0.
     __available_actions_count: int
 
-    __perform_action_callback: Callable[[int], (np.ndarray, float, bool)]
+    __perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
 
     def __init__(
             self,
             hyperparameters: RLHyperparametersModel,
             epsilon_config: EpsilonModel,
             available_actions_count: int,
-            perform_action_callback: Callable[[int], (np.ndarray, float, bool)]
+            perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
         ):
         self.__hyperparameters = hyperparameters
         self.__epsilon_config = epsilon_config
@@ -85,6 +78,8 @@ class DQN:
         running_reward = 0
         episode_count = 0
         frame_count = 0
+
+        epsilon = 0
         # Number of frames to take random action and observe output
         epsilon_random_frames = 500
         # Number of frames for exploration
@@ -103,7 +98,7 @@ class DQN:
 
 
         while True:  # Run until solved
-            state = self.__create_empty_state()
+            state = self.create_empty_state()
             episode_reward = 0
 
             for _ in range(1, self.__hyperparameters.max_steps_per_episode):
@@ -121,11 +116,7 @@ class DQN:
                     action_probs = model(state.reshape(1, self.__hyperparameters.feature_count, 1), training=False)
 
                     # Mask all unavailable actions.
-                    action_probs = action_probs[0]
-                    masked_probs = np.array(
-                        [float('-inf') if i >= self.__available_actions_count \
-                            else action_probs[i] for i in range(len(self.__hyperparameters.action_count))],
-                        dtype='float32')
+                    masked_probs = action_probs[:self.__available_actions_count][0]
 
                     # Take the best action.
                     action = tf.argmax(masked_probs).numpy()

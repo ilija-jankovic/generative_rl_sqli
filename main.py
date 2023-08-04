@@ -75,7 +75,6 @@ def __perform_termination_action():
     global state
 
     payload = __get_payload()
-    print(payload)
     res = requests.post(url, data={
         'email': payload
     })
@@ -163,13 +162,10 @@ def __perform_mutation_action(action: str):
 
         return state, 0, False
     
-    payload = ''
-
     # Append character(s) to the state if the state is not
     # completely filled (0.0 represents an empty character slot).
     for i in range(len(state)):
         if(state[i] != 0.0):
-            payload += chr(int(state[i]))
             continue
 
         for j in range(len(action)):
@@ -179,8 +175,7 @@ def __perform_mutation_action(action: str):
 
             state[state_index] = ord(action[j])
 
-        reward = -payload.count(action)
-        return state, reward, False
+        return state, 0, False
 
     # Return a negative reward if the state is completely filled, as
     # the action has not achieved anything.

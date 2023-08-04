@@ -11,11 +11,10 @@ from models.rl_hyperparameters_model import RLHyperparametersModel
 # and https://github.com/ilija-jankovic/sqli_rl/blob/main/sqli_rl.ipynb)
 class DQN:
 
+    available_actions_range: range
+
     __hyperparameters: RLHyperparametersModel
     __epsilon_config: EpsilonModel
-
-    # Number of valid actions starting from index 0.
-    __available_actions_count: int
 
     __perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
 
@@ -23,12 +22,12 @@ class DQN:
             self,
             hyperparameters: RLHyperparametersModel,
             epsilon_config: EpsilonModel,
-            available_actions_count: int,
+            available_actions_range: range,
             perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
         ):
+        self.available_actions_range = available_actions_range
         self.__hyperparameters = hyperparameters
         self.__epsilon_config = epsilon_config
-        self.__available_actions_count = available_actions_count
         self.__perform_action_callback = perform_action_callback
 
     # TODO: Add batch size.
@@ -55,9 +54,6 @@ class DQN:
         model_target.summary()
 
         return model, model_target
-    
-    def add_to_available_actions_count(self, count: int):
-        self.__available_actions_count += count
     
     def create_empty_state(self):
         return np.array([0] * self.__hyperparameters.feature_count, dtype='float32')
@@ -105,15 +101,16 @@ class DQN:
 
                 # Use epsilon-greedy for exploration
                 if frame_count < self.__epsilon_config.num_random_frames or epsilon > np.random.rand(1)[0]:
-                    rand_max = min(self.__available_actions_count, self.__hyperparameters.action_count)
-                    action = np.random.randint(0, rand_max)
+                    action = np.random.randint(
+                        self.available_actions_range.start, self.available_actions_range.stop)
                 else:
                     # Predict action Q-values
                     # From environment state
-                    action_probs = model(state.reshape(1, self.__hyperparameters.feature_count, 1), training=False)
+                    action_probs = model(state.reshape(1, self.__hyperparameters.feature_count, 1), training=False)[0].numpy()
 
                     # Mask all unavailable actions.
-                    masked_probs = action_probs[:self.__available_actions_count][0]
+                    masked_probs = [action_probs[i] if i in self.available_actions_range 
+                                    else float('-inf') for i in range(len(action_probs))]
 
                     # Take the best action.
                     action = tf.argmax(masked_probs).numpy()

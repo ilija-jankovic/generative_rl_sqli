@@ -35,9 +35,9 @@ class DQN:
         return keras.Sequential([
             layers.Input(shape=(self.__hyperparameters.feature_count,1,)),
             layers.Flatten(),
-            layers.Dense(256, activation='relu'),
-            layers.Dense(256, activation='relu'),
-            layers.Dense(256, activation='relu'),
+            layers.Dense(1024, activation='relu'),
+            layers.Dense(1024, activation='relu'),
+            layers.Dense(1024, activation='relu'),
             layers.Dense(self.__hyperparameters.action_count, activation='softmax')
         ])
 

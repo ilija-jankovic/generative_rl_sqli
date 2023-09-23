@@ -6,13 +6,27 @@ from .environment import Environment
 
 class PreTrainingEnvironment(Environment):
     __injections: List[str]
+    __columns: List[str]
+    __tables: List[str]
 
     def __load_injections(self):
         dirname = os.path.dirname(__file__)
+
         parsed_injections_path = os.path.join(dirname, '../../parsed_injections.txt')
+        columns_path = os.path.join(dirname, '../../columns.txt')
+        tables_path = os.path.join(dirname, '../../tables.txt')
 
         with open(parsed_injections_path, 'r') as f:
             self.__injections = f.read().split('\n')
+        f.close()
+
+        with open(columns_path, 'r') as f:
+            self.__columns = f.read().split('\n')
+        f.close()
+        
+        with open(tables_path, 'r') as f:
+            self.__tables = f.read().split('\n')
+        f.close()
 
     def __init__(self, dqn: DQN):
         super().__init__(dqn)

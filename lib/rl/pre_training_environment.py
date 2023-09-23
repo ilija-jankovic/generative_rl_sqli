@@ -1,11 +1,8 @@
 import numpy as np
+import os
 from typing import List
-
 from .dqn import DQN
 from .environment import Environment
-
-import os
-
 
 class PreTrainingEnvironment(Environment):
     __injections: List[str]

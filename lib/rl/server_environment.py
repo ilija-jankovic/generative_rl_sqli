@@ -1,9 +1,9 @@
+import numpy as np
+import re
 from typing import List
 from sqltree import sqltree
 from .dqn import DQN
 from .environment import Environment
-import numpy as np
-import re
 from requests import Response
 from typing import Callable
 

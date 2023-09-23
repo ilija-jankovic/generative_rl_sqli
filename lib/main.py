@@ -1,3 +1,5 @@
+import numpy as np
+import requests
 from rl.pre_training_environment import PreTrainingEnvironment
 from rl.dqn import DQN
 from enums.special_action import SpecialAction
@@ -5,8 +7,6 @@ from rl.environment import Environment
 from rl.server_environment import ServerEnvironment
 from rl.models.epsilon_model import EpsilonModel
 from rl.models.rl_hyperparameters_model import RLHyperparametersModel
-import numpy as np
-import requests
 
 feature_count = 150
 
@@ -106,8 +106,8 @@ def __perform_action(action_index: int):
     elif isinstance(environment, ServerEnvironment):
         return __perform_server_action(action, environment)
     else:
-        raise Exception(f'Could not determine environment type. ' \
-                        'Found {environment}.')
+        raise Exception('Could not determine environment type. ' \
+                        f'Found {environment}.')
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(

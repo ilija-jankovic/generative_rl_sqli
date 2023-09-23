@@ -1,3 +1,4 @@
+from rl.pre_training_environment import PreTrainingEnvironment
 from rl.dqn import DQN
 from enums.special_action import SpecialAction
 from rl.environment import Environment
@@ -45,29 +46,48 @@ injected_payloads = []
 terminated = False
 state: np.ndarray
 
+environment: Environment
+
 def __toggle_termination_mask(set_mask: bool):
     if(set_mask):
         dqn.available_actions_range = range(len(terminating_actions), len(actions))
     else:
         dqn.available_actions_range = range(len(actions))
 
-def __perform_server_action(action_index: int, server_env: ServerEnvironment):
-    global state, actions
+# Must be called before running DQN.
+def __toggle_environment(is_pre_training: bool):
+    global environment
 
-    action = actions[action_index]
+    environment = PreTrainingEnvironment(dqn) \
+        if is_pre_training \
+        else ServerEnvironment(dqn, lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
+        #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
+        #    'email': payload
+        #})
+
+    __toggle_termination_mask(is_pre_training)
+
+
+def __perform_pre_training_action(action: str, pre_training_env: PreTrainingEnvironment):
+    global state
+
+    res = pre_training_env.perform_action(action, state)
+    state = res[0]
+    return res
+
+def __perform_server_action(action: str, server_env: ServerEnvironment):
+    global state
 
     if(action == SpecialAction.TERMINATE):
         # Update the mask to account for potentially appended actions
         # and to prevent immediate termination action of an empty state.
         __toggle_termination_mask(True)
-        res = server_env.perform_termination_action(state)
         
+        res = server_env.perform_termination_action(state)
         state = res[0]
-
         return res
     
     res = server_env.perform_mutation_action(action, state)
-
     state = res[0]
 
     payload = Environment.get_payload(state)
@@ -75,6 +95,19 @@ def __perform_server_action(action_index: int, server_env: ServerEnvironment):
     __toggle_termination_mask(attempted)
 
     return res
+
+def __perform_action(action_index: int):
+    global actions
+
+    action = actions[action_index]
+
+    if isinstance(environment, PreTrainingEnvironment):
+        return __perform_pre_training_action(action, environment)
+    elif isinstance(environment, ServerEnvironment):
+        return __perform_server_action(action, environment)
+    else:
+        raise Exception(f'Could not determine environment type. ' \
+                        'Found {environment}.')
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(
@@ -95,15 +128,12 @@ dqn = DQN(
         greedy_frame_count=1000000
     ),
     available_actions_range = range(len(actions)),
-    perform_action_callback = lambda action_index: __perform_server_action(action_index, server_env)
+    perform_action_callback = __perform_action
 )
 
-state = dqn.create_empty_state()
+__toggle_environment(is_pre_training=True)
 
-server_env = ServerEnvironment(dqn, lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
-#res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
-#    'email': payload
-#})
+state = dqn.create_empty_state()
 
 model, model_target = dqn.create_model()
 dqn.run(model, model_target)

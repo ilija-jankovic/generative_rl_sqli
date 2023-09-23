@@ -57,26 +57,9 @@ class ServerEnvironment(Environment):
         state = self.dqn.create_empty_state()
 
         return state, reward, True
-    
 
     def perform_mutation_action(self, action: str, state: np.ndarray):
-        # Append character(s) to the state if the state is not
-        # completely filled (0.0 represents an empty character slot).
-        for i in range(len(state)):
-            if(state[i] != 0.0):
-                continue
-
-            for j in range(len(action)):
-                state_index = i + j
-                if(state_index >= len(state)):
-                    break
-
-                state[state_index] = ord(action[j])
-            
-            break
-        
-        return state, 0, False
+        return self._mutate_state(state, action), 0, False
     
-
     def payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads

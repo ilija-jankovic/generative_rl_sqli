@@ -66,6 +66,9 @@ class PreTrainingEnvironment(Environment):
     
         new_state = self._mutate_state(state, action_index)
 
+        # TODO: Sort injections by ascending order of size and reward
+        # based on the proportion of the injection matching.
+
         longer_than_all_injections = True
         for encoded_injection in self.__encoded_injections:
             if(slot_index >= len(encoded_injection) - 1):

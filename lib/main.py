@@ -31,14 +31,18 @@ f.close()
 
 columns = list(map(lambda column: column + ' ', data.split('\n')))
 
-tables_and_columns = tables + columns
-
-mutation_actions = sql_list + numbers + tables_and_columns
+# sql_list must account for the leading segment of the action space.
+#
+# This is due to the pre-processing of existing SQL injections for
+# pretraining.
+mutation_actions = sql_list + numbers + tables + columns
 
 # Half of action space terminates to prefer smaller queries, which implies
 # more payloads executed.
 terminating_actions = [SpecialAction.TERMINATE for _ in range(len(mutation_actions))]
 
+# The termination actions must be in the suffix of the actions space,
+# as to correctly set the action mask with __toggle_termination_mask.
 actions = mutation_actions + terminating_actions
 
 injected_payloads = []

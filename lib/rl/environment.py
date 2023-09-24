@@ -1,32 +1,39 @@
 import numpy as np
+from abc import ABC
+from typing import List
 from .dqn import DQN
 
-class Environment():
+class Environment(ABC):
+    actions: List[str]
     dqn: DQN
 
-    def __init__(self, dqn: DQN):
+    def __init__(self, dqn: DQN, actions: List[str]):
         self.dqn = dqn
+        self.actions = actions
 
-    @staticmethod
-    def get_payload(state: np.ndarray):
-        chrs = state.tolist()
-        chrs = [chr(int(i)) for i in chrs if i != 0.0]
-        return ''.join(chrs)
-
-    def _mutate_state(self, state: np.ndarray, action: str):
-        # Append character(s) to the state if the state is not
-        # completely filled (0.0 represents an empty character slot).
+    def _get_available_action_slot_index(self, state: np.ndarray):
+        '''
+        Returns `-1` if no empty action slot remaining.
+        '''
         for i in range(len(state)):
-            if(state[i] != 0.0):
-                continue
+            if state[i] == -1:
+                return i
+        return -1
 
-            for j in range(len(action)):
-                state_index = i + j
-                if(state_index >= len(state)):
-                    break
+    def get_payload(self, state: np.ndarray):
+        payload = ''
 
-                state[state_index] = ord(action[j])
-            
-            break
+        slot_index = self._get_available_action_slot_index(state)
+        end = len(state) if slot_index == -1 else slot_index
+        for i in range(end):
+            payload += self.actions[int(state[i])]
+        
+        return payload
 
+    def _mutate_state(self, state: np.ndarray, action_index: int):
+        slot_index = self._get_available_action_slot_index(state)
+        if slot_index == -1:
+            return state
+
+        state[slot_index] = action_index
         return state

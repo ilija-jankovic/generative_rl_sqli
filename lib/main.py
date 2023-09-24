@@ -39,7 +39,7 @@ mutation_actions = sql_list + numbers + tables_and_columns
 # more payloads executed.
 terminating_actions = [SpecialAction.TERMINATE for _ in range(len(mutation_actions))]
 
-actions = terminating_actions + mutation_actions
+actions = mutation_actions + terminating_actions
 
 injected_payloads = []
 
@@ -50,17 +50,19 @@ environment: Environment
 
 def __toggle_termination_mask(set_mask: bool):
     if(set_mask):
-        dqn.available_actions_range = range(len(terminating_actions), len(actions))
+        dqn.available_actions_range = range(len(mutation_actions))
     else:
         dqn.available_actions_range = range(len(actions))
 
-# Must be called before running DQN.
 def __toggle_environment(is_pre_training: bool):
+    '''
+    Must be called before running DQN.
+    '''
     global environment
 
-    environment = PreTrainingEnvironment(dqn) \
+    environment = PreTrainingEnvironment(dqn, actions) \
         if is_pre_training \
-        else ServerEnvironment(dqn, lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
+        else ServerEnvironment(dqn, actions, lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
         #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
         #    'email': payload
         #})
@@ -68,15 +70,17 @@ def __toggle_environment(is_pre_training: bool):
     __toggle_termination_mask(is_pre_training)
 
 
-def __perform_pre_training_action(action: str, pre_training_env: PreTrainingEnvironment):
+def __perform_pre_training_action(action_index: int, pre_training_env: PreTrainingEnvironment):
     global state
 
-    res = pre_training_env.perform_action(action, state)
+    res = pre_training_env.perform_action(action_index, state)
     state = res[0]
     return res
 
-def __perform_server_action(action: str, server_env: ServerEnvironment):
+def __perform_server_action(action_index: int, server_env: ServerEnvironment):
     global state
+
+    action = actions[action_index]
 
     if(action == SpecialAction.TERMINATE):
         # Update the mask to account for potentially appended actions
@@ -87,24 +91,20 @@ def __perform_server_action(action: str, server_env: ServerEnvironment):
         state = res[0]
         return res
     
-    res = server_env.perform_mutation_action(action, state)
+    res = server_env.perform_mutation_action(action_index, state)
     state = res[0]
 
-    payload = Environment.get_payload(state)
+    payload = server_env.get_payload(state)
     attempted = server_env.payload_attempted(payload)
     __toggle_termination_mask(attempted)
 
     return res
 
 def __perform_action(action_index: int):
-    global actions
-
-    action = actions[action_index]
-
     if isinstance(environment, PreTrainingEnvironment):
-        return __perform_pre_training_action(action, environment)
+        return __perform_pre_training_action(action_index, environment)
     elif isinstance(environment, ServerEnvironment):
-        return __perform_server_action(action, environment)
+        return __perform_server_action(action_index, environment)
     else:
         raise Exception('Could not determine environment type. ' \
                         f'Found {environment}.')

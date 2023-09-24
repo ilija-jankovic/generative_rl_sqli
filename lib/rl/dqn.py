@@ -54,7 +54,7 @@ class DQN:
         return model, model_target
     
     def create_empty_state(self):
-        return np.array([0] * self.__hyperparameters.feature_count, dtype='float32')
+        return np.array([-1] * self.__hyperparameters.feature_count, dtype='float32')
     
     def run(self, model: keras.Sequential, model_target: keras.Sequential):
         # In the Deepmind paper they use RMSProp however then Adam optimizer

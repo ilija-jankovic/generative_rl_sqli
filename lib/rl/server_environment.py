@@ -13,8 +13,9 @@ class ServerEnvironment(Environment):
     __found_tokens: List[str] = []
     __attempted_payloads: List[str] = []
 
-    def __init__(self, dqn: DQN, send_request_callback: Callable[[str], Response]):
-        super().__init__(dqn)
+    def __init__(self, dqn: DQN, actions: List[str],
+                 send_request_callback: Callable[[str], Response]):
+        super().__init__(dqn, actions)
         self.send_request_callback = send_request_callback
         
     def __is_valid_sql_payload(self, state: np.ndarray):
@@ -58,8 +59,11 @@ class ServerEnvironment(Environment):
 
         return state, reward, True
 
-    def perform_mutation_action(self, action: str, state: np.ndarray):
-        return self._mutate_state(state, action), 0, False
+    def perform_mutation_action(self, action_index: int, state: np.ndarray):
+        if self._get_available_action_slot_index(state) == -1:
+            return state, -1, True
+        
+        return self._mutate_state(state, action_index), 0, False
     
     def payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads

@@ -40,6 +40,24 @@ class PreTrainingEnvironment(Environment):
     def __init__(self, dqn: DQN, actions: List[str]):
         super().__init__(dqn, actions)
         self.__load_injections()
+
+    def __is_state_valid_injection(self, state: np.ndarray, encoded_injection: List[int]):
+        for i in range(len(state)):
+            action_index = int(state[i])
+            if(action_index == -1):
+                return True
+            
+            expected_action_index = encoded_injection[i]
+            if action_index == expected_action_index:
+                continue
+            
+            if expected_action_index != -1:
+                return False
+            
+            # If the expected index is -1, match any table or column name.
+            decoded_action = self.actions[action_index]
+            if decoded_action in self.__columns or decoded_action in self.__tables:
+                continue
     
     def perform_action(self, action_index: int, state: np.ndarray):
         slot_index = self._get_available_action_slot_index(state)
@@ -55,17 +73,7 @@ class PreTrainingEnvironment(Environment):
 
             longer_than_all_injections = False
 
-            expected_action_index = encoded_injection[slot_index]
-            if action_index == expected_action_index:
-                print(self.get_payload(new_state))
-                return new_state, 1, False
-            
-            if expected_action_index != -1:
-                continue
-            
-            # If the expected index is -1, match any table or column name.
-            decoded_action = self.actions[action_index]
-            if decoded_action in self.__columns or decoded_action in self.__tables:
+            if self.__is_state_valid_injection(new_state, encoded_injection):
                 print(self.get_payload(new_state))
                 return new_state, 1, False
 

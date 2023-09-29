@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
+from tensorflow.python.keras.layers.recurrent import LSTM
 from typing import Callable, Tuple
 from .models.epsilon_model import EpsilonModel
 from .models.rl_hyperparameters_model import RLHyperparametersModel
@@ -28,30 +29,53 @@ class DQN:
         self.__epsilon_config = epsilon_config
         self.__perform_action_callback = perform_action_callback
 
-    # TODO: Add batch size.
-    def __create_q_model(self):
-        return keras.Sequential([
-            layers.Input(shape=(self.__hyperparameters.feature_count,1,)),
+    def __create_q_model(self, features: int, actions: int, batch_size: int):
+        model = keras.Sequential([
+            LSTM(10, activation='relu', batch_input_shape=(batch_size, actions, features),
+                 return_sequences=True, stateful=True),
             layers.Flatten(),
-            layers.Dense(1024, activation='relu'),
-            layers.Dense(1024, activation='relu'),
-            layers.Dense(1024, activation='relu'),
-            layers.Dense(self.__hyperparameters.action_count, activation='softmax')
+            layers.Dense(actions, activation='softmax')
         ])
+        model.compile(optimizer='adam', loss='huber')
+        model.build(input_shape=(batch_size, features, 1))
+
+        return model
 
     def create_model(self):
+        features = self.__hyperparameters.feature_count
+        actions = self.__hyperparameters.action_count
+        batch_size = self.__hyperparameters.batch_size
+
         # The first model makes the predictions for Q-values which are used to
         # make an action.
-        model = self.__create_q_model()
-        model.compile(optimizer='adam', loss='huber')
+        model = self.__create_q_model(features, actions, batch_size)
+        
         # Build a target model for the prediction of future rewards.
         # The weights of a target model get updated every 10000 steps thus when the
         # loss between the Q-values is calculated the target Q-value is stable.
-        model_target = self.__create_q_model()
-        model_target.compile(optimizer='adam', loss='huber')
-        model_target.summary()
+        model_target = self.__create_q_model(features, actions, batch_size)
 
         return model, model_target
+    
+    # Workaround for using LSTMs with only 1 row after training with a batch
+    # size greater than 1.
+    #
+    # Needed as LSTMs must have their batch sizes defined upfront, i.e., they
+    # cannot have variable batch sizes like other layers.
+    # 
+    # Adapated from solution by Jason Brownlee from
+    # https://machinelearningmastery.com/use-different-batch-sizes-training-predicting-python-keras/.
+    def __create_one_step_model(self, model: keras.Sequential):
+        features = self.__hyperparameters.feature_count
+        actions = self.__hyperparameters.action_count
+
+        new_model = self.__create_q_model(features, actions, batch_size=1)
+
+        # Copy weights.
+        old_weights = model.get_weights()
+        new_model.set_weights(old_weights)
+
+        return new_model
     
     def create_empty_state(self):
         return np.array([-1] * self.__hyperparameters.feature_count, dtype='float32')
@@ -100,7 +124,11 @@ class DQN:
                 else:
                     # Predict action Q-values
                     # From environment state
-                    action_probs = model(state.reshape(1, self.__hyperparameters.feature_count, 1), training=False)[0].numpy()
+                    state_tensor = tf.convert_to_tensor(state)
+                    state_tensor = tf.expand_dims(state_tensor, 0)
+
+                    one_step_model = self.__create_one_step_model(model)
+                    action_probs = one_step_model(state_tensor, training=False)[0]
 
                     # Mask all unavailable actions.
                     masked_probs = [action_probs[i] if i in self.available_actions_range 
@@ -133,12 +161,11 @@ class DQN:
                 rewards_history.append(reward)
                 state = state_next
 
-                # Update every fourth frame and once batch size is over 32
+                # Update every fourth frame and once batch size is over its defined size
                 if training and frame_count % update_after_actions == 0 and len(done_history) > self.__hyperparameters.batch_size:
 
                     # Get indices of samples for replay buffers
                     indices = np.random.choice(range(len(done_history)), size=self.__hyperparameters.batch_size)
-                    #print(state_history[-2:-1])
 
                     # Using list comprehension to sample from replay buffer
                     state_sample = np.array([state_history[i] for i in indices]) \
@@ -167,7 +194,7 @@ class DQN:
 
                     with tf.GradientTape() as tape:
                         # Train the model on the states and updated Q-values
-                        q_values = model(state_sample)
+                        q_values = model(state_sample, training=True)
 
                         # Apply the masks to the Q-values to get the Q-value for action taken
                         q_action = tf.reduce_sum(tf.multiply(q_values, masks), axis=1)

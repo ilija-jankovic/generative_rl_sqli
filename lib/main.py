@@ -128,8 +128,8 @@ dqn = DQN(
         start=1.0,
         min=0.1,
         max=1.0,
-        random_frame_count=10000,
-        greedy_frame_count=1000000
+        random_frame_count=1000,
+        greedy_frame_count=100000
     ),
     available_actions_range = range(len(actions)),
     perform_action_callback = __perform_action

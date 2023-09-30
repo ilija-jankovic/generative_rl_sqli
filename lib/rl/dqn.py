@@ -161,9 +161,8 @@ class DQN:
 
                 episode_reward += reward
 
-                # If the reward is positive, a context has been solved.
                 # Keep track of this.
-                if reward > 0:
+                if done:
                     # Log details
                     template = 'Running reward: {:.2f}\t Episode {}\t Frame count: {}\t Epsilon: {:.2f}%'
                     print(template.format(running_reward, episode_count + 1, frame_count, epsilon * 100.0))

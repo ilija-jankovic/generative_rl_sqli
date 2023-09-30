@@ -100,6 +100,8 @@ class PreTrainingEnvironment(Environment):
             highest_norm_reward = max(reward, highest_norm_reward)
 
         print(self.get_payload(state))
+        
+        self._record_payload(state)
         state = self.dqn.create_empty_state()
 
         return state, highest_norm_reward, True 

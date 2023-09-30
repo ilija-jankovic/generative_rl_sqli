@@ -97,9 +97,9 @@ def __perform_action(action_index: int, environment: Environment):
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(
-        gamma=0.98,
+        gamma=0.9,
         learning_rate=0.00025,
-        batch_size=64,
+        batch_size=8192,
         training_episodes=1000,
         test_episodes=1000,
         max_steps_per_episode=100,

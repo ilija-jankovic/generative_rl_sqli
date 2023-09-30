@@ -29,14 +29,24 @@ class DQN:
         self.__epsilon_config = epsilon_config
         self.__perform_action_callback = perform_action_callback
 
+    # In the Deepmind paper they use RMSProp however then Adam optimizer
+    # improves training time
+    def __create_optimizer(self):
+        return tf.keras.optimizers.legacy.Adam(learning_rate=self.__hyperparameters.learning_rate, clipnorm=1.0)
+
     def __create_q_model(self, features: int, actions: int, batch_size: int):
         model = keras.Sequential([
-            LSTM(10, activation='relu', batch_input_shape=(batch_size, actions, features),
+            layers.SimpleRNN(512, activation='relu', batch_input_shape=(batch_size, features, 1),
                  return_sequences=True, stateful=True),
+            layers.Dense(features),
+            layers.Dense(1024),
+            layers.Dense(1024),
             layers.Flatten(),
             layers.Dense(actions, activation='softmax')
         ])
-        model.compile(optimizer='adam', loss='huber')
+
+        optimizer = self.__create_optimizer()
+        model.compile(optimizer=optimizer, loss='binary_crossentropy')
         model.build(input_shape=(batch_size, features, 1))
 
         return model
@@ -81,9 +91,7 @@ class DQN:
         return np.array([-1] * self.__hyperparameters.feature_count, dtype='float32')
     
     def run(self, model: keras.Sequential, model_target: keras.Sequential):
-        # In the Deepmind paper they use RMSProp however then Adam optimizer
-        # improves training time
-        optimizer = keras.optimizers.Adam(learning_rate=self.__hyperparameters.learning_rate, clipnorm=1.0)
+        optimizer = self.__create_optimizer()
 
         # Experience replay buffers
         action_history = []
@@ -150,8 +158,8 @@ class DQN:
                 # Keep track of this.
                 if reward > 0:
                     # Log details
-                    template = 'Running reward: {:.2f}\t Episode {}\t Frame count: {}'
-                    print(template.format(running_reward, episode_count + 1, frame_count))
+                    template = 'Running reward: {:.2f}\t Episode {}\t Frame count: {}\t Epsilon: {:.2f}%'
+                    print(template.format(running_reward, episode_count + 1, frame_count, epsilon * 100.0))
 
                 # Save actions and states in replay buffer
                 action_history.append(action)

@@ -115,7 +115,7 @@ def __perform_action(action_index: int):
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(
-        gamma=0.9,
+        gamma=0.98,
         learning_rate=0.00025,
         batch_size=64,
         training_episodes=100000,
@@ -125,11 +125,11 @@ dqn = DQN(
         action_count=len(actions)
     ),
     epsilon_config = EpsilonModel(
-        start=1.0,
+        start=0.5,
         min=0.1,
         max=1.0,
-        random_frame_count=1000,
-        greedy_frame_count=100000
+        random_frame_count=100,
+        greedy_frame_count=10000
     ),
     available_actions_range = range(len(actions)),
     perform_action_callback = __perform_action

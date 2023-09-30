@@ -30,7 +30,11 @@ class DQN:
         self.__perform_action_callback = perform_action_callback
 
     # In the Deepmind paper they use RMSProp however then Adam optimizer
-    # improves training time
+    # improves training time.
+    #
+    # NOTE: Uses legacy Adam optimizer for running on M1/M2 devices.
+    #
+    # TODO: Automatically use up-to-date Adam optimizer if no M1/M2 detected.
     def __create_optimizer(self):
         return tf.keras.optimizers.legacy.Adam(learning_rate=self.__hyperparameters.learning_rate, clipnorm=1.0)
 

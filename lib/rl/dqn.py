@@ -164,8 +164,8 @@ class DQN:
                 # Keep track of this.
                 if done:
                     # Log details
-                    template = 'Running reward: {:.2f}\t Episode {}\t Frame count: {}\t Epsilon: {:.2f}%'
-                    print(template.format(running_reward, episode_count + 1, frame_count, epsilon * 100.0))
+                    template = 'Running reward: {:.2f}\t Reward: {:.2f}\t Episode {}\t Frame count: {}\t Epsilon: {:.2f}%'
+                    print(template.format(running_reward, reward, episode_count + 1, frame_count, epsilon * 100.0))
 
                 # Save actions and states in replay buffer
                 action_history.append(action)

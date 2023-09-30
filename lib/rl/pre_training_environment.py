@@ -79,7 +79,7 @@ class PreTrainingEnvironment(Environment):
 
             for state_index in range(len(encoded_injection)):
                 action_index = int(state[state_index])
-                injection_action_index = int(state[state_index])
+                injection_action_index = int(encoded_injection[state_index])
                 
                 action_valid = self.__is_action_valid(action_index, injection_action_index)
                 reward += 1 if action_valid else -1

@@ -8,7 +8,7 @@ from rl.server_environment import ServerEnvironment
 from rl.models.epsilon_model import EpsilonModel
 from rl.models.rl_hyperparameters_model import RLHyperparametersModel
 
-feature_count = 150
+feature_count = 20
 
 visible_chars = [chr(i) for i in range(32, 127)]
 numbers = [str(i) for i in range(0, 10)]
@@ -97,11 +97,11 @@ def __perform_action(action_index: int, environment: Environment):
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(
-        gamma=0.9,
-        learning_rate=0.00025,
-        batch_size=8192,
-        training_episodes=1000,
-        test_episodes=1000,
+        gamma=0.999,
+        learning_rate=0.001,
+        batch_size=2048,
+        training_episodes=30000,
+        test_episodes=10000,
         max_steps_per_episode=100,
         feature_count=feature_count,
         action_count=len(actions)
@@ -110,8 +110,8 @@ dqn = DQN(
         start=1.0,
         min=0.1,
         max=1.0,
-        random_frame_count=100,
-        greedy_frame_count=1000
+        random_frame_count=1000,
+        greedy_frame_count=10000
     ),
     available_actions_range = range(len(actions)),
     perform_action_callback = lambda action_index: __perform_action(action_index, environment),

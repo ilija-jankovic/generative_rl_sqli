@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
-from tensorflow.python.keras.layers.recurrent import LSTM
 from typing import Callable, Tuple
 from .models.epsilon_model import EpsilonModel
 from .models.rl_hyperparameters_model import RLHyperparametersModel
@@ -43,17 +42,15 @@ class DQN:
 
     def __create_q_model(self, features: int, actions: int, batch_size: int):
         model = keras.Sequential([
-            layers.SimpleRNN(512, activation='relu', batch_input_shape=(batch_size, features, 1),
+            layers.SimpleRNN(32, activation='relu', batch_input_shape=(batch_size, features, 1),
                  return_sequences=True, stateful=True),
-            layers.Dense(features),
-            layers.Dense(1024),
-            layers.Dense(1024),
-            layers.Flatten(),
+            layers.SimpleRNN(32, activation='tanh', return_sequences=True, stateful=True),
+            layers.SimpleRNN(32, activation='tanh'),
             layers.Dense(actions, activation='softmax')
         ])
 
         optimizer = self.__create_optimizer()
-        model.compile(optimizer=optimizer, loss='binary_crossentropy')
+        model.compile(optimizer=optimizer, loss='huber')
         model.build(input_shape=(batch_size, features, 1))
 
         return model

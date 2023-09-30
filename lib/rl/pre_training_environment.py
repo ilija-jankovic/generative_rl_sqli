@@ -5,7 +5,9 @@ from .dqn import DQN
 from .environment import Environment
 
 class PreTrainingEnvironment(Environment):
+    # Expected to be sorted from smallest to largest.
     __encoded_injections: List[List[int]]
+
     __sql_syntax: List[str]
     __columns: List[str]
     __tables: List[str]
@@ -25,8 +27,9 @@ class PreTrainingEnvironment(Environment):
                 self.__encoded_injections[-1].append(int(token))
 
     def __remove_oversized_injections(self, state_length: int):
-        self.__encoded_injections = list(filter(lambda injection: len(injection) <= self.__state_length, self.__encoded_injections))
-
+        self.__encoded_injections = list(filter(
+            lambda injection:len(injection) <= self.__state_length, self.__encoded_injections))
+    
     def __load_injections(self, state_length: int):
         dirname = os.path.dirname(__file__)
 
@@ -37,6 +40,7 @@ class PreTrainingEnvironment(Environment):
 
         with open(encoded_injections_path, 'r') as f:
             data = f.read()
+
             self.__parse_encoded_tokens(data)
             self.__remove_oversized_injections(state_length)
         f.close()
@@ -72,7 +76,8 @@ class PreTrainingEnvironment(Environment):
         # TODO: Sort injections by ascending order of size and reward
         # based on the proportion of the injection matching.
 
-        highest_reward = 0
+        # Initialise to lowest possible normalised reward.
+        highest_norm_reward = -1.0
 
         for encoded_injection in self.__encoded_injections:
             reward = 0
@@ -84,9 +89,10 @@ class PreTrainingEnvironment(Environment):
                 action_valid = self.__is_action_valid(action_index, injection_action_index)
                 reward += 1 if action_valid else -1
             
-            highest_reward = max(reward, highest_reward)
+            reward /= len(encoded_injection)
+            highest_norm_reward = max(reward, highest_norm_reward)
 
         print(self.get_payload(state))
         state = self.dqn.create_empty_state()
 
-        return state, highest_reward, True 
+        return state, highest_norm_reward, True 

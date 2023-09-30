@@ -10,14 +10,24 @@ class PreTrainingEnvironment(Environment):
     __columns: List[str]
     __tables: List[str]
 
+    def __init__(self, dqn: DQN, actions: List[str], state_length: int):
+        super().__init__(dqn, actions)
+        self.__state_length = state_length
+        self.__load_injections(state_length)
+
     def __parse_encoded_tokens(self, data: str):
         self.__encoded_injections = []
+
         for payload in data.split('\n'):
             self.__encoded_injections.append([])
+
             for token in payload.split(','):
                 self.__encoded_injections[-1].append(int(token))
 
-    def __load_injections(self):
+    def __remove_oversized_injections(self, state_length: int):
+        self.__encoded_injections = list(filter(lambda injection: len(injection) <= self.__state_length, self.__encoded_injections))
+
+    def __load_injections(self, state_length: int):
         dirname = os.path.dirname(__file__)
 
         encoded_injections_path = os.path.join(dirname, '../../parsed_injections_indexed.txt')
@@ -28,6 +38,7 @@ class PreTrainingEnvironment(Environment):
         with open(encoded_injections_path, 'r') as f:
             data = f.read()
             self.__parse_encoded_tokens(data)
+            self.__remove_oversized_injections(state_length)
         f.close()
 
         with open(sql_syntax_path, 'r') as f:
@@ -42,11 +53,10 @@ class PreTrainingEnvironment(Environment):
             self.__tables = f.read().split('\n')
         f.close()
 
-    def __init__(self, dqn: DQN, actions: List[str]):
-        super().__init__(dqn, actions)
-        self.__load_injections()
-
     def __is_action_valid(self, action_index: int, injection_action_index: int):
+        if action_index == -1:
+            return False
+        
         # If the expected index is -1, match any non-SQL syntax (such as column/table names,
         # or numbers/ASCII characters).
         if injection_action_index == -1:
@@ -69,13 +79,10 @@ class PreTrainingEnvironment(Environment):
 
             for state_index in range(len(encoded_injection)):
                 action_index = int(state[state_index])
-                if action_index == -1:
-                    break
-                
                 injection_action_index = int(state[state_index])
                 
-                if(self.__is_action_valid(action_index, injection_action_index)):
-                    reward += 1
+                action_valid = self.__is_action_valid(action_index, injection_action_index)
+                reward += 1 if action_valid else -1
             
             highest_reward = max(reward, highest_reward)
 

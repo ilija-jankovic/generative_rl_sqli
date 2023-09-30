@@ -61,10 +61,12 @@ def __toggle_termination_mask(set_mask: bool):
 def __toggle_environment(is_pre_training: bool):
     '''
     Must be called before running DQN.
+
+    `state` must be defined before calling this function.
     '''
     global environment
 
-    environment = PreTrainingEnvironment(dqn, actions) \
+    environment = PreTrainingEnvironment(dqn, actions, len(state)) \
         if is_pre_training \
         else ServerEnvironment(dqn, actions, lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
         #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
@@ -116,9 +118,9 @@ dqn = DQN(
     pre_training_completed_callback = lambda: __toggle_environment(is_pre_training=False)
 )
 
-__toggle_environment(is_pre_training=True)
-
 state = dqn.create_empty_state()
+
+__toggle_environment(is_pre_training=True)
 
 model, model_target = dqn.create_model()
 dqn.run(model, model_target)

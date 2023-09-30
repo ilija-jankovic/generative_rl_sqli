@@ -57,8 +57,8 @@ class PreTrainingEnvironment(Environment):
             self.__tables = f.read().split('\n')
         f.close()
 
-    def __is_action_valid(self, action_index: int, injection_action_index: int):
-        if action_index == -1:
+    def __is_action_valid(self, action_index: int, injection_action_index):
+        if action_index == -1 or injection_action_index == None:
             return False
         
         # If the expected index is -1, match any non-SQL syntax (such as column/table names,
@@ -81,13 +81,17 @@ class PreTrainingEnvironment(Environment):
         highest_norm_reward = -1.0
 
         for encoded_injection in self.__encoded_injections:
-            comparison_count = max(len(encoded_injection), filled_state_length)
+            injection_length = len(encoded_injection)
+            comparison_count = max(injection_length, filled_state_length)
 
             reward = 0
 
             for state_index in range(comparison_count):
                 action_index = int(state[state_index])
-                injection_action_index = int(encoded_injection[state_index])
+
+                injection_action_index = None if \
+                    state_index >= injection_length else \
+                        int(encoded_injection[state_index])
                 
                 action_valid = self.__is_action_valid(action_index, injection_action_index)
                 reward += 1 if action_valid else -1

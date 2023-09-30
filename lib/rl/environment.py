@@ -22,6 +22,10 @@ class Environment(ABC):
                 return i
             
         return -1
+    
+    def _get_filled_state_length(self, state: np.ndarray):
+        slot_index = self._get_available_action_slot_index(state)
+        return len(state) if slot_index == -1 else slot_index + 1
 
     def get_payload(self, state: np.ndarray):
         payload = ''

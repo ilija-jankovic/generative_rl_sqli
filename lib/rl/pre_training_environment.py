@@ -70,7 +70,8 @@ class PreTrainingEnvironment(Environment):
         return action_index == injection_action_index
     
     def perform_termination_action(self, state: np.ndarray):
-        if self._get_available_action_slot_index(state) == -1:
+        filled_state_length = self._get_filled_state_length(state)
+        if filled_state_length == len(state):
             return self.dqn.create_empty_state(), 0, True
 
         # TODO: Sort injections by ascending order of size and reward
@@ -80,16 +81,18 @@ class PreTrainingEnvironment(Environment):
         highest_norm_reward = -1.0
 
         for encoded_injection in self.__encoded_injections:
+            comparison_count = max(len(encoded_injection), filled_state_length)
+
             reward = 0
 
-            for state_index in range(len(encoded_injection)):
+            for state_index in range(comparison_count):
                 action_index = int(state[state_index])
                 injection_action_index = int(encoded_injection[state_index])
                 
                 action_valid = self.__is_action_valid(action_index, injection_action_index)
                 reward += 1 if action_valid else -1
             
-            reward /= len(encoded_injection)
+            reward /= comparison_count
             highest_norm_reward = max(reward, highest_norm_reward)
 
         print(self.get_payload(state))

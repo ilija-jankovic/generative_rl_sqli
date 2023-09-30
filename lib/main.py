@@ -71,17 +71,7 @@ def __toggle_environment(is_pre_training: bool):
         #    'email': payload
         #})
 
-    __toggle_termination_mask(is_pre_training)
-
-
-def __perform_pre_training_action(action_index: int, pre_training_env: PreTrainingEnvironment):
-    global state
-
-    res = pre_training_env.perform_action(action_index, state)
-    state = res[0]
-    return res
-
-def __perform_server_action(action_index: int, server_env: ServerEnvironment):
+def __perform_action(action_index: int, environment: Environment):
     global state
 
     action = actions[action_index]
@@ -91,48 +81,39 @@ def __perform_server_action(action_index: int, server_env: ServerEnvironment):
         # and to prevent immediate termination action of an empty state.
         __toggle_termination_mask(True)
         
-        res = server_env.perform_termination_action(state)
+        res = environment.perform_termination_action(state)
         state = res[0]
         return res
     
-    res = server_env.perform_mutation_action(action_index, state)
+    res = environment.perform_mutation_action(action_index, state)
     state = res[0]
 
-    payload = server_env.get_payload(state)
-    attempted = server_env.payload_attempted(payload)
+    attempted = environment.payload_attempted(state)
     __toggle_termination_mask(attempted)
 
     return res
-
-def __perform_action(action_index: int):
-    if isinstance(environment, PreTrainingEnvironment):
-        return __perform_pre_training_action(action_index, environment)
-    elif isinstance(environment, ServerEnvironment):
-        return __perform_server_action(action_index, environment)
-    else:
-        raise Exception('Could not determine environment type. ' \
-                        f'Found {environment}.')
 
 dqn = DQN(
     hyperparameters = RLHyperparametersModel(
         gamma=0.98,
         learning_rate=0.00025,
         batch_size=64,
-        training_episodes=100000,
-        test_episodes=100,
+        training_episodes=1000,
+        test_episodes=1000,
         max_steps_per_episode=100,
         feature_count=feature_count,
         action_count=len(actions)
     ),
     epsilon_config = EpsilonModel(
-        start=0.5,
+        start=1.0,
         min=0.1,
         max=1.0,
         random_frame_count=100,
-        greedy_frame_count=10000
+        greedy_frame_count=1000
     ),
     available_actions_range = range(len(actions)),
-    perform_action_callback = __perform_action
+    perform_action_callback = lambda action_index: __perform_action(action_index, environment),
+    pre_training_completed_callback = lambda: __toggle_environment(is_pre_training=False)
 )
 
 __toggle_environment(is_pre_training=True)

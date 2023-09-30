@@ -16,18 +16,21 @@ class DQN:
     __hyperparameters: RLHyperparametersModel
     __epsilon_config: EpsilonModel
     __perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
+    __pre_training_completed_callback: Callable[[], Tuple[None]]
 
     def __init__(
             self,
             hyperparameters: RLHyperparametersModel,
             epsilon_config: EpsilonModel,
             available_actions_range: range,
-            perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]]
+            perform_action_callback: Callable[[int], Tuple[np.ndarray, float, bool]],
+            pre_training_completed_callback: Callable[[], Tuple[None]]
         ):
         self.available_actions_range = available_actions_range
         self.__hyperparameters = hyperparameters
         self.__epsilon_config = epsilon_config
         self.__perform_action_callback = perform_action_callback
+        self.__pre_training_completed_callback = pre_training_completed_callback
 
     # In the Deepmind paper they use RMSProp however then Adam optimizer
     # improves training time.
@@ -241,6 +244,7 @@ class DQN:
             # Stop training after training episodes.
             if episode_count == self.__hyperparameters.training_episodes:
                 training = False
+                self.__pre_training_completed_callback()
 
             episode_count += 1
 

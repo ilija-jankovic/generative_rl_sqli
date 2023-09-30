@@ -6,6 +6,7 @@ from .environment import Environment
 
 class PreTrainingEnvironment(Environment):
     __encoded_injections: List[List[int]]
+    __sql_syntax: List[str]
     __columns: List[str]
     __tables: List[str]
 
@@ -20,13 +21,17 @@ class PreTrainingEnvironment(Environment):
         dirname = os.path.dirname(__file__)
 
         encoded_injections_path = os.path.join(dirname, '../../parsed_injections_indexed.txt')
+        sql_syntax_path = os.path.join(dirname, '../../sql_list.txt')
         columns_path = os.path.join(dirname, '../../columns.txt')
         tables_path = os.path.join(dirname, '../../tables.txt')
 
         with open(encoded_injections_path, 'r') as f:
             data = f.read()
             self.__parse_encoded_tokens(data)
+        f.close()
 
+        with open(sql_syntax_path, 'r') as f:
+            self.__sql_syntax = f.read().split('\n')
         f.close()
 
         with open(columns_path, 'r') as f:
@@ -41,43 +46,40 @@ class PreTrainingEnvironment(Environment):
         super().__init__(dqn, actions)
         self.__load_injections()
 
-    def __is_state_valid_injection(self, state: np.ndarray, encoded_injection: List[int]):
-        for i in range(len(state)):
-            action_index = int(state[i])
-            if(action_index == -1):
-                return True
-            
-            expected_action_index = encoded_injection[i]
-            if action_index == expected_action_index:
-                continue
-            
-            if expected_action_index != -1:
-                return False
-            
-            # If the expected index is -1, match any table or column name.
+    def __is_action_valid(self, action_index: int, injection_action_index: int):
+        # If the expected index is -1, match any non-SQL syntax (such as column/table names,
+        # or numbers/ASCII characters).
+        if injection_action_index == -1:
             decoded_action = self.actions[action_index]
-            if decoded_action in self.__columns or decoded_action in self.__tables:
-                continue
+            return decoded_action not in self.__sql_syntax
+
+        return action_index == injection_action_index
     
-    def perform_action(self, action_index: int, state: np.ndarray):
-        slot_index = self._get_available_action_slot_index(state)
-        if slot_index == -1:
+    def perform_termination_action(self, state: np.ndarray):
+        if self._get_available_action_slot_index(state) == -1:
             return self.dqn.create_empty_state(), 0, True
-    
-        new_state = self._mutate_state(state, action_index)
 
         # TODO: Sort injections by ascending order of size and reward
         # based on the proportion of the injection matching.
 
-        longer_than_all_injections = True
+        highest_reward = 0
+
         for encoded_injection in self.__encoded_injections:
-            if(slot_index >= len(encoded_injection) - 1):
-                continue
+            reward = 0
 
-            longer_than_all_injections = False
+            for state_index in range(len(encoded_injection)):
+                action_index = int(state[state_index])
+                if action_index == -1:
+                    break
+                
+                injection_action_index = int(state[state_index])
+                
+                if(self.__is_action_valid(action_index, injection_action_index)):
+                    reward += 1
+            
+            highest_reward = max(reward, highest_reward)
 
-            if self.__is_state_valid_injection(new_state, encoded_injection):
-                print(self.get_payload(new_state))
-                return new_state, 1, False
+        print(self.get_payload(state))
+        state = self.dqn.create_empty_state()
 
-        return self.dqn.create_empty_state(), 0 if longer_than_all_injections else -1, True 
+        return state, highest_reward, True 

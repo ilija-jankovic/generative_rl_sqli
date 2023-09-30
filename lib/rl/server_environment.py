@@ -11,7 +11,6 @@ class ServerEnvironment(Environment):
     send_request_callback: Callable[[str], Response]
 
     __found_tokens: List[str] = []
-    __attempted_payloads: List[str] = []
 
     def __init__(self, dqn: DQN, actions: List[str],
                  send_request_callback: Callable[[str], Response]):
@@ -27,12 +26,11 @@ class ServerEnvironment(Environment):
             return False
         
     def perform_termination_action(self, state: np.ndarray):
-        payload = self.get_payload(state)
-        self.__attempted_payloads.append(payload)
+        payload = self._record_payload(state)
 
-        if(self.__is_valid_sql_payload(payload)):
-            state = self.dqn.create_empty_state()
-            return state, -1, True
+        #if(self.__is_valid_sql_payload(payload)):
+        #    state = self.dqn.create_empty_state()
+        #    return state, -1, True
 
         print(payload)
         res = self.send_request_callback(payload)
@@ -59,11 +57,4 @@ class ServerEnvironment(Environment):
 
         return state, reward, True
 
-    def perform_mutation_action(self, action_index: int, state: np.ndarray):
-        if self._get_available_action_slot_index(state) == -1:
-            return state, -1, True
-        
-        return self._mutate_state(state, action_index), 0, False
     
-    def payload_attempted(self, payload: str):
-        return payload in self.__attempted_payloads

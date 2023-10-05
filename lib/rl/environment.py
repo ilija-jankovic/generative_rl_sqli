@@ -7,7 +7,7 @@ class Environment(ABC):
     action_size: int
     state_size: int
     
-    __attempted_actions: List[np.ndarray] = []
+    __attempted_payloads: List[str] = []
 
     def __init__(self, dictionary: List[str], action_size: int, state_size: int):
         self.dictionary = dictionary
@@ -32,11 +32,12 @@ class Environment(ABC):
         return ''.join(chrs)
 
     def _record_action(self, action: np.ndarray):
-        self.__attempted_actions.append(action)
+        payload = self.get_payload(action)
+        self.__attempted_payloads(payload)
 
     def action_attempted(self, action: np.ndarray):
-        return any(np.array_equal(action, attempted_action)
-                   for attempted_action in self.__attempted_actions)
+        payload = self.get_payload(action)
+        return payload in self.__attempted_payloads
     
     @abstractmethod
     def _perform_action(self, action: np.ndarray):

@@ -60,8 +60,10 @@ class DDPG:
     def policy(self, state, noise_object, actor_model: keras.Model):
         sampled_actions = tf.squeeze(actor_model(state))
         noise = noise_object()
+        
         # Adding noise to action
         sampled_actions = sampled_actions.numpy() + noise
+
 
         # We make sure action is within bounds
         legal_action = np.clip(sampled_actions, -1.0, 1.0)
@@ -70,8 +72,8 @@ class DDPG:
 
 
     def run(self):
-        std_dev = 0.2
-        ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
+        std_dev = 1.0
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=float(std_dev) * np.ones(1), dt=0.001)
         batch_size = 4096
 
         actor_model = self.get_actor(batch_size=batch_size)

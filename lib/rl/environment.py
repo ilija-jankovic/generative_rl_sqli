@@ -15,7 +15,9 @@ class Environment(ABC):
         self.state_size = state_size
 
     def _get_token_index(self, action_class: float):
-        if action_class < -1.0 or action_class > 1.0:
+        # >= 1.0 condition ensures the max action class value rounds
+        # down to the maximum allowed index.
+        if action_class < -1.0 or action_class >= 1.0:
             return -1
         
         denormalised = (action_class + 1.0) * len(self.dictionary) / 2

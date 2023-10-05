@@ -56,6 +56,9 @@ class PreTrainingEnvironment(Environment):
         f.close()
 
     def __is_action_token_valid(self, action_dict_index: int, injection_dict_index: int):
+        if action_dict_index == -1:
+            return False
+
         # If the expected index is -1, match any non-SQL syntax (such as column/table names,
         # or numbers/ASCII characters).
         if injection_dict_index == -1:

@@ -65,28 +65,26 @@ class PreTrainingEnvironment(Environment):
         return action_dict_index == injection_dict_index
     
     def _perform_action(self, action: np.ndarray):
-        action_length = len(action)
-
         # Initialise to lowest possible normalised reward.
         highest_norm_reward = -1.0
 
+        action_token_indicies = [self._get_token_index(action[i]) for i in range(len(action))]
+        action_token_indicies = list(filter(lambda index: index != -1, action_token_indicies))
+
+        token_indicies_length = len(action_token_indicies)
+
         for encoded_injection in self.__encoded_injections:
             injection_length = len(encoded_injection)
-            comparison_count = max(injection_length, action_length)
+            comparison_count = max(injection_length, token_indicies_length)
 
             reward = 0
 
             for action_index in range(comparison_count):
-                if action_index >= action_length or action_index >= injection_length:
+                if action_index >= token_indicies_length or action_index >= injection_length:
                     reward -= 1
                     continue
 
-                action_dict_index = self._get_token_index(action[action_index])
-
-                if action_dict_index == -1:
-                    reward -= comparison_count - action_index + 1
-                    break
-
+                action_dict_index = action_token_indicies[action_index]
                 injection_dict_index = int(encoded_injection[action_index])
                 
                 action_valid = self.__is_action_token_valid(action_dict_index, injection_dict_index)

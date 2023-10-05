@@ -73,7 +73,7 @@ class DDPG:
 
     def run(self):
         std_dev = 1.0
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=float(std_dev) * np.ones(1), dt=0.001)
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.001)
         batch_size = 4096
 
         actor_model = self.get_actor(batch_size=batch_size)
@@ -87,8 +87,8 @@ class DDPG:
         target_critic.set_weights(critic_model.get_weights())
 
         # Learning rate for actor-critic models
-        critic_lr = 0.002
-        actor_lr = 0.001
+        critic_lr = 0.0005
+        actor_lr = 0.00025
 
         critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
         actor_optimizer = tf.keras.optimizers.Adam(actor_lr)

@@ -6,7 +6,7 @@ from rl.environment import Environment
 from rl.server_environment import ServerEnvironment
 
 ACTION_SIZE = 20
-STATE_SIZE = 10
+STATE_SIZE = 20
 
 visible_chars = [chr(i) for i in range(32, 127)]
 numbers = [str(i) for i in range(0, 10)]

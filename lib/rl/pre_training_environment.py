@@ -67,7 +67,7 @@ class PreTrainingEnvironment(Environment):
 
         return action_dict_index == injection_dict_index
     
-    def perform_termination_action(self, action: np.ndarray):
+    def _perform_action(self, action: np.ndarray):
         action_length = len(action)
 
         # Initialise to lowest possible normalised reward.
@@ -95,7 +95,6 @@ class PreTrainingEnvironment(Environment):
 
         print(self.get_payload(action))
         
-        self._record_payload(action)
-        action = self.create_empty_state()
+        state = action
 
-        return action, highest_norm_reward, True 
+        return state, highest_norm_reward, True 

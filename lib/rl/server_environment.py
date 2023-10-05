@@ -24,7 +24,7 @@ class ServerEnvironment(Environment):
         except:
             return False
         
-    def perform_termination_action(self, state: np.ndarray):
+    def _perform_action(self, state: np.ndarray):
         payload = self._record_payload(state)
 
         #if(self.__is_valid_sql_payload(payload)):

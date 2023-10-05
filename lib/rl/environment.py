@@ -7,7 +7,7 @@ class Environment(ABC):
     action_size: int
     state_size: int
     
-    __attempted_payloads: List[str] = []
+    __attempted_actions: List[np.ndarray] = []
 
     def __init__(self, dictionary: List[str], action_size: int, state_size: int):
         self.dictionary = dictionary
@@ -31,19 +31,23 @@ class Environment(ABC):
         chrs = [self._get_token(cls) for cls in action]
         return ''.join(chrs)
 
-    def _record_payload(self, action: np.ndarray):
-        payload = self.get_payload(action)
-        self.__attempted_payloads.append(payload)
-        
-        return payload
+    def _record_action(self, action: np.ndarray):
+        self.__attempted_actions.append(action)
 
-    def payload_attempted(self, action: np.ndarray):
-        payload = self.get_payload(action)
-        return payload in self.__attempted_payloads
+    def action_attempted(self, action: np.ndarray):
+        return any(np.array_equal(action, attempted_action)
+                   for attempted_action in self.__attempted_actions)
     
     @abstractmethod
-    def perform_termination_action(self, action: np.ndarray):
+    def _perform_action(self, action: np.ndarray):
         pass
+
+    def perform_action(self, action: np.ndarray):
+        if self.action_attempted(action):
+            return self.create_empty_state(), -1.0, True
+        
+        self._record_action(action)
+        return self._perform_action(action)
 
     def create_empty_state(self):
         return np.array([-1] * self.state_size, dtype='float32')

@@ -22,15 +22,15 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
-    def get_actor(self):
+    def get_actor(self, batch_size: int):
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
         return keras.Sequential([
-            layers.Input(shape=(self.env.state_size,)),
-            layers.Dense(256, activation="relu"),
-            layers.Dense(256, activation="relu"),
-            layers.Dense(self.env.action_size, activation="softmax", kernel_initializer=last_init)
+            layers.LSTM(256, activation="relu", batch_input_shape=(batch_size, self.env.state_size, 1), return_sequences=True),
+            layers.LSTM(256, activation="relu", return_sequences=True),
+            layers.LSTM(256, activation="relu"),
+            layers.Dense(self.env.action_size, activation="tanh", kernel_initializer=last_init)
         ])
 
 
@@ -72,11 +72,12 @@ class DDPG:
     def run(self):
         std_dev = 0.2
         ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
+        batch_size = 4096
 
-        actor_model = self.get_actor()
+        actor_model = self.get_actor(batch_size=batch_size)
         critic_model = self.get_critic()
 
-        target_actor = self.get_actor()
+        target_actor = self.get_actor(batch_size=batch_size)
         target_critic = self.get_critic()
 
         # Making the weights equal initially
@@ -97,7 +98,7 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=64, target_actor=target_actor, target_critic=target_critic,
+                              buffer_capacity=50000, batch_size=batch_size, target_actor=target_actor, target_critic=target_critic,
                               actor_model=actor_model, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
@@ -121,7 +122,7 @@ class DDPG:
 
                 action = self.policy(tf_prev_state, ou_noise, actor_model=actor_model)
                 # Recieve state and reward from environment.
-                state, reward, done = self.env.perform_termination_action(action) 
+                state, reward, done = self.env.perform_action(action) 
 
                 buffer.record((prev_state, action, reward, state))
                 episodic_reward += reward

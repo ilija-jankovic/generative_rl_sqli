@@ -70,9 +70,6 @@ class PreTrainingEnvironment(Environment):
     def perform_termination_action(self, action: np.ndarray):
         action_length = len(action)
 
-        # TODO: Sort injections by ascending order of size and reward
-        # based on the proportion of the injection matching.
-
         # Initialise to lowest possible normalised reward.
         highest_norm_reward = -1.0
 

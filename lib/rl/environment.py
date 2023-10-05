@@ -31,12 +31,10 @@ class Environment(ABC):
         chrs = [self._get_token(cls) for cls in action]
         return ''.join(chrs)
 
-    def _record_action(self, action: np.ndarray):
-        payload = self.get_payload(action)
+    def _record_payload(self, payload: str):
         self.__attempted_payloads(payload)
 
-    def action_attempted(self, action: np.ndarray):
-        payload = self.get_payload(action)
+    def payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads
     
     @abstractmethod
@@ -44,10 +42,11 @@ class Environment(ABC):
         pass
 
     def perform_action(self, action: np.ndarray):
-        if self.action_attempted(action):
+        payload = self.get_payload(action)
+        if self.payload_attempted(payload):
             return self.create_empty_state(), -1.0, True
         
-        self._record_action(action)
+        self._record_payload(payload)
         return self._perform_action(action)
 
     def create_empty_state(self):

@@ -2,7 +2,6 @@ import numpy as np
 import re
 from typing import List
 from sqltree import sqltree
-from .dqn import DQN
 from .environment import Environment
 from requests import Response
 from typing import Callable
@@ -12,9 +11,9 @@ class ServerEnvironment(Environment):
 
     __found_tokens: List[str] = []
 
-    def __init__(self, dqn: DQN, actions: List[str],
-                 send_request_callback: Callable[[str], Response]):
-        super().__init__(dqn, actions)
+    def __init__(self, dictionary: List[str], action_size: int, state_size: int,
+        send_request_callback: Callable[[str], Response]):
+        super().__init__(dictionary, action_size, state_size)
         self.send_request_callback = send_request_callback
         
     def __is_valid_sql_payload(self, state: np.ndarray):
@@ -53,7 +52,7 @@ class ServerEnvironment(Environment):
             print('\nNEW DATA')
             print('\nFound:', new_tokens, '\n')
 
-        state = self.dqn.create_empty_state()
+        state = self.create_empty_state()
 
         return state, reward, True
 

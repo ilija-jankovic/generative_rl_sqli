@@ -1,66 +1,47 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import List
-from .dqn import DQN
 
 class Environment(ABC):
-    actions: List[str]
-    dqn: DQN
+    dictionary: List[str]
+    action_size: int
+    state_size: int
     
     __attempted_payloads: List[str] = []
 
-    def __init__(self, dqn: DQN, actions: List[str]):
-        self.dqn = dqn
-        self.actions = actions
+    def __init__(self, dictionary: List[str], action_size: int, state_size: int):
+        self.dictionary = dictionary
+        self.action_size = action_size
+        self.state_size = state_size
 
-    def _get_available_action_slot_index(self, state: np.ndarray):
-        '''
-        Returns `-1` if no empty action slot remaining.
-        '''
-        for i in range(len(state)):
-            if state[i] == -1:
-                return i
-            
-        return -1
-    
-    def _get_filled_state_length(self, state: np.ndarray):
-        slot_index = self._get_available_action_slot_index(state)
-        return len(state) if slot_index == -1 else slot_index + 1
-
-    def get_payload(self, state: np.ndarray):
-        payload = ''
-
-        slot_index = self._get_available_action_slot_index(state)
-        end = len(state) if slot_index == -1 else slot_index
-        for i in range(end):
-            payload += self.actions[int(state[i])]
+    def _get_token_index(self, action_class: float):
+        if action_class < -1.0 or action_class > 1.0:
+            return -1
         
-        return payload
+        denormalised = (action_class + 1.0) * len(self.dictionary) / 2
+        return int(denormalised)
 
-    def _mutate_state(self, state: np.ndarray, action_index: int):
-        slot_index = self._get_available_action_slot_index(state)
-        if slot_index == -1:
-            return state
+    def _get_token(self, action_class: float):
+        index = self._get_token_index(action_class)
+        return '' if index == -1 else self.dictionary[index]
 
-        state[slot_index] = action_index
-        return state
+    def get_payload(self, action: np.ndarray):
+        chrs = [self._get_token(cls) for cls in action]
+        return ''.join(chrs)
 
-    def _record_payload(self, state: np.ndarray):
-        payload = self.get_payload(state)
+    def _record_payload(self, action: np.ndarray):
+        payload = self.get_payload(action)
         self.__attempted_payloads.append(payload)
         
         return payload
 
-    def payload_attempted(self, state: np.ndarray):
-        payload = self.get_payload(state)
+    def payload_attempted(self, action: np.ndarray):
+        payload = self.get_payload(action)
         return payload in self.__attempted_payloads
     
     @abstractmethod
-    def perform_termination_action(self, state: np.ndarray):
+    def perform_termination_action(self, action: np.ndarray):
         pass
 
-    def perform_mutation_action(self, action_index: int, state: np.ndarray):
-        if self._get_available_action_slot_index(state) == -1:
-            return state, -1, True
-        
-        return self._mutate_state(state, action_index), 0, False
+    def create_empty_state(self):
+        return np.array([-1] * self.state_size, dtype='float32')

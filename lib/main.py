@@ -2,9 +2,7 @@ import numpy as np
 import requests
 from rl.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
-from rl.pre_training_environment import PreTrainingEnvironment
 from rl.environment import Environment
-from rl.server_environment import ServerEnvironment
 
 ACTION_SIZE = 20
 STATE_SIZE = 20
@@ -26,7 +24,15 @@ dictionary = sql_list + numbers + columns + tables
 
 encoded_injections = data_service.load_encoded_injections()
 
-environment: Environment
+environment = Environment(
+    dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
+    encoded_injections=encoded_injections, sql_syntax=sql_list,
+    columns=columns, tables=tables,
+    send_request_callback=lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
+        #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
+        #    'email': payload
+        #})
+                                         
 state: np.ndarray
 
 def print_decoded_injections():
@@ -37,26 +43,6 @@ def print_decoded_injections():
     for injection in encoded_injections:
         decoded = ['[VARIABLE]' if i == -1 else dictionary[i] for i in injection]
         print(''.join(decoded))
-
-def __toggle_environment(is_pre_training: bool):
-    '''
-    Must be called before running DQN.
-
-    `state` must be defined before calling this function.
-    '''
-    global environment
-
-    environment = PreTrainingEnvironment(dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
-                                         encoded_injections=encoded_injections, sql_syntax=sql_list,
-                                         columns=columns, tables=tables) \
-        if is_pre_training \
-        else ServerEnvironment(dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
-                               send_request_callback=lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
-        #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
-        #    'email': payload
-        #})
-
-__toggle_environment(is_pre_training=True)
 
 ddpg = DDPG(environment)
 ddpg.run()

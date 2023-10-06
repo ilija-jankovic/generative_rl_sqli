@@ -101,7 +101,7 @@ class DDPG:
 
         total_episodes = 10000
         # Discount factor for future rewards
-        gamma = 0.999
+        gamma = 0.9
         # Used to update target networks
         tau = 0.005
 

@@ -1,12 +1,12 @@
 from typing import List
-from .pre_training_environment import PreTrainingEnvironment
+from .environment import Environment
 import random as random
 import numpy as np
 
 class InitialTransitionsFactory:
-    env: PreTrainingEnvironment
+    env: Environment
 
-    def __init__(self, env: PreTrainingEnvironment):
+    def __init__(self, env: Environment):
         self.env = env
 
     def __get_random_non_sql_token_index(self):

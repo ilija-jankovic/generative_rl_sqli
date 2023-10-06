@@ -4,63 +4,34 @@ from typing import List
 from .environment import Environment
 
 class PreTrainingEnvironment(Environment):
-    # Expected to be sorted from smallest to largest.
-    __encoded_injections: List[List[int]]
+    encoded_injections: List[List[int]]
 
-    __sql_syntax: List[str]
-    __columns: List[str]
-    __tables: List[str]
+    sql_syntax: List[str]
+    columns: List[str]
+    tables: List[str]
 
-    def __init__(self, dictionary: List[str], action_size: int, state_size: int):
+    def __init__(self, dictionary: List[str], action_size: int, state_size: int,
+                 encoded_injections: List[List[int]], sql_syntax: List[str],
+                     columns: List[str], tables: List[str]):
         super().__init__(dictionary, action_size, state_size)
-        self.__load_injections()
+        
+        self.encoded_injections = encoded_injections
+        self.sql_syntax = sql_syntax
+        self.columns = columns
+        self.tables = tables
 
-    def __parse_encoded_tokens(self, data: str):
-        self.__encoded_injections = []
-
-        for payload in data.split('\n'):
-            self.__encoded_injections.append([])
-
-            for token in payload.split(','):
-                self.__encoded_injections[-1].append(int(token))
+        self.__remove_oversized_injections()
 
     def __remove_oversized_injections(self):
-        self.__encoded_injections = list(filter(
-            lambda injection:len(injection) <= self.action_size, self.__encoded_injections))
-    
-    def __load_injections(self):
-        dirname = os.path.dirname(__file__)
-
-        encoded_injections_path = os.path.join(dirname, '../../parsed_injections_indexed.txt')
-        sql_syntax_path = os.path.join(dirname, '../../sql_list.txt')
-        columns_path = os.path.join(dirname, '../../columns.txt')
-        tables_path = os.path.join(dirname, '../../tables.txt')
-
-        with open(encoded_injections_path, 'r') as f:
-            data = f.read()
-
-            self.__parse_encoded_tokens(data)
-            self.__remove_oversized_injections()
-        f.close()
-
-        with open(sql_syntax_path, 'r') as f:
-            self.__sql_syntax = f.read().split('\n')
-        f.close()
-
-        with open(columns_path, 'r') as f:
-            self.__columns = f.read().split('\n')
-        f.close()
-        
-        with open(tables_path, 'r') as f:
-            self.__tables = f.read().split('\n')
-        f.close()
+        self.encoded_injections = list(filter(
+            lambda injection:len(injection) <= self.action_size, self.encoded_injections))
 
     def __is_action_token_valid(self, action_dict_index: int, injection_dict_index: int):
         # If the expected index is -1, match any non-SQL syntax (such as column/table names,
         # or numbers/ASCII characters).
         if injection_dict_index == -1:
             decoded_action = self.dictionary[action_dict_index]
-            return decoded_action not in self.__sql_syntax
+            return decoded_action not in self.sql_syntax
 
         return action_dict_index == injection_dict_index
     
@@ -73,7 +44,7 @@ class PreTrainingEnvironment(Environment):
 
         token_indicies_length = len(action_token_indicies)
 
-        for encoded_injection in self.__encoded_injections:
+        for encoded_injection in self.encoded_injections:
             injection_length = len(encoded_injection)
             comparison_count = max(injection_length, token_indicies_length)
 

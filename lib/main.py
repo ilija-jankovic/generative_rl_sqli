@@ -16,7 +16,7 @@ data_service = SQLDataService()
 
 sql_list = data_service.load_sql_list()
 columns = data_service.load_columns()
-tables = data_service.load_sql_list()
+tables = data_service.load_tables()
 
 # sql_list must account for the leading segment of the action space.
 #
@@ -28,6 +28,15 @@ encoded_injections = data_service.load_encoded_injections()
 
 environment: Environment
 state: np.ndarray
+
+def print_decoded_injections():
+    '''
+    Use to verify that the predefined encoded injection list is correctly
+    encoded.
+    '''
+    for injection in encoded_injections:
+        decoded = ['[VARIABLE]' if i == -1 else dictionary[i] for i in injection]
+        print(''.join(decoded))
 
 def __toggle_environment(is_pre_training: bool):
     '''

@@ -15,12 +15,15 @@ class Environment(ABC):
         self.state_size = state_size
 
     def _get_token_index(self, action_class: float):
+        '''
+        Returns an integer in the range `[-1, len(self.dictionary) - 1]`.
+        '''
         # >= 1.0 condition ensures the max action class value rounds
         # down to the maximum allowed index.
         if action_class < -1.0 or action_class >= 1.0:
             return -1
         
-        denormalised = (action_class + 1.0) * len(self.dictionary) / 2
+        denormalised = (action_class + 1.0) * (len(self.dictionary) + 1.0) / 2.0 - 1.0
         return int(denormalised)
 
     def _get_token(self, action_class: float):
@@ -32,7 +35,7 @@ class Environment(ABC):
         return ''.join(chrs)
 
     def _record_payload(self, payload: str):
-        self.__attempted_payloads(payload)
+        self.__attempted_payloads.append(payload)
 
     def payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads

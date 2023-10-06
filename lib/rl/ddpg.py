@@ -6,6 +6,8 @@ import keras
 from keras import layers
 import numpy as np
 
+from .initial_transitions_factory import InitialTransitionsFactory
+
 from .environment import Environment
 
 from .ou_action_noise import OUActionNoise
@@ -108,6 +110,9 @@ class DDPG:
                               actor_model=actor_model, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
+        transitions_factory = InitialTransitionsFactory(self.env)
+        for obs in transitions_factory.gather_transitions(1):
+            buffer.record(obs)
 
         # To store reward history of each episode
         ep_reward_list = []

@@ -64,6 +64,7 @@ class PreTrainingEnvironment(Environment):
             reward /= comparison_count
             highest_norm_reward = max(reward, highest_norm_reward)
 
+        print(f'Payload attempted (reward: {highest_norm_reward}):')
         print(self.get_payload(action))
         
         state = action

@@ -111,7 +111,7 @@ class DDPG:
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
         transitions_factory = InitialTransitionsFactory(self.env)
-        for obs in transitions_factory.gather_transitions(1):
+        for obs in transitions_factory.gather_transitions(10000):
             buffer.record(obs)
 
         # To store reward history of each episode

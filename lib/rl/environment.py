@@ -167,4 +167,7 @@ class Environment():
         
         state = action
 
-        return state, reward, True 
+        return state, reward, True
+    
+    def reset_token_cache(self):
+        self.__found_tokens.clear()

@@ -101,7 +101,7 @@ class DDPG:
 
         total_episodes = 10000
         # Discount factor for future rewards
-        gamma = 0.9
+        gamma = 0.95
         # Used to update target networks
         tau = 0.005
 
@@ -113,6 +113,10 @@ class DDPG:
         transitions_factory = InitialTransitionsFactory(self.env)
         for obs in transitions_factory.gather_transitions(10000):
             buffer.record(obs)
+
+        # Remove found tokens from demonstrations to allow DDPG to learn
+        # with more reward opportunity.
+        self.env.reset_token_cache()
 
         # To store reward history of each episode
         ep_reward_list = []

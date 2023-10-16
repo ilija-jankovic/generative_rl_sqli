@@ -5,6 +5,8 @@ from sqltree import sqltree
 from requests import Response
 from typing import Callable
 
+from .episode_state import EpisodeState
+
 class Environment():
     dictionary: List[str]
     action_size: int
@@ -20,6 +22,7 @@ class Environment():
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
+    __episode = EpisodeState(1000)
 
     def __init__(
             self,
@@ -48,13 +51,13 @@ class Environment():
 
     def __is_valid_sql_payload(self, state: np.ndarray):
         try:
-            payload = self.get_payload(state)
+            payload = self.__get_payload(state)
             sqltree(f'SELECT * FROM test WHERE test = \'{payload}\'')
             return True
         except:
             return False
 
-    def _get_token_index(self, action_class: float):
+    def __get_token_index(self, action_class: float):
         '''
         Returns an integer in the range `[-1, len(self.dictionary) - 1]`.
         '''
@@ -66,18 +69,18 @@ class Environment():
         denormalised = (action_class + 1.0) * (len(self.dictionary) + 1.0) / 2.0 - 1.0
         return int(denormalised)
 
-    def _get_token(self, action_class: float):
-        index = self._get_token_index(action_class)
+    def __get_token(self, action_class: float):
+        index = self.__get_token_index(action_class)
         return '' if index == -1 else self.dictionary[index]
 
-    def get_payload(self, action: np.ndarray):
-        chrs = [self._get_token(cls) for cls in action]
+    def __get_payload(self, action: np.ndarray):
+        chrs = [self.__get_token(cls) for cls in action]
         return ''.join(chrs)
 
-    def _record_payload(self, payload: str):
+    def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)
 
-    def payload_attempted(self, payload: str):
+    def __payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads
 
     def create_empty_state(self):
@@ -100,7 +103,7 @@ class Environment():
         # Initialise to lowest possible normalised reward.
         highest_norm_reward = -1.0
 
-        action_token_indicies = [self._get_token_index(action[i]) for i in range(len(action))]
+        action_token_indicies = [self.__get_token_index(action[i]) for i in range(len(action))]
         action_token_indicies = list(filter(lambda index: index != -1, action_token_indicies))
 
         token_indicies_length = len(action_token_indicies)
@@ -149,13 +152,39 @@ class Environment():
             print('\nFound:', new_tokens, '\n')
 
         return reward
+
+    def __reset_token_cache(self):
+        self.__found_tokens.clear()
+    
+    def __update_episode(self, extend: bool):
+        '''
+        Returns whether the episode has ended.
+        '''
+
+        if extend:
+            self.__episode.extend_episode(1000)
+
+        self.__episode.next_frame()
+
+        episode_ended = self.__episode.has_episode_ended()
+        if episode_ended:
+            self.__episode.next_episode()
+
+            # Remove found tokens from demonstrations to allow DDPG to learn
+            # with more reward opportunity.
+            self.__reset_token_cache()
+
+        return episode_ended
+
     
     def perform_action(self, action: np.ndarray):
-        payload = self.get_payload(action)
-        if self.payload_attempted(payload):
-            return self.create_empty_state(), -1.0, True
+        payload = self.__get_payload(action)
         
-        self._record_payload(payload)
+        if self.__payload_attempted(payload):
+            episode_ended = self.__update_episode(extend=False)
+            return self.create_empty_state(), -1.0, episode_ended
+        
+        self.__record_payload(payload)
 
         static_reward = self.__get_static_reward(action)
         dynamic_reward = self.__attempt_injection(payload)
@@ -163,11 +192,12 @@ class Environment():
         reward = static_reward + dynamic_reward
 
         print(f'Payload attempted (reward: {reward}):')
-        print(self.get_payload(action))
+        print(self.__get_payload(action))
         
         state = action
 
-        return state, reward, True
-    
-    def reset_token_cache(self):
-        self.__found_tokens.clear()
+        #columns = [self.__get_token_index(action[i]) for i in action]
+
+        episode_ended = self.__update_episode(extend=reward > 1.0)
+
+        return state, reward, episode_ended

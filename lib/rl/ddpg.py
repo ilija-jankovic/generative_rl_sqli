@@ -111,12 +111,8 @@ class DDPG:
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
         transitions_factory = InitialTransitionsFactory(self.env)
-        for obs in transitions_factory.gather_transitions(10000):
+        for obs in transitions_factory.gather_transitions(1000):
             buffer.record(obs)
-
-        # Remove found tokens from demonstrations to allow DDPG to learn
-        # with more reward opportunity.
-        self.env.reset_token_cache()
 
         # To store reward history of each episode
         ep_reward_list = []
@@ -127,6 +123,7 @@ class DDPG:
 
             prev_state = self.env.create_empty_state()
             episodic_reward = 0
+            frame = 0
 
             while True:
                 # Uncomment this to see the Actor in action
@@ -152,9 +149,11 @@ class DDPG:
 
                 prev_state = state
 
+                frame += 1
+
             ep_reward_list.append(episodic_reward)
 
             # Mean of last 40 episodes
             avg_reward = np.mean(ep_reward_list[-40:])
-            print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Frame Count: {}".format(ep, avg_reward, episodic_reward, frame))
             avg_reward_list.append(avg_reward)

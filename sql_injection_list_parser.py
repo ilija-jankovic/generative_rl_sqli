@@ -1,3 +1,16 @@
+# IMPORTANT: Place any substrings below full strings in sql_list.txt.
+# e.g.,
+#
+# UNION SELECT
+# SELECT
+# ...
+#
+# instead of 
+#
+# SELECT
+# UNION SELECT
+# ...
+
 import csv
 import re
 from typing import List

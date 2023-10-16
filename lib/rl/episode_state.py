@@ -1,6 +1,6 @@
 class EpisodeState:
     initial_frames: int
-    
+
     __frames: int
     __frames_since_last_episode: int = 0
 
@@ -18,5 +18,5 @@ class EpisodeState:
     def has_episode_ended(self):
         return self.__frames_since_last_episode >= self.__frames
     
-    def extend_episode(self, frames: int):
-        self.__frames += frames
+    def extend_episode(self):
+        self.__frames += self.initial_frames + self.__frames_since_last_episode - self.__frames 

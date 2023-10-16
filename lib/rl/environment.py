@@ -22,7 +22,7 @@ class Environment():
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
-    __episode = EpisodeState(1000)
+    __episode = EpisodeState(100)
 
     def __init__(
             self,
@@ -162,7 +162,7 @@ class Environment():
         '''
 
         if extend:
-            self.__episode.extend_episode(1000)
+            self.__episode.extend_episode()
 
         self.__episode.next_frame()
 

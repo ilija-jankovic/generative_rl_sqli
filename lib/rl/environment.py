@@ -129,24 +129,47 @@ class Environment():
             highest_norm_reward = max(reward, highest_norm_reward)
 
         return highest_norm_reward
-    
-    def __attempt_injection(self, payload: str):
-        res = self.send_request_callback(payload)
 
+    def __filter_payload_from_text(self, text: str, payload: str):
+        return text.replace(payload, '')
+    
+    def __tokenize_text(self, text: str):
         unique_tokens = set()
-        for token in re.split('[^a-zA-Z]+', res.text):
+        for token in re.split('[^a-zA-Z]+', text):
             unique_tokens.add(token)
 
-        reward = 0
+        return unique_tokens
+    
+    def __filter_non_matching_text(self, text1: str, text2: str):
+        tokens1 = list(self.__tokenize_text(text1))
+        tokens2 = list(self.__tokenize_text(text2))
 
-        new_tokens = []
-        for token in unique_tokens:
-            if(token not in self.__found_tokens):
-                self.__found_tokens.append(token)
-                new_tokens.append(token)
-                reward += 1
+        combined = tokens1 + tokens2
 
-        if(len(new_tokens) > 0):
+        for token in combined:
+            if token in tokens1 and token in tokens2:
+                yield token
+
+    def __filter_found_tokens(self, tokens: List[str]):
+        for token in tokens:
+            if token not in self.__found_tokens:
+                yield token
+    
+    def __attempt_injection(self, payload: str):
+        res1 = self.send_request_callback(payload)
+        res2 = self.send_request_callback(payload)
+
+        resText1 = self.__filter_payload_from_text(res1.text, payload)
+        resText2 = self.__filter_payload_from_text(res2.text, payload)
+
+        unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
+        new_tokens = list(self.__filter_found_tokens(unique_tokens))
+        
+        self.__found_tokens += new_tokens
+
+        reward = len(new_tokens)
+
+        if(reward >= 1.0):
             print(payload)
             print('\nNEW DATA')
             print('\nFound:', new_tokens, '\n')

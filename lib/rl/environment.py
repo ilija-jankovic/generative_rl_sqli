@@ -48,6 +48,21 @@ class Environment():
         self.send_request_callback = send_request_callback
 
         self.__remove_oversized_injections()
+        self.__reset_token_cache()
+
+    def __remove_oversized_injections(self):
+        self.encoded_injections = list(filter(
+            lambda injection:len(injection) <= self.action_size, self.encoded_injections))
+
+    def __inject_random_payloads(self):
+        self.__inject_payload('')
+        self.__inject_payload('pqoihcvhf')
+
+    def __reset_token_cache(self):
+        self.__found_tokens.clear()
+
+        # Ensures data from non-useful injections is not rewarded.
+        self.__inject_random_payloads()
 
     def __is_valid_sql_payload(self, state: np.ndarray):
         try:
@@ -85,10 +100,6 @@ class Environment():
 
     def create_empty_state(self):
         return np.array([-1] * self.state_size, dtype='float32')
-    
-    def __remove_oversized_injections(self):
-        self.encoded_injections = list(filter(
-            lambda injection:len(injection) <= self.action_size, self.encoded_injections))
 
     def __is_action_token_valid(self, action_dict_index: int, injection_dict_index: int):
         # If the expected index is -1, match any non-SQL syntax (such as column/table names,
@@ -154,8 +165,11 @@ class Environment():
         for token in tokens:
             if token not in self.__found_tokens:
                 yield token
-    
-    def __attempt_injection(self, payload: str):
+
+    def __inject_payload(self, payload: str):
+        '''
+        Returns new tokens found after filtering responses.
+        '''
         res1 = self.send_request_callback(payload)
         res2 = self.send_request_callback(payload)
 
@@ -164,8 +178,14 @@ class Environment():
 
         unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
         new_tokens = list(self.__filter_found_tokens(unique_tokens))
-        
+
         self.__found_tokens += new_tokens
+
+        return new_tokens
+
+    
+    def __attempt_injection(self, payload: str):
+        new_tokens = self.__inject_payload(payload)
 
         reward = len(new_tokens)
 
@@ -175,9 +195,6 @@ class Environment():
             print('\nFound:', new_tokens, '\n')
 
         return reward
-
-    def __reset_token_cache(self):
-        self.__found_tokens.clear()
     
     def __update_episode(self, extend: bool):
         '''
@@ -198,7 +215,6 @@ class Environment():
             self.__reset_token_cache()
 
         return episode_ended
-
     
     def perform_action(self, action: np.ndarray):
         payload = self.__get_payload(action)

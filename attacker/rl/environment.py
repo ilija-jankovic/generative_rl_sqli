@@ -56,7 +56,7 @@ class Environment():
 
     def __inject_random_payloads(self):
         self.__inject_payload('')
-        self.__inject_payload('pqoihcvhf')
+        self.__inject_payload('random string')
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()

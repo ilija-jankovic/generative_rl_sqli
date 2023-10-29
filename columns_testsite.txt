@@ -1,0 +1,14 @@
+name
+review
+productCode
+productLine
+textDescription
+htmlDescription
+image
+productName
+productScale
+productVendor
+productDescription
+quantityInStock
+buyPrice
+MSRP

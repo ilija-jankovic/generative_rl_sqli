@@ -28,10 +28,12 @@ environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
     encoded_injections=encoded_injections, sql_syntax=sql_list,
     columns=columns, tables=tables,
-    send_request_callback=lambda payload: requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}'))
-        #res = requests.post('http://localhost.proxyman.io:3000/rest/user/login', data={
+    send_request_callback= lambda payload:
+        requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload}))
+        #requests.post('http://localhost:3000/rest/user/login', data={
         #    'email': payload
         #})
+        # requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}')
                                          
 state: np.ndarray
 
@@ -44,5 +46,9 @@ def print_decoded_injections():
         decoded = ['[VARIABLE]' if i == -1 else dictionary[i] for i in injection]
         print(''.join(decoded))
 
-ddpg = DDPG(environment)
-ddpg.run()
+def main():
+    ddpg = DDPG(environment)
+    ddpg.run()
+
+if __name__ == '__main__':
+    main()

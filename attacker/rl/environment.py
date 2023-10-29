@@ -64,13 +64,41 @@ class Environment():
         # Ensures data from non-useful injections is not rewarded.
         self.__inject_random_payloads()
 
-    def __is_valid_sql_payload(self, state: np.ndarray):
+    def __is_valid_sql_payload(self, payload: str):
+        ast_contraint_index = float('inf')
+
         try:
-            payload = self.__get_payload(state)
-            sqltree(f'SELECT * FROM test WHERE test = \'{payload}\'')
+            ast_contraint_index = payload.index('UNION')
+        except:
+            pass
+
+        try:
+            ast_contraint_index = min(payload.index('SELECT'), ast_contraint_index)
+        except:
+            if ast_contraint_index == float('inf'):
+                return True
+
+        try:
+            sqltree(payload[ast_contraint_index: -1])
             return True
         except:
             return False
+        
+    def __payload_has_unnecessary_tokens(self, payload: str):
+        comment_index = float('inf')
+
+        try:
+            comment_index = payload.index('--')
+        except:
+            pass
+
+        try:
+            comment_index = min(payload.index('#'), comment_index)
+        except:
+            if comment_index == float('inf'):
+                return False
+
+        return len(payload) > comment_index + 1
 
     def __get_token_index(self, action_class: float):
         '''
@@ -204,12 +232,16 @@ class Environment():
         return episode_ended
     
     def perform_action(self, action: np.ndarray):
+        token = self.__get_token(action[-1])
         payload = self.__get_payload(action)
         
-        if self.__payload_attempted(payload):
+        if self.__payload_attempted(payload) or \
+            ((token in self.tables or token in self.columns) and payload.count(token) > 1) or \
+            not self.__is_valid_sql_payload(payload) or \
+            self.__payload_has_unnecessary_tokens(payload):
             episode_ended = self.__update_episode(extend=False)
             return self.create_empty_state(), -1.0, episode_ended
-        
+
         self.__record_payload(payload)
 
         #static_reward = self.__get_static_reward(action)
@@ -217,9 +249,9 @@ class Environment():
 
         #reward = static_reward + dynamic_reward
         new_tokens = self.__inject_payload(payload)
-        
 
         reward = len(new_tokens)
+        reward = -0.1 if reward <= 0.0 else reward
         if reward > 0.0:
             print(f'Successful payload (reward: {reward}):')
             print(self.__get_payload(action))

@@ -11,11 +11,11 @@ cursor = connection.cursor()
 app = Flask(__name__)
 
 @app.route("/")
-def hello_world():
-    return "Hello, World!"
+def home():
+    return "This is a vulnerable test website based on the StackOverflow 2010 public data export dataset."
 
 @app.route('/comments')
-def get_incomes():
+def get_comments():
     score = request.args['score']
     comments = cursor.execute(f'SELECT TOP 500 * FROM Comments INNER JOIN Users ON Comments.UserId = Users.Id WHERE Comments.score = {score}').fetchall()
 

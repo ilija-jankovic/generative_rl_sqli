@@ -1,12 +1,12 @@
 from flask import Flask, jsonify, request
 import pyodbc 
 
-cnxn = pyodbc.connect("Driver={SQL Server};"
+connection = pyodbc.connect("Driver={SQL Server};"
                       "Server=.\\SQLEXPRESS;"
                       "Database=StackOverflow2010;"
                       "Trusted_Connection=yes;")
 
-cursor = cnxn.cursor()
+cursor = connection.cursor()
 
 app = Flask(__name__)
 
@@ -14,17 +14,9 @@ app = Flask(__name__)
 def hello_world():
     return "Hello, World!"
 
-incomes = [
-    { 'description': 'salary', 'amount': 5000 }
-]
-
-
-@app.route('/incomes')
+@app.route('/comments')
 def get_incomes():
-    return jsonify(incomes)
+    score = request.args['score']
+    comments = cursor.execute(f'SELECT TOP 500 * FROM Comments INNER JOIN Users ON Comments.UserId = Users.Id WHERE Comments.score = {score}').fetchall()
 
-
-@app.route('/incomes', methods=['POST'])
-def add_income():
-    incomes.append(request.get_json())
-    return '', 204
+    return jsonify([str(comment) for comment in comments])

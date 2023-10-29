@@ -1,4 +1,5 @@
 attacker/venv/**
 test_server/venv/**
+test_server/database.mdf
 .DS_Store
 __pycache__

@@ -29,7 +29,8 @@ environment = Environment(
     encoded_injections=encoded_injections, sql_syntax=sql_list,
     columns=columns, tables=tables,
     send_request_callback= lambda payload:
-        requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload}))
+        requests.get(f'http://127.0.0.1:5000/comments_single_column?score={payload}'))
+        #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
         #requests.post('http://localhost:3000/rest/user/login', data={
         #    'email': payload
         #})

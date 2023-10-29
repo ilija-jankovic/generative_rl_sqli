@@ -1,4 +1,3 @@
-from typing import List
 from .environment import Environment
 import random as random
 import numpy as np

@@ -1,6 +1,4 @@
-scraped/**
-venv/**
-wget-log
-parsed-scrape.txt
+attacker/venv/**
+test_server/venv/**
 .DS_Store
 __pycache__

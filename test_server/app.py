@@ -1,14 +1,12 @@
 from flask import Flask, jsonify, request
 import pyodbc 
 
-cnxn = pyodbc.connect("Driver={SQL Server Native Client 11.0};"
-                      "Server=Test Server;"
-                      "Database=database.mdf;"
+cnxn = pyodbc.connect("Driver={SQL Server};"
+                      "Server=.\\SQLEXPRESS;"
+                      "Database=StackOverflow2010;"
                       "Trusted_Connection=yes;")
 
 cursor = cnxn.cursor()
-
-print(cursor.tables().description)
 
 app = Flask(__name__)
 

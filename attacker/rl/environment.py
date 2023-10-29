@@ -182,19 +182,6 @@ class Environment():
         self.__found_tokens += new_tokens
 
         return new_tokens
-
-    
-    def __attempt_injection(self, payload: str):
-        new_tokens = self.__inject_payload(payload)
-
-        reward = len(new_tokens)
-
-        if(reward >= 1.0):
-            print(payload)
-            print('\nNEW DATA')
-            print('\nFound:', new_tokens, '\n')
-
-        return reward
     
     def __update_episode(self, extend: bool):
         '''
@@ -225,18 +212,24 @@ class Environment():
         
         self.__record_payload(payload)
 
-        static_reward = self.__get_static_reward(action)
-        dynamic_reward = self.__attempt_injection(payload)
+        #static_reward = self.__get_static_reward(action)
+        #dynamic_reward = self.__attempt_injection(payload)
 
-        reward = static_reward + dynamic_reward
+        #reward = static_reward + dynamic_reward
+        new_tokens = self.__inject_payload(payload)
+        
 
-        print(f'Payload attempted (reward: {reward}):')
-        print(self.__get_payload(action))
+        reward = len(new_tokens)
+        if reward > 0.0:
+            print(f'Successful payload (reward: {reward}):')
+            print(self.__get_payload(action))
         
         state = action
 
         #columns = [self.__get_token_index(action[i]) for i in action]
 
-        episode_ended = self.__update_episode(extend=reward > 1.0)
+        # NOTE: extend=reward > 1.0 (strictly greater) only if static
+        # rewards count, as we should only end an episode if data is found.
+        episode_ended = self.__update_episode(extend=reward >= 1.0)
 
         return state, reward, episode_ended

@@ -4,8 +4,8 @@ from rl.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
 from rl.environment import Environment
 
-ACTION_SIZE = 20
-STATE_SIZE = 20
+ACTION_SIZE = 10
+STATE_SIZE = 10
 
 visible_chars = [chr(i) for i in range(32, 127)]
 numbers = [str(i) for i in range(0, 10)]

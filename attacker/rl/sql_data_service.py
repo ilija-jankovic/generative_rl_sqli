@@ -66,8 +66,9 @@ class SQLDataService:
 
     def load_encoded_injections(self, dictionary: List[str]):
         data = self.__read_lines('../../parsed_injections_indexed.txt')
-        data = self.__parse_encoded_tokens(data)
-        return self.__escape_sql(data, dictionary)
+        #data = self.__parse_encoded_tokens(data)
+        #return self.__escape_sql(data, dictionary)
+        return self.__parse_encoded_tokens(data)
 
     def load_sql_list(self):
         return self.__read_lines('../../sql_list.txt')

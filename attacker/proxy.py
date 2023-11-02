@@ -18,9 +18,11 @@ def main():
     payload_delimiter = f'URI: {URL[:-(len(DEFAULT_PARAM_VALUE))]}'
     lines = list(filter(lambda line: line.startswith(payload_delimiter), lines))
     lines = list(map(lambda line: line.split(payload_delimiter)[1].rstrip(), lines))
+
+    lines = '\n'.join(lines)
     
     with open(f'sqlmap-log/{IP}/attempted-payloads.txt', 'w') as f:
-        f.writelines(lines)
+        f.write(lines)
     f.close()
 
 if __name__ == '__main__':

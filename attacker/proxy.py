@@ -1,5 +1,6 @@
 #!/usr/local/bin/python
 import subprocess
+from urllib.parse import unquote
 
 def main():
     SQLMAP_PATH = '..\\..\\sqlmap-dev\\sqlmap.py'
@@ -17,7 +18,7 @@ def main():
 
     payload_delimiter = f'URI: {URL[:-(len(DEFAULT_PARAM_VALUE))]}'
     lines = list(filter(lambda line: line.startswith(payload_delimiter), lines))
-    lines = list(map(lambda line: line.split(payload_delimiter)[1].rstrip(), lines))
+    lines = list(map(lambda line: unquote(line.split(payload_delimiter)[1].rstrip()), lines))
 
     lines = '\n'.join(lines)
     

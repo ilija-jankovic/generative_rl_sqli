@@ -1,3 +1,5 @@
+#!/usr/local/bin/python
+
 from sqlite3 import Row
 from typing import List
 from flask import Flask, jsonify, request

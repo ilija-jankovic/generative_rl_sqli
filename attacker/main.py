@@ -1,3 +1,4 @@
+#!/usr/local/bin/python
 import numpy as np
 import requests
 from rl.sql_data_service import SQLDataService
@@ -23,6 +24,8 @@ tables = data_service.load_tables()
 dictionary = sql_list + numbers + columns + tables
 
 encoded_injections = data_service.load_encoded_injections(dictionary)
+
+
 
 environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,

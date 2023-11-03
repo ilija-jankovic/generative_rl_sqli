@@ -201,7 +201,7 @@ class Environment():
 
         self.__found_tokens += new_tokens
 
-        return new_tokens
+        return res2, new_tokens
     
     def __update_episode(self, extend: bool):
         '''
@@ -223,6 +223,20 @@ class Environment():
 
         return episode_ended
     
+    # TODO: Add table and column names from response to state definition.
+    def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
+        res_size = self.state_size - self.action_size
+
+        res_section_size = res_size // 2
+
+        res_data = [ord(char) for char in data[:res_section_size]]
+        res_new_tokens_joined = [ord(char) for char in ','.join(new_tokens)[:res_section_size]]
+
+        res_data = res_data[:len(res_data)] + [-1.0]*(res_section_size - len(res_data))
+        res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
+
+        return np.array(action.tolist() + res_data + res_new_tokens_joined)
+    
     def perform_action(self, action: np.ndarray):
         token = self.__get_token(action[-1])
         payload = self.__get_payload(action)
@@ -240,7 +254,7 @@ class Environment():
         #dynamic_reward = self.__attempt_injection(payload)
 
         #reward = static_reward + dynamic_reward
-        new_tokens = self.__inject_payload(payload)
+        response, new_tokens = self.__inject_payload(payload)
 
         reward = len(new_tokens)
         reward = -0.1 if reward <= 0.0 else reward
@@ -248,9 +262,7 @@ class Environment():
             print(f'Successful payload (reward: {reward}):')
             print(self.__get_payload(action))
         
-        state = action
-
-        #columns = [self.__get_token_index(action[i]) for i in action]
+        state = self.__create_state(action, response.text, new_tokens)
 
         # NOTE: extend=reward > 1.0 (strictly greater) only if static
         # rewards count, as we should only end an episode if data is found.

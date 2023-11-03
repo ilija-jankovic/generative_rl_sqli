@@ -5,8 +5,8 @@ from rl.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
 from rl.environment import Environment
 
-ACTION_SIZE = 1000
-STATE_SIZE = 1000
+ACTION_SIZE = 100
+STATE_SIZE = 10000
 
 visible_chars = [chr(i) for i in range(32, 127)]
 
@@ -19,7 +19,7 @@ tables = data_service.load_tables()
 #
 # This is due to the pre-processing of existing SQL injections for
 # pretraining.
-dictionary = visible_chars
+dictionary = visible_chars + columns + tables
 
 encoded_injections = data_service.load_encoded_injections(dictionary)
 

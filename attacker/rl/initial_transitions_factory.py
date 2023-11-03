@@ -8,12 +8,6 @@ class InitialTransitionsFactory:
     def __init__(self, env: Environment):
         self.env = env
 
-    def __get_random_non_sql_token_index(self):
-        '''
-        Will always return a non-empty token.
-        '''
-        return random.randint(len(self.env.sql_syntax), len(self.env.dictionary) - 1)
-    
     def __normalise(self, token_index: int):
         return 2.0 * (token_index + 1.0) / (len(self.env.dictionary) + 1.0) - 1.0
     
@@ -24,9 +18,6 @@ class InitialTransitionsFactory:
             state = state_next
 
             injection = random.choice(self.env.encoded_injections).copy()
-
-            # Fill variable tokens with non-SQL tokens.
-            injection = [self.__get_random_non_sql_token_index() if i == -1 else i for i in injection]
             
             # Ensure actions are always the correct size by padding with
             # empty tokens until the action size is reached.

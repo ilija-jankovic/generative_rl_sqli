@@ -5,15 +5,13 @@ from rl.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
 from rl.environment import Environment
 
-ACTION_SIZE = 10
-STATE_SIZE = 10
+ACTION_SIZE = 1000
+STATE_SIZE = 1000
 
 visible_chars = [chr(i) for i in range(32, 127)]
-numbers = [str(i) for i in range(0, 10)]
 
 data_service = SQLDataService()
 
-sql_list = data_service.load_sql_list()
 columns = data_service.load_columns()
 tables = data_service.load_tables()
 
@@ -21,15 +19,13 @@ tables = data_service.load_tables()
 #
 # This is due to the pre-processing of existing SQL injections for
 # pretraining.
-dictionary = sql_list + numbers + columns + tables
+dictionary = visible_chars
 
 encoded_injections = data_service.load_encoded_injections(dictionary)
 
-
-
 environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
-    encoded_injections=encoded_injections, sql_syntax=sql_list,
+    encoded_injections=encoded_injections,
     columns=columns, tables=tables,
     send_request_callback= lambda payload:
         requests.get(f'http://127.0.0.1:5000/comments_single_column?score={payload}'))

@@ -14,7 +14,6 @@ class Environment():
 
     encoded_injections: List[List[int]]
 
-    sql_syntax: List[str]
     columns: List[str]
     tables: List[str]
 
@@ -30,7 +29,6 @@ class Environment():
             action_size: int,
             state_size: int,
             encoded_injections: List[List[int]],
-            sql_syntax: List[str],
             columns: List[str],
             tables: List[str],
             send_request_callback: Callable[[str], Response]
@@ -41,7 +39,6 @@ class Environment():
 
         self.encoded_injections = encoded_injections
 
-        self.sql_syntax = sql_syntax
         self.columns = columns
         self.tables = tables
         
@@ -130,13 +127,8 @@ class Environment():
         return np.array([-1] * self.state_size, dtype='float32')
 
     def __is_action_token_valid(self, action_dict_index: int, injection_dict_index: int):
-        # If the expected index is -1, match any non-SQL syntax (such as column/table names,
-        # or numbers/ASCII characters).
-        if injection_dict_index == -1:
-            decoded_action = self.dictionary[action_dict_index]
-            return decoded_action not in self.sql_syntax
-
-        return action_dict_index == injection_dict_index
+        # If the expected index is -1, match any token.
+        return injection_dict_index == -1 or action_dict_index == injection_dict_index
     
     def __get_static_reward(self, action: np.ndarray):
         # Initialise to lowest possible normalised reward.

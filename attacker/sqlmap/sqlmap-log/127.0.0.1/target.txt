@@ -1,0 +1,1 @@
+http://127.0.0.1:5000/comments_single_column?score=0 (GET)  # ..\..\sqlmap-dev\sqlmap.py -u http://127.0.0.1:5000/comments_single_column?score=0 -p score --level 5 -v 5 --flush-session --batch --output-dir .\sqlmap-log

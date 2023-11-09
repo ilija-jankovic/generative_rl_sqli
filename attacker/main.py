@@ -21,7 +21,7 @@ tables = data_service.load_tables()
 # pretraining.
 dictionary = visible_chars + columns + tables
 
-encoded_injections = data_service.load_encoded_injections(dictionary)
+encoded_injections = data_service.load_encoded_injections()
 
 environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,

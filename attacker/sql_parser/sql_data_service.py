@@ -2,8 +2,6 @@ import csv
 import os
 from typing import List
 
-from .sql_injection_parser import encode_payloads
-
 class SQLDataService: 
     __dirname: str
 
@@ -14,25 +12,30 @@ class SQLDataService:
         path = os.path.join(self.__dirname, relative_path)
 
         with open(path, 'r') as f:
-            data = f.read()
+            data = f.readlines()
         f.close()
 
-        return data.split('\n')
+        return data
 
-    def load_encoded_injections(self):
-        sql_csv_path = os.path.join(self.__dirname, '../../SQLiV3.csv')
-        sqlmap_payloads_path = os.path.join(self.__dirname,'../sqlmap-log/127.0.0.1/attempted-payloads.txt')
+    def load_payload_files(self, ip: str):
+        payloads: List[str] = []
 
-        allowed_path = os.path.join(self.__dirname, '../../sql_list.txt')
-        reserved_path = os.path.join(self.__dirname, '../../reserved_sql.txt')
-        
-        encoded = encode_payloads(sql_csv_path, is_csv=True, sql_list_path=allowed_path, reserved_sql_list_path=reserved_path) + \
-            encode_payloads(sqlmap_payloads_path, is_csv=False, sql_list_path=allowed_path, reserved_sql_list_path=reserved_path)
-        
-        return [[int(index_string) for index_string in token.split(',')] for token in encoded]
+        lines = self.__read_lines('../../SQLiV3.csv')
+        for row in csv.reader(lines):
+            payloads.append(''.join(row))
+
+        payloads += self.__read_lines(f'../sqlmap/sqlmap-log/{ip}/attempted-payloads.txt')
+
+        return payloads 
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')
     
     def load_tables(self):
         return self.__read_lines('../../tables.txt')
+    
+    def load_sql_tokens(self):
+        return self.__read_lines('../../sql_tokenizable.txt')
+    
+    def load_sql_blacklist(self):
+        return self.__read_lines('../../sql_blacklist.txt')

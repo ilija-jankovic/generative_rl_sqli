@@ -32,10 +32,9 @@ class TokenParser:
                 return True
             
         for token in self.tokens:
-            if token not in datum:
-                return True
+            datum = datum.replace(token, '')
 
-        return False
+        return len(datum) > 0
 
     def __remove_blacklisted_tokens(self):
         return list(filter(
@@ -56,8 +55,9 @@ class TokenParser:
                 indices = [i for i,
                            item in enumerate(datum) if item == token]
 
+                token_index = self.tokens.index(token)
                 for index in indices:
-                    index_map_list.append((index, token))
+                    index_map_list.append((index, token_index))
 
             index_map_list.sort(key = lambda map: map[0])
             indexed_data.append([map[1] for map in index_map_list])
@@ -68,5 +68,5 @@ class TokenParser:
         '''
         Returns data parsed to token indices in range `[0, ..., len(tokens) - 1]`.
         '''
-        data = self.__remove_blacklisted_tokens(self.data)
+        data = self.__remove_blacklisted_tokens()
         return self.__tokenize(data)

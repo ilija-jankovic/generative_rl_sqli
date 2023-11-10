@@ -12,7 +12,7 @@ class SQLDataService:
         path = os.path.join(self.__dirname, relative_path)
 
         with open(path, 'r') as f:
-            data = f.readlines()
+            data = f.read().splitlines()
         f.close()
 
         return data

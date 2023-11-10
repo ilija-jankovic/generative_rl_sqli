@@ -6,8 +6,8 @@ from sql_parser.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
 from rl.environment import Environment
 
-ACTION_SIZE = 100
-STATE_SIZE = 10000
+ACTION_SIZE = 40
+STATE_SIZE = 500
 
 IP = '127.0.0.1'
 
@@ -27,12 +27,12 @@ dictionary = sql_tokens + tables + columns + visible_chars
 dictionary.sort(reverse=True)
 
 print('Encoding payloads...')
-encoded_injections = TokenParser(dictionary, token_blacklist, payloads).parse()
-print('Payloads encoded.')
+encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
+print(f'{len(encoded_payloads)} payload(s) encoded.')
 
 environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
-    encoded_injections=encoded_injections,
+    encoded_payloads=encoded_payloads,
     columns=columns, tables=tables,
     send_request_callback= lambda payload:
         requests.get(f'http://{IP}:5000/comments_single_column?score={payload}'))
@@ -49,11 +49,9 @@ def print_decoded_injections():
     Use to verify that the predefined encoded injection list is correctly
     encoded.
     '''
-    for injection in encoded_injections:
+    for injection in encoded_payloads:
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
-
-print_decoded_injections()
 
 def main():
     ddpg = DDPG(environment)

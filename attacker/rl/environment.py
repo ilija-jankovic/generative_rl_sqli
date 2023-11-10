@@ -12,7 +12,7 @@ class Environment():
     action_size: int
     state_size: int
 
-    encoded_injections: List[List[int]]
+    encoded_payloads: List[List[int]]
 
     columns: List[str]
     tables: List[str]
@@ -28,7 +28,7 @@ class Environment():
             dictionary: List[str],
             action_size: int,
             state_size: int,
-            encoded_injections: List[List[int]],
+            encoded_payloads: List[List[int]],
             columns: List[str],
             tables: List[str],
             send_request_callback: Callable[[str], Response]
@@ -37,7 +37,7 @@ class Environment():
         self.action_size = action_size
         self.state_size = state_size
 
-        self.encoded_injections = encoded_injections
+        self.encoded_payloads = encoded_payloads
 
         self.columns = columns
         self.tables = tables
@@ -48,8 +48,8 @@ class Environment():
         self.__reset_token_cache()
 
     def __remove_oversized_injections(self):
-        self.encoded_injections = list(filter(
-            lambda injection:len(injection) <= self.action_size, self.encoded_injections))
+        self.encoded_payloads = list(filter(
+            lambda injection:len(injection) <= self.action_size, self.encoded_payloads))
 
     def __inject_random_payloads(self):
         self.__inject_payload('')
@@ -139,7 +139,7 @@ class Environment():
 
         token_indicies_length = len(action_token_indicies)
 
-        for encoded_injection in self.encoded_injections:
+        for encoded_injection in self.encoded_payloads:
             injection_length = len(encoded_injection)
             comparison_count = max(injection_length, token_indicies_length)
 
@@ -240,13 +240,6 @@ class Environment():
     def perform_action(self, action: np.ndarray):
         token = self.__get_token(action[-1])
         payload = self.__get_payload(action)
-        
-        if self.__payload_attempted(payload) or \
-            ((token in self.tables or token in self.columns) and payload.count(token) > 1) or \
-            not self.__is_valid_sql_payload(payload) or \
-            self.__payload_has_unnecessary_tokens(payload):
-            episode_ended = self.__update_episode(extend=False)
-            return self.create_empty_state(), -1.0, episode_ended
 
         self.__record_payload(payload)
 

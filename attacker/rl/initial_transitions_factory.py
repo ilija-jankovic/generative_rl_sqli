@@ -17,7 +17,7 @@ class InitialTransitionsFactory:
         for _ in range(num_transitions):
             state = state_next
 
-            injection = random.choice(self.env.encoded_injections).copy()
+            injection = random.choice(self.env.encoded_payloads).copy()
             
             # Ensure actions are always the correct size by padding with
             # empty tokens until the action size is reached.

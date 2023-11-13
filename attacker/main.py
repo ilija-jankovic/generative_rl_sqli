@@ -11,7 +11,9 @@ STATE_SIZE = 500
 
 IP = '127.0.0.1'
 
-visible_chars = [chr(i) for i in range(32, 127)]
+# Skips lowercase alphabet as SQL is case-insensitive.
+visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
+    [chr(i) for i in range(123, 128)]
 
 data_service = SQLDataService()
 
@@ -23,7 +25,12 @@ token_blacklist = data_service.load_sql_blacklist()
 
 payloads = data_service.load_payload_files(IP)
 
-dictionary = sql_tokens + tables + columns + visible_chars
+dictionary = sql_tokens + tables + columns + visible_uppercase_chars
+
+# Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
+# which may also be contained in sql_tokens.
+dictionary = list(set(dictionary))
+
 dictionary.sort(reverse=True)
 
 print('Encoding payloads...')
@@ -55,7 +62,7 @@ def print_decoded_injections():
 
 def main():
     ddpg = DDPG(environment)
-    ddpg.run()
+    ddpg.run(total_demonstration_steps=1000)
 
 if __name__ == '__main__':
     main()

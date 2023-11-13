@@ -26,7 +26,7 @@ class SQLDataService:
 
         payloads += self.__read_lines(f'../sqlmap/sqlmap-log/{ip}/attempted-payloads.txt')
 
-        return payloads 
+        return list(map(lambda payload: payload.upper(), payloads))
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')

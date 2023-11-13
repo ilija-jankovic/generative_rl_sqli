@@ -77,7 +77,7 @@ class DDPG:
         return legal_action
 
 
-    def run(self):
+    def run(self, total_demonstration_steps: int):
         std_dev = 1.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.001, theta=0.01)
         batch_size = 4096
@@ -101,7 +101,7 @@ class DDPG:
 
         total_episodes = 10000
         # Discount factor for future rewards
-        gamma = 0.95
+        gamma = 0.99
         # Used to update target networks
         tau = 0.005
 
@@ -111,8 +111,16 @@ class DDPG:
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
         transitions_factory = InitialTransitionsFactory(self.env)
-        for obs in transitions_factory.gather_transitions(10000):
+        demonstration_step = 0
+
+        for obs in transitions_factory.gather_transitions(total_demonstration_steps):
             buffer.record(obs)
+
+            demonstration_step += 1
+            print(f'{demonstration_step}/{total_demonstration_steps} demonstration steps completed.')
+
+        print('Demonstration observations gathered.')
+        print('Running DDPG...')
 
         # To store reward history of each episode
         ep_reward_list = []

@@ -238,6 +238,15 @@ class Environment():
         return np.array(action.tolist() + res_data + res_new_tokens_joined)
     
     def perform_action(self, action: np.ndarray):
+        #
+        #
+        # !IMPORTANT!
+        #
+        # TODO: Do not run payload if it contains any sql_blacklist.txt tokens.
+        # Severely negatively reward such actions.
+        #
+        #
+
         token = self.__get_token(action[-1])
         payload = self.__get_payload(action)
 

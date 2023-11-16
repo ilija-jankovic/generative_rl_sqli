@@ -1,8 +1,6 @@
-LinkTypes
-PostLinks
-Posts
-PostTypes
-Users
-Votes
-VoteTypes
-Badges
+admin
+commentsnew
+image
+products
+types
+users

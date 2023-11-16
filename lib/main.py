@@ -1,10 +1,11 @@
 #!/usr/local/bin/python
 import numpy as np
 import requests
+from model.token_encoder import learn_embeddings
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
-from rl.ddpg import DDPG
-from rl.environment import Environment
+from model.ddpg import DDPG
+from model.environment import Environment
 
 ACTION_SIZE = 20
 STATE_SIZE = 500
@@ -23,6 +24,7 @@ tables = data_service.load_tables()
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
+queries = data_service.load_wikisql_queries()
 payloads = data_service.load_payload_files(IP)
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars
@@ -32,6 +34,10 @@ dictionary = sql_tokens + tables + columns + visible_uppercase_chars
 dictionary = list(set(dictionary))
 
 dictionary.sort(reverse=True)
+
+print('Encoding queries...')
+encoded_queries = TokenParser(dictionary, token_blacklist, queries).parse()
+print(f'{len(encoded_queries)} queries encoded.')
 
 print('Encoding payloads...')
 encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
@@ -64,6 +70,10 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
+    print('Learning SQL embeddings...')
+    learn_embeddings(encoded_queries, len(dictionary))
+    print('Embeddings learned.')
+    
     ddpg = DDPG(environment)
     ddpg.run(total_demonstration_steps=1000)
 

@@ -8,10 +8,10 @@ class SQLDataService:
     def __init__(self):
         self.__dirname = os.path.dirname(__file__)
     
-    def __read_lines(self, relative_path: str):
+    def __read_lines(self, relative_path: str, encoding: str = None):
         path = os.path.join(self.__dirname, relative_path)
 
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding=encoding) as f:
             data = f.read().splitlines()
         f.close()
 
@@ -39,3 +39,7 @@ class SQLDataService:
     
     def load_sql_blacklist(self):
         return self.__read_lines('../../sql_blacklist.txt')
+
+    def load_wikisql_queries(self):
+        queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
+        return list(map(lambda query: query.upper(), queries))

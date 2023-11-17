@@ -71,58 +71,6 @@ class Environment():
 
         # Ensures data from non-useful injections is not rewarded.
         self.__inject_random_payloads()
-
-    def __is_valid_sql_payload(self, payload: str):
-        ast_contraint_index = float('inf')
-
-        try:
-            ast_contraint_index = payload.index('UNION')
-        except:
-            pass
-
-        try:
-            ast_contraint_index = min(payload.index('SELECT'), ast_contraint_index)
-        except:
-            if ast_contraint_index == float('inf'):
-                return True
-
-        try:
-            sqltree(payload[ast_contraint_index: -1])
-            return True
-        except:
-            return False
-        
-    def __payload_has_unnecessary_tokens(self, payload: str):
-        comment_index = float('inf')
-
-        try:
-            comment_index = payload.index('--')
-        except:
-            pass
-
-        try:
-            comment_index = min(payload.index('#'), comment_index)
-        except:
-            if comment_index == float('inf'):
-                return False
-
-        return len(payload) > comment_index + 1
-
-    def __get_token_index(self, action_class: float):
-        '''
-        Returns an integer in the range `[-1, len(self.dictionary) - 1]`.
-        '''
-        # >= 1.0 condition ensures the max action class value rounds
-        # down to the maximum allowed index.
-        if action_class < -1.0 or action_class >= 1.0:
-            return -1
-        
-        denormalised = (action_class + 1.0) * (len(self.dictionary) + 1.0) / 2.0 - 1.0
-        return int(denormalised)
-
-    def __get_token(self, action_class: float):
-        index = self.__get_token_index(action_class)
-        return '' if index == -1 else self.dictionary[index]
     
     def __get_closest_embedding(self, action_slice: List[float]):
         '''

@@ -1,5 +1,5 @@
 from typing import List, Tuple
-
+import tqdm
 
 class TokenParser:
 
@@ -48,7 +48,7 @@ class TokenParser:
         '''
         indexed_data: List[List[int]] = []
 
-        for datum in data:
+        for datum in tqdm.tqdm(data):
             index_map_list: List[Tuple[int, int]] = []
 
             for token in self.tokens:

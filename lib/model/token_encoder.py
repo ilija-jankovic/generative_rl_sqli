@@ -4,6 +4,8 @@
 from typing import List
 import tensorflow as tf
 from keras import layers
+import keras
+import tqdm
 
 # Generates skip-gram pairs with negative sampling for a list of sequences
 # (int-encoded sentences) based on window size, number of negative samples
@@ -16,7 +18,7 @@ def generate_training_data(sequences: List[List[int]], window_size: int, num_ns:
   sampling_table = tf.keras.preprocessing.sequence.make_sampling_table(vocab_size)
 
   # Iterate over all sequences (sentences) in the dataset.
-  for sequence in sequences:
+  for sequence in tqdm.tqdm(sequences):
 
     # Generate positive skip-gram pairs for a sequence (sentence).
     positive_skip_grams, _ = tf.keras.preprocessing.sequence.skipgrams(
@@ -45,7 +47,10 @@ def generate_training_data(sequences: List[List[int]], window_size: int, num_ns:
           negative_sampling_candidates, 1)
 
       context = tf.concat([context_class, negative_sampling_candidates], 0)
+      context = tf.squeeze(context)
+      
       label = tf.constant([1] + [0]*num_ns, dtype="int64")
+      label = tf.squeeze(label)
 
       # Append each element from the training example to global lists.
       targets.append(target_word)
@@ -85,28 +90,30 @@ class Word2Vec(tf.keras.Model):
 def learn_embeddings(training_data: List[List[int]], vocabulary_length: int):
     num_ns = 4
 
+    print('Generating training data...')
     targets, contexts, labels = generate_training_data(
         sequences=training_data,
         window_size=2,
         num_ns=num_ns,
         vocab_size=vocabulary_length,
         seed=11)
-  
+    
     embedding_dim = 128
     word2vec = Word2Vec(vocabulary_length, embedding_dim, num_ns=num_ns)
     word2vec.compile(optimizer='adam',
                     loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
                     metrics=['accuracy'])
-
+    
     BATCH_SIZE = 1024
     BUFFER_SIZE = 10000
     dataset = tf.data.Dataset.from_tensor_slices(((targets, contexts), labels))
     dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE, drop_remainder=True)
 
+    print('Training...')
     word2vec.fit(dataset, epochs=20)
 
-    weights = word2vec.get_layer('w2v_embedding').get_weights()[0]
-    res = word2vec.predict([1] + [0] * (vocabulary_length - 1))
-    print(res)
+    # TODO: Save the weights if training data is not based on table/column names.
+    # Better solution is to add table/column names to training data.
+    
+    return word2vec.get_layer('w2v_embedding').get_weights()[0]
 
-    # TODO: Get a list of all embeddings, and potentially save it.

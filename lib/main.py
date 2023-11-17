@@ -43,6 +43,10 @@ print('Encoding payloads...')
 encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
+print('Learning SQL embeddings...')
+embeddings = learn_embeddings(encoded_queries, len(dictionary))
+print('Embeddings learned.')
+
 environment = Environment(
     dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
     encoded_payloads=encoded_payloads,
@@ -69,11 +73,7 @@ def print_decoded_injections():
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
 
-def main():
-    print('Learning SQL embeddings...')
-    learn_embeddings(encoded_queries, len(dictionary))
-    print('Embeddings learned.')
-    
+def main():    
     ddpg = DDPG(environment)
     ddpg.run(total_demonstration_steps=1000)
 

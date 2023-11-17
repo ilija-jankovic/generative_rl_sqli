@@ -18,7 +18,7 @@ class Environment():
     embeddings: List[List[float]]
 
     # Calculated dynamically from embeddings.
-    __embedding_size : int
+    embedding_size : int
 
     columns: List[str]
     tables: List[str]
@@ -47,8 +47,8 @@ class Environment():
             if len(embedding) != len(embeddings[0]):
                 raise Exception('All embeddings must be of the same length')
         
-        self.__embedding_size = len(embeddings[0])
-        assert(action_size % self.__embedding_size)
+        self.embedding_size = len(embeddings[0])
+        assert(action_size % self.embedding_size == 0)
             
         self.dictionary = dictionary
 
@@ -77,12 +77,11 @@ class Environment():
         Gets most similar embedding vector by max cosine similarity with
         `action_slice`.
         '''
-        return max(self.embeddings, lambda embedding:
-                   dot(action_slice, embedding)/(norm(action_slice)*norm(embedding)))
+        return max(self.embeddings, key=lambda embedding: dot(action_slice, embedding)/(norm(action_slice)*norm(embedding)))
 
     def __get_payload(self, action: np.ndarray):
-        action_slices = [action[i:i + self.__embedding_size]
-                         for i in range(0, self.action_size, self.__embedding_size)]
+        action_slices = [action[i:i + self.embedding_size]
+                         for i in range(0, self.action_size, self.embedding_size)]
 
         payload = ''
         for action_slice in action_slices:

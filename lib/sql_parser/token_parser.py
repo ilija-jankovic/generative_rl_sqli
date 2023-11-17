@@ -6,9 +6,12 @@ class TokenParser:
     tokens: List[str]
     token_blacklist: List[str]
     data: List[str]
+    tokens_per_row: int
 
-    def __init__(self, tokens: List[str], token_blacklist: List[str],
-                data: List[str]):
+    def __init__(self,
+            tokens: List[str],
+            token_blacklist: List[str],
+            tokens_per_row: int):
         '''
         `tokens` must be in descending order.
         '''
@@ -24,7 +27,8 @@ class TokenParser:
             raise Exception('Tokens must be sorted in descending order.')
 
         self.token_blacklist = token_blacklist
-        self.data = data
+
+        self.tokens_per_row = tokens_per_row
 
     def __contains_blacklisted_token(self, datum: str):
         for token in self.token_blacklist:
@@ -36,10 +40,10 @@ class TokenParser:
 
         return len(datum) > 0
 
-    def __remove_blacklisted_tokens(self):
+    def __remove_blacklisted_tokens(self, data: List[str]):
         return list(filter(
             lambda datum: not self.__contains_blacklisted_token(datum),
-            self.data
+            data
         ))
     
     def __tokenize(self, data: List[str]):
@@ -60,13 +64,17 @@ class TokenParser:
                     index_map_list.append((index, token_index))
 
             index_map_list.sort(key = lambda map: map[0])
-            indexed_data.append([map[1] for map in index_map_list])
+
+            indexed_datum = [map[1] for map in index_map_list]
+            indexed_datum += [0] * (self.tokens_per_row - len(indexed_datum))
+            
+            indexed_data.append(indexed_datum)
 
         return indexed_data
     
-    def parse(self):
+    def parse(self, data: List[str]):
         '''
         Returns data parsed to token indices in range `[0, ..., len(tokens) - 1]`.
         '''
-        data = self.__remove_blacklisted_tokens()
+        data = self.__remove_blacklisted_tokens(data)
         return self.__tokenize(data)

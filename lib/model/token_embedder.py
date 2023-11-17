@@ -91,5 +91,5 @@ class TokenEmbedder:
       # TODO: Save the weights if training data is not based on table/column names.
       # Better solution is to add table/column names to training data.
 
-      return word2vec.get_layer('w2v_embedding').get_weights()[0]
+      return word2vec.get_layer('w2v_embedding').get_weights()[0].tolist()
 

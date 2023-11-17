@@ -5,6 +5,7 @@ import tensorflow as tf
 import keras
 from keras import layers
 import numpy as np
+import tqdm
 
 from .initial_transitions_factory import InitialTransitionsFactory
 
@@ -14,8 +15,12 @@ from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
 class DDPG:
-    def __init__(self, env: Environment):
+    env: Environment
+    demonstrations_factory: InitialTransitionsFactory
+
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory):
         self.env = env
+        self.demonstrations_factory = demonstrations_factory
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -110,16 +115,12 @@ class DDPG:
                               actor_model=actor_model, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
-        transitions_factory = InitialTransitionsFactory(self.env)
-        demonstration_step = 0
-
-        for obs in transitions_factory.gather_transitions(total_demonstration_steps):
+        print('Gathering demonstration transitions...')
+        
+        for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
             buffer.record(obs)
 
-            demonstration_step += 1
-            print(f'{demonstration_step}/{total_demonstration_steps} demonstration steps completed.')
-
-        print('Demonstration observations gathered.')
+        print('Transitions gathered.')
         print('Running DDPG...')
 
         # To store reward history of each episode

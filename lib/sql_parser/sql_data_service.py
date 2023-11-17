@@ -29,7 +29,7 @@ class SQLDataService:
         except FileNotFoundError:
             print('sqlmap log not found. Skipping...')
 
-        return list(map(lambda payload: payload.upper(), payloads))
+        return list(map(lambda payload: payload.upper(), payloads[:1000]))
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')
@@ -45,4 +45,4 @@ class SQLDataService:
 
     def load_wikisql_queries(self):
         queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
-        return list(map(lambda query: query.upper(), queries))
+        return list(map(lambda query: query.upper(), queries[:1000]))

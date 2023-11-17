@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 import numpy as np
 import requests
+from model.initial_transitions_factory import InitialTransitionsFactory
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
 from model.token_embedder import TokenEmbedder 
@@ -19,9 +20,17 @@ EMBEDDING_DIM = 128
 
 # Must be a multiple of the token embedding dimension.
 ACTION_SIZE = 20 * EMBEDDING_DIM
-STATE_SIZE = 500
+
+# TODO: Ensure states do not need to be larger than actions.
+#
+# This is the case because an entire action is currently set as
+# the prefix of a state.
+STATE_SIZE = 2 * ACTION_SIZE 
 
 IP = 'localhost'
+
+# Should always be at index 0 of the dictionary.
+PADDING_PLACEHOLDER = '<pad>'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -38,7 +47,7 @@ token_blacklist = data_service.load_sql_blacklist()
 queries = data_service.load_wikisql_queries()
 payloads = data_service.load_payload_files(IP)
 
-dictionary = sql_tokens + tables + columns + visible_uppercase_chars
+dictionary = [PADDING_PLACEHOLDER] + sql_tokens + tables + columns + visible_uppercase_chars
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.
@@ -46,12 +55,14 @@ dictionary = list(set(dictionary))
 
 dictionary.sort(reverse=True)
 
+token_parser = TokenParser(dictionary, token_blacklist, tokens_per_row=ACTION_SIZE//EMBEDDING_DIM)
+
 print('Encoding queries...')
-encoded_queries = TokenParser(dictionary, token_blacklist, queries).parse()
+encoded_queries = token_parser.parse(queries)
 print(f'{len(encoded_queries)} queries encoded.')
 
 print('Encoding payloads...')
-encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
+encoded_payloads = token_parser.parse(payloads)
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
 # TODO: Retrieve cached embeddings (if already generated) if dictionary and
@@ -63,15 +74,15 @@ print('Embeddings learned.')
 
 environment = Environment(
     dictionary,
-
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
+    embeddings=embeddings,
     columns=columns,
     tables=tables,
     send_request_callback= lambda payload:
         requests.get(f'http://{IP}/products.php?id={payload}', headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-            'cookie': 'phpMyAdmin=e50db933ce5df034826b4eada2463ade; pma_lang=en; PHPSESSID=64d8bd0e4d00a133245ad660c5d542b9; {flag}=33e8075e9970de0cfea955afd4644bb2'
+            'cookie': 'pma_lang=en; PHPSESSID=456592e497d2df4788e473f64eeaec43; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
         }))
         #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
         #requests.post('http://localhost:3000/rest/user/login', data={
@@ -90,8 +101,10 @@ def print_decoded_injections():
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
 
+print_decoded_injections()
+
 def main():    
-    ddpg = DDPG(environment)
+    ddpg = DDPG(environment, demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads))
     ddpg.run(total_demonstration_steps=1000)
 
 if __name__ == '__main__':

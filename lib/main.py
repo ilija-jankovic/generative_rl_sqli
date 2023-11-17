@@ -30,11 +30,11 @@ STATE_SIZE = 2 * ACTION_SIZE
 IP = 'localhost'
 
 # Should always be at index 0 of the dictionary.
-PADDING_PLACEHOLDER = '<pad>'
+PADDING_TOKEN = ''
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
-    [chr(i) for i in range(123, 128)]
+    [chr(i) for i in range(123, 127)]
 
 data_service = SQLDataService()
 
@@ -47,7 +47,7 @@ token_blacklist = data_service.load_sql_blacklist()
 queries = data_service.load_wikisql_queries()
 payloads = data_service.load_payload_files(IP)
 
-dictionary = [PADDING_PLACEHOLDER] + sql_tokens + tables + columns + visible_uppercase_chars
+dictionary = [PADDING_TOKEN] + sql_tokens + tables + columns + visible_uppercase_chars
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.

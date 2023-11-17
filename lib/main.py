@@ -46,6 +46,8 @@ print('Encoding payloads...')
 encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
+# TODO: Retrieve cached embeddings (if already generated) if dictionary and
+# embedding examples are unchanged.
 print('Running token embedder...')
 embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
     encoded_queries + encoded_payloads, len(dictionary))

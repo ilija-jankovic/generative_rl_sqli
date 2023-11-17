@@ -47,12 +47,13 @@ encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
 print('Running token embedder...')
-embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(encoded_queries, len(dictionary))
+embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings( \
+    encoded_queries + encoded_payloads, len(dictionary))
 print('Embeddings learned.')
 
 environment = Environment(
     dictionary,
-    
+
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
     columns=columns,

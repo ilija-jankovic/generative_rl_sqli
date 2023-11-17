@@ -2,10 +2,8 @@
 # https://www.tensorflow.org/text/tutorials/word2vec
 
 from typing import List
-from word2vec import Word2Vec
+from .word2vec import Word2Vec
 import tensorflow as tf
-from keras import layers
-import keras
 import tqdm
   
 class TokenEmbedder:
@@ -71,7 +69,7 @@ class TokenEmbedder:
     return targets, contexts, labels
 
   def learn_embeddings(self, training_data: List[List[int]], vocabulary_length: int,
-                       batch_size: int, buffer_size: int) -> List[List[float]]:
+                       batch_size: int = 1024, buffer_size: int = 10000) -> List[List[float]]:
       print('Generating embedding training data...')
       targets, contexts, labels = self.__generate_training_data(
           sequences=training_data,

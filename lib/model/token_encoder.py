@@ -90,7 +90,7 @@ class Word2Vec(tf.keras.Model):
 def learn_embeddings(training_data: List[List[int]], vocabulary_length: int):
     num_ns = 4
 
-    print('Generating training data...')
+    print('Generating embedding training data...')
     targets, contexts, labels = generate_training_data(
         sequences=training_data,
         window_size=2,
@@ -106,14 +106,16 @@ def learn_embeddings(training_data: List[List[int]], vocabulary_length: int):
     
     BATCH_SIZE = 1024
     BUFFER_SIZE = 10000
+
+    print('Creating training dataset...')
     dataset = tf.data.Dataset.from_tensor_slices(((targets, contexts), labels))
     dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE, drop_remainder=True)
 
-    print('Training...')
+    print('Learning embeddings...')
     word2vec.fit(dataset, epochs=20)
 
     # TODO: Save the weights if training data is not based on table/column names.
     # Better solution is to add table/column names to training data.
-    
+
     return word2vec.get_layer('w2v_embedding').get_weights()[0]
 

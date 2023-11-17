@@ -45,4 +45,4 @@ class SQLDataService:
 
     def load_wikisql_queries(self):
         queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
-        return list(map(lambda query: query.upper(), queries[:100]))
+        return list(map(lambda query: query.upper(), queries))

@@ -43,7 +43,7 @@ print('Encoding payloads...')
 encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
-print('Learning SQL embeddings...')
+print('Running token embedder...')
 embeddings = learn_embeddings(encoded_queries, len(dictionary))
 print('Embeddings learned.')
 

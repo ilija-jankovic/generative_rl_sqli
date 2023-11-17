@@ -7,6 +7,14 @@ from model.token_embedder import TokenEmbedder
 from model.ddpg import DDPG
 from model.environment import Environment
 
+#
+#
+# !
+# ! TODO: IMPORTANT: Add legal disclaimer.
+# !
+#
+#
+
 EMBEDDING_DIM = 128
 
 # Must be a multiple of the token embedding dimension.

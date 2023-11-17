@@ -68,7 +68,10 @@ class TokenParser:
             index_map_list.sort(key = lambda map: map[0])
 
             indexed_datum = [map[1] for map in index_map_list]
-            indexed_datum += [0] * (self.tokens_per_row - len(indexed_datum))
+
+            # Pad with padding token (which is expected to be at the bottom of the tokens list
+            # due to it being an empty string after sorting).
+            indexed_datum += [len(self.tokens) - 1] * (self.tokens_per_row - len(indexed_datum))
 
             indexed_data.append(indexed_datum)
 

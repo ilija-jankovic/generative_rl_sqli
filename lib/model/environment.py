@@ -72,24 +72,42 @@ class Environment():
         # Ensures data from non-useful injections is not rewarded.
         self.__inject_random_payloads()
     
-    def __get_closest_embedding(self, action_slice: List[float]):
+    def __get_closest_embedding_with_similarity(self, action_slice: List[float]):
         '''
         Gets most similar embedding vector by max cosine similarity with
         `action_slice`.
         '''
-        return max(self.embeddings, key=lambda embedding: dot(action_slice, embedding)/(norm(action_slice)*norm(embedding)))
 
-    def __get_payload(self, action: np.ndarray):
+        max_similarity = float('-inf')
+        max_similarity_embedding: List[float]
+
+        for embedding in self.embeddings:
+            cosine_similarity = dot(action_slice, embedding)/(norm(action_slice)*norm(embedding))        
+
+            if cosine_similarity > max_similarity:
+                max_similarity = cosine_similarity
+                max_similarity_embedding = embedding
+
+        return max_similarity_embedding, max_similarity
+            
+
+    def __get_payload_with_average_similarity(self, action: np.ndarray):
         action_slices = [action[i:i + self.embedding_size]
                          for i in range(0, self.action_size, self.embedding_size)]
 
         payload = ''
-        for action_slice in action_slices:
-            closest_embedding = self.__get_closest_embedding(action_slice)
-            closest_dict_index = self.embeddings.index(closest_embedding)
-            payload += self.dictionary[closest_dict_index]
+        total_similarities = 0.0
 
-        return payload
+        for action_slice in action_slices:
+            closest_embedding, similarity = self.__get_closest_embedding_with_similarity(action_slice)
+            closest_dict_index = self.embeddings.index(closest_embedding)
+
+            payload += self.dictionary[closest_dict_index]
+            total_similarities += similarity
+
+        average_similarity = total_similarities / len(action_slices)
+
+        return payload, average_similarity
 
     def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)
@@ -186,7 +204,7 @@ class Environment():
         #
         #
 
-        payload = self.__get_payload(action)
+        payload, average_similarity = self.__get_payload_with_average_similarity(action)
 
         self.__record_payload(payload)
 
@@ -196,11 +214,17 @@ class Environment():
         #reward = static_reward + dynamic_reward
         response, new_tokens = self.__inject_payload(payload)
 
-        reward = len(new_tokens)
-        reward = -0.1 if reward <= 0.0 else reward
-        if reward > 0.0:
+        new_tokens_count = len(new_tokens)
+
+        if new_tokens_count > 0:
+            reward = new_tokens_count
+
             print(f'Successful payload (reward: {reward}):')
-            print(self.__get_payload(action))
+            print(payload)
+        elif self.__payload_attempted(payload):
+            reward = -1.0
+        else:
+            reward = min(average_similarity - 0.5, 0.0)
         
         state = self.__create_state(action, response.text, new_tokens)
 

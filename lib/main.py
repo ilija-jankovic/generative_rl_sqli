@@ -29,7 +29,11 @@ STATE_SIZE = 2 * ACTION_SIZE
 
 IP = 'localhost'
 
-# Should always be at index 0 of the dictionary.
+# TODO: Ensure token parser checks for empty string instead of assuming
+# its position at end of descending list.
+#
+# Must be an empty string due to token parsing in descending alphabetical
+# order.
 PADDING_TOKEN = ''
 
 # Skips lowercase alphabet as SQL is case-insensitive.

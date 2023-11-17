@@ -47,7 +47,7 @@ encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
 print('Running token embedder...')
-embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings( \
+embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
     encoded_queries + encoded_payloads, len(dictionary))
 print('Embeddings learned.')
 

@@ -1,13 +1,16 @@
 #!/usr/local/bin/python
 import numpy as np
 import requests
-from model.token_encoder import learn_embeddings
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
+from model.token_embedder import TokenEmbedder 
 from model.ddpg import DDPG
 from model.environment import Environment
 
-ACTION_SIZE = 20
+EMBEDDING_DIM = 128
+
+# Must be a multiple of the token embedding dimension.
+ACTION_SIZE = 20 * EMBEDDING_DIM
 STATE_SIZE = 500
 
 IP = 'localhost'
@@ -44,13 +47,16 @@ encoded_payloads = TokenParser(dictionary, token_blacklist, payloads).parse()
 print(f'{len(encoded_payloads)} payload(s) encoded.')
 
 print('Running token embedder...')
-embeddings = learn_embeddings(encoded_queries, len(dictionary))
+embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(encoded_queries, len(dictionary))
 print('Embeddings learned.')
 
 environment = Environment(
-    dictionary, action_size=ACTION_SIZE, state_size=STATE_SIZE,
-    encoded_payloads=encoded_payloads,
-    columns=columns, tables=tables,
+    dictionary,
+    
+    action_size=ACTION_SIZE,
+    state_size=STATE_SIZE,
+    columns=columns,
+    tables=tables,
     send_request_callback= lambda payload:
         requests.get(f'http://{IP}/products.php?id={payload}', headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',

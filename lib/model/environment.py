@@ -4,15 +4,21 @@ import re
 from sqltree import sqltree
 from requests import Response
 from typing import Callable
+from numpy import dot
+from numpy.linalg import norm
 
 from .episode_state import EpisodeState
 
 class Environment():
     dictionary: List[str]
+
     action_size: int
     state_size: int
 
-    encoded_payloads: List[List[int]]
+    embeddings: List[List[float]]
+
+    # Calculated dynamically from embeddings.
+    __embedding_size : int
 
     columns: List[str]
     tables: List[str]
@@ -28,28 +34,33 @@ class Environment():
             dictionary: List[str],
             action_size: int,
             state_size: int,
-            encoded_payloads: List[List[int]],
+            embeddings: List[List[int]],
             columns: List[str],
             tables: List[str],
             send_request_callback: Callable[[str], Response]
         ):
+        assert(action_size > 0)
+        assert(state_size > 0)
+        assert(len(embeddings) == len(dictionary))
+        
+        for embedding in embeddings[1:]:
+            if len(embedding) != len(embeddings[0]):
+                raise Exception('All embeddings must be of the same length')
+        
+        self.__embedding_size = len(embeddings[0])
+        assert(action_size % self.__embedding_size)
+            
         self.dictionary = dictionary
+
         self.action_size = action_size
         self.state_size = state_size
-
-        self.encoded_payloads = encoded_payloads
+        
+        self.embeddings = embeddings
 
         self.columns = columns
         self.tables = tables
         
         self.send_request_callback = send_request_callback
-
-        self.__remove_oversized_injections()
-        self.__reset_token_cache()
-
-    def __remove_oversized_injections(self):
-        self.encoded_payloads = list(filter(
-            lambda injection:len(injection) <= self.action_size, self.encoded_payloads))
 
     def __inject_random_payloads(self):
         self.__inject_payload('')
@@ -112,10 +123,26 @@ class Environment():
     def __get_token(self, action_class: float):
         index = self.__get_token_index(action_class)
         return '' if index == -1 else self.dictionary[index]
+    
+    def __get_closest_embedding(self, action_slice: List[float]):
+        '''
+        Gets most similar embedding vector by max cosine similarity with
+        `action_slice`.
+        '''
+        return max(self.embeddings, lambda embedding:
+                   dot(action_slice, embedding)/(norm(action_slice)*norm(embedding)))
 
     def __get_payload(self, action: np.ndarray):
-        chrs = [self.__get_token(cls) for cls in action]
-        return ''.join(chrs)
+        action_slices = [action[i:i + self.__embedding_size]
+                         for i in range(0, self.action_size, self.__embedding_size)]
+
+        payload = ''
+        for action_slice in action_slices:
+            closest_embedding = self.__get_closest_embedding(action_slice)
+            closest_dict_index = self.embeddings.index(closest_embedding)
+            payload += self.dictionary[closest_dict_index]
+
+        return payload
 
     def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)
@@ -125,41 +152,6 @@ class Environment():
 
     def create_empty_state(self):
         return np.array([-1] * self.state_size, dtype='float32')
-
-    def __is_action_token_valid(self, action_dict_index: int, injection_dict_index: int):
-        # If the expected index is -1, match any token.
-        return injection_dict_index == -1 or action_dict_index == injection_dict_index
-    
-    def __get_static_reward(self, action: np.ndarray):
-        # Initialise to lowest possible normalised reward.
-        highest_norm_reward = -1.0
-
-        action_token_indicies = [self.__get_token_index(action[i]) for i in range(len(action))]
-        action_token_indicies = list(filter(lambda index: index != -1, action_token_indicies))
-
-        token_indicies_length = len(action_token_indicies)
-
-        for encoded_injection in self.encoded_payloads:
-            injection_length = len(encoded_injection)
-            comparison_count = max(injection_length, token_indicies_length)
-
-            reward = 0
-
-            for action_index in range(comparison_count):
-                if action_index >= token_indicies_length or action_index >= injection_length:
-                    reward -= 1
-                    continue
-
-                action_dict_index = action_token_indicies[action_index]
-                injection_dict_index = int(encoded_injection[action_index])
-                
-                action_valid = self.__is_action_token_valid(action_dict_index, injection_dict_index)
-                reward += 1 if action_valid else -1
-            
-            reward /= comparison_count
-            highest_norm_reward = max(reward, highest_norm_reward)
-
-        return highest_norm_reward
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -247,7 +239,6 @@ class Environment():
         #
         #
 
-        token = self.__get_token(action[-1])
         payload = self.__get_payload(action)
 
         self.__record_payload(payload)

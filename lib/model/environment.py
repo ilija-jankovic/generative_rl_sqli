@@ -15,11 +15,6 @@ class Environment():
     action_size: int
     state_size: int
 
-    embeddings: List[List[float]]
-
-    # Calculated dynamically from embeddings.
-    embedding_size : int
-
     columns: List[str]
     tables: List[str]
 
@@ -34,28 +29,17 @@ class Environment():
             dictionary: List[str],
             action_size: int,
             state_size: int,
-            embeddings: List[List[int]],
             columns: List[str],
             tables: List[str],
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
         assert(state_size > 0)
-        assert(len(embeddings) == len(dictionary))
-        
-        for embedding in embeddings[1:]:
-            if len(embedding) != len(embeddings[0]):
-                raise Exception('All embeddings must be of the same length')
-        
-        self.embedding_size = len(embeddings[0])
-        assert(action_size % self.embedding_size == 0)
             
         self.dictionary = dictionary
 
         self.action_size = action_size
         self.state_size = state_size
-        
-        self.embeddings = embeddings
 
         self.columns = columns
         self.tables = tables
@@ -71,43 +55,10 @@ class Environment():
 
         # Ensures data from non-useful injections is not rewarded.
         self.__inject_random_payloads()
-    
-    def __get_closest_embedding_with_similarity(self, action_slice: List[float]):
-        '''
-        Gets most similar embedding vector by max cosine similarity with
-        `action_slice`.
-        '''
 
-        max_similarity = float('-inf')
-        max_similarity_embedding: List[float]
-
-        for embedding in self.embeddings:
-            cosine_similarity = dot(action_slice, embedding)/(norm(action_slice)*norm(embedding))        
-
-            if cosine_similarity > max_similarity:
-                max_similarity = cosine_similarity
-                max_similarity_embedding = embedding
-
-        return max_similarity_embedding, max_similarity
-            
-
-    def __get_payload_with_average_similarity(self, action: np.ndarray):
-        action_slices = [action[i:i + self.embedding_size]
-                         for i in range(0, self.action_size, self.embedding_size)]
-
-        payload = ''
-        total_similarities = 0.0
-
-        for action_slice in action_slices:
-            closest_embedding, similarity = self.__get_closest_embedding_with_similarity(action_slice)
-            closest_dict_index = self.embeddings.index(closest_embedding)
-
-            payload += self.dictionary[closest_dict_index]
-            total_similarities += similarity
-
-        average_similarity = total_similarities / len(action_slices)
-
-        return payload, average_similarity
+    def __get_payload(self, action: np.ndarray):
+        tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else self.dictionary[0] for i in action]
+        return ''.join(tokens)
 
     def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)
@@ -204,7 +155,7 @@ class Environment():
         #
         #
 
-        payload, average_similarity = self.__get_payload_with_average_similarity(action)
+        payload = self.__get_payload(action)
 
         self.__record_payload(payload)
 
@@ -224,7 +175,7 @@ class Environment():
         elif self.__payload_attempted(payload):
             reward = -1.0
         else:
-            reward = min(average_similarity - 0.5, 0.0)
+            reward = -0.1
         
         state = self.__create_state(action, response.text, new_tokens)
 

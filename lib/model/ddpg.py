@@ -1,6 +1,7 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+from typing import List
 import tensorflow as tf
 import keras
 from keras import layers
@@ -14,12 +15,27 @@ from .environment import Environment
 from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
+from .embedded_lstm_cell import EmbeddedLSTMCell
+
 class DDPG:
+    embeddings: List[List[float]]
+
+    # Calculated dynamically from embeddings.
+    embedding_size : int
+
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
-
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory):
+    
+    def __init__(self, env: Environment, embeddings: List[List[int]], demonstrations_factory: InitialTransitionsFactory):
+        assert(len(embeddings) == len(env.dictionary))
+        
+        for embedding in embeddings[1:]:
+            if len(embedding) != len(embeddings[0]):
+                raise Exception('All embeddings must be of the same length')
+        
         self.env = env
+        self.embeddings = embeddings
+        self.embedding_size = len(embeddings[0])
         self.demonstrations_factory = demonstrations_factory
 
     # This update target parameters slowly
@@ -33,15 +49,18 @@ class DDPG:
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
+        state_size = self.env.state_size
+        action_size = self.env.action_size
+
+        embeddings = self.embeddings
+        embedding_size = self.embedding_size
+
+        # TODO: Try input_shape=(action_size, embedding_size)
+
         return keras.Sequential([
-            layers.Input(shape=(self.env.state_size,), batch_size=batch_size),
-            layers.Dense(256, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dense(256, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dense(256, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dense(self.env.action_size, activation="tanh", kernel_initializer=last_init)
+            layers.Input(shape=(self.env.state_size, 1), batch_size=batch_size),
+            layers.RNN(EmbeddedLSTMCell(action_size, embeddings=embeddings, embedding_size=embedding_size, 
+                                        batch_input_shape=(batch_size, state_size, 1), kernel_initializer=last_init)),
         ])
 
 

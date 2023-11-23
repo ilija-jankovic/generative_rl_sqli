@@ -2,7 +2,7 @@
 # https://www.tensorflow.org/text/tutorials/word2vec
 
 import tensorflow as tf
-from keras import layers
+from tensorflow.keras import layers
 
 class Word2Vec(tf.keras.Model):
   def __init__(self, vocab_size: int, embedding_dim: int, num_ns: int):

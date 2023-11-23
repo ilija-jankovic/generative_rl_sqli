@@ -26,15 +26,12 @@ class EmbeddedLSTMCell(lstm.LSTMCell):
         else:
             last_h = tf.gather(self.embeddings, [tf.cast(last_h, tf.int32)])
 
-        h_tensor = tf.concat([h_tensor[:-1], last_h], axis=0)
-        
-        return h_tensor
+        last_h = tf.squeeze(last_h)
+
+        return tf.concat([h_tensor[:-1], last_h], axis=0)
 
     def call(self, inputs, states, training=None):
         h, outputs = super().call(inputs, states, training)
-        
-        sess = tf.compat.v1.Session(graph=tf.compat.v1.get_default_graph())
-        K.set_session(sess)
 
         outputs[0] = tf.map_fn(lambda h_tensor: self.__set_embedding(h_tensor), h)
 

@@ -18,24 +18,11 @@ from .replay_buffer import ReplayBuffer
 from .embedded_lstm_cell import EmbeddedLSTMCell
 
 class DDPG:
-    embeddings: List[List[float]]
-
-    # Calculated dynamically from embeddings.
-    embedding_size : int
-
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
     
-    def __init__(self, env: Environment, embeddings: List[List[int]], demonstrations_factory: InitialTransitionsFactory):
-        assert(len(embeddings) == len(env.dictionary))
-        
-        for embedding in embeddings[1:]:
-            if len(embedding) != len(embeddings[0]):
-                raise Exception('All embeddings must be of the same length')
-        
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory):        
         self.env = env
-        self.embeddings = embeddings
-        self.embedding_size = len(embeddings[0])
         self.demonstrations_factory = demonstrations_factory
 
     # This update target parameters slowly
@@ -52,8 +39,8 @@ class DDPG:
         state_size = self.env.state_size
         action_size = self.env.action_size
 
-        embeddings = self.embeddings
-        embedding_size = self.embedding_size
+        embeddings = self.env.embeddings
+        embedding_size = self.env.embedding_size
 
         # TODO: Try input_shape=(action_size, embedding_size)
 

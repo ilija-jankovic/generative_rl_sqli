@@ -19,6 +19,11 @@ class Environment():
     tables: List[str]
 
     send_request_callback: Callable[[str], Response]
+
+    embeddings: List[List[float]]
+
+    # Calculated dynamically from embeddings.
+    embedding_size : int
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
@@ -27,6 +32,7 @@ class Environment():
     def __init__(
             self,
             dictionary: List[str],
+            embeddings: List[List[int]], 
             action_size: int,
             state_size: int,
             columns: List[str],
@@ -35,11 +41,20 @@ class Environment():
         ):
         assert(action_size > 0)
         assert(state_size > 0)
+
+        assert(len(embeddings) == len(dictionary))
+        
+        for embedding in embeddings[1:]:
+            if len(embedding) != len(embeddings[0]):
+                raise Exception('All embeddings must be of the same length')
             
         self.dictionary = dictionary
 
         self.action_size = action_size
         self.state_size = state_size
+
+        self.embeddings = embeddings
+        self.embedding_size = len(embeddings[0])
 
         self.columns = columns
         self.tables = tables
@@ -133,7 +148,13 @@ class Environment():
     
     # TODO: Add table and column names from response to state definition.
     def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
-        res_size = self.state_size - self.action_size
+        res_size = self.state_size - (self.action_size * self.embedding_size)
+
+        embeddings = [self.embeddings[int(i)] if i > 0.0 and i < len(self.dictionary) else self.embeddings[0] for i in action]
+
+        # Flatten list. Solution by Alex Martelli and user3064538 from:
+        # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+        embeddings = [embedded_value for embedding in embeddings for embedded_value in embedding]
 
         res_section_size = res_size // 2
 
@@ -143,7 +164,7 @@ class Environment():
         res_data = res_data[:len(res_data)] + [-1.0]*(res_section_size - len(res_data))
         res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
 
-        return np.array(action.tolist() + res_data + res_new_tokens_joined)
+        return np.array(embeddings + res_data + res_new_tokens_joined)
     
     def perform_action(self, action: np.ndarray):
         #

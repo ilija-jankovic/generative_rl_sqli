@@ -18,14 +18,13 @@ from model.environment import Environment
 
 EMBEDDING_DIM = 128
 
-# Must be a multiple of the token embedding dimension.
 ACTION_SIZE = 20
 
-# TODO: Ensure states do not need to be larger than actions.
+# TODO: Ensure states do not need to be larger than actions * length of embedding space.
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = 2 * ACTION_SIZE 
+STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
 
 IP = 'localhost'
 
@@ -80,12 +79,13 @@ environment = Environment(
     dictionary,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
+    embeddings=embeddings,
     columns=columns,
     tables=tables,
     send_request_callback= lambda payload:
         requests.get(f'http://{IP}/products.php?id={payload}', headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-            'cookie': 'pma_lang=en; PHPSESSID=0878117a46022b4285be0e423930af99; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+            'cookie': 'pma_lang=en; PHPSESSID=cf9a880475c93118bea63a7fca05c340; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
         }))
         #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
         #requests.post('http://localhost:3000/rest/user/login', data={
@@ -107,8 +107,7 @@ def print_decoded_injections():
 print_decoded_injections()
 
 def main():    
-    ddpg = DDPG(environment, embeddings=embeddings,
-        demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads))
+    ddpg = DDPG(environment, demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads))
     
     ddpg.run(total_demonstration_steps=1000)
 

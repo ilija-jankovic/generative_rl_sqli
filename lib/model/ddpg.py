@@ -96,6 +96,7 @@ class DDPG:
         action_size = tf.constant(self.env.action_size)
         dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
 
+        # TODO: Ensure empty token is not part of the dictionary (unnecessary).
         empty_token = dictionary_length - 1.0
 
         action = tf.fill([action_size], empty_token)

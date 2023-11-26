@@ -1,21 +1,24 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+from typing import Callable, List
 import tensorflow as tf
 import keras;
 import numpy as np
+import sys
 
 class ReplayBuffer:
-    def __init__(self, state_size: int, action_size: int, target_actor: keras.Model, target_critic: keras.Model,
-                 actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: keras.optimizers.Optimizer,
+    def __init__(self, state_size: int, action_size: int, target_policy: Callable[[np.array], np.array], target_critic: keras.Model,
+                 policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: keras.optimizers.Optimizer,
                  critic_optimizer: keras.optimizers.Optimizer, buffer_capacity=100000, batch_size=64, gamma=0.99):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
         self.batch_size = batch_size
 
-        self.target_actor = target_actor
+        self.target_policy = target_policy
         self.target_critic = target_critic
+        self.policy = policy
         self.actor_model = actor_model
         self.critic_model = critic_model
 
@@ -57,7 +60,7 @@ class ReplayBuffer:
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
-            target_actions = self.target_actor(next_state_batch, training=True)
+            target_actions = self.target_policy(next_state_batch)
             y = reward_batch + self.gamma * self.target_critic(
                 [next_state_batch, target_actions], training=True
             )
@@ -70,7 +73,7 @@ class ReplayBuffer:
         )
 
         with tf.GradientTape() as tape:
-            actions = self.actor_model(state_batch, training=True)
+            actions = self.policy(state_batch)
             critic_value = self.critic_model([state_batch, actions], training=True)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions

@@ -15,8 +15,6 @@ from .environment import Environment
 from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
-from .embedded_lstm_cell import EmbeddedLSTMCell
-
 class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
@@ -36,25 +34,15 @@ class DDPG:
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
-        state_size = self.env.state_size
-        action_size = self.env.action_size
-
-        embeddings = self.env.embeddings
-        embedding_size = self.env.embedding_size
-
-        # TODO: Try input_shape=(action_size, embedding_size)
-
         return keras.Sequential([
-            layers.Input(shape=(self.env.state_size, 1), batch_size=batch_size),
-            layers.RNN(EmbeddedLSTMCell(action_size, embeddings=embeddings, embedding_size=embedding_size, 
-                                        batch_input_shape=(batch_size, state_size, 1), kernel_initializer=last_init)),
+            layers.LSTM(1, input_shape=(None, 1), kernel_initializer=last_init),
+            layers.Lambda(lambda h: h[-1]),
         ])
-
 
     def get_critic(self):
         # State as input
         state_input = layers.Input(shape=(self.env.state_size,))
-        state_out = layers.Dense(16, activation="relu")(state_input)
+        state_out = layers.Dense(16, activation="relu",)(state_input)
         state_out = layers.Dense(32, activation="relu")(state_out)
 
         # Action as input
@@ -72,32 +60,69 @@ class DDPG:
         model = tf.keras.Model([state_input, action_input], outputs)
 
         return model
+    
+    @tf.function
+    def __get_embedding(self, index: tf.Tensor):
+        return tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
+    
+    @tf.function
+    def __action_to_embedding(self, is_target: bool, training: bool, action, token_index):
+        action = tf.concat(action, tf.cast(token_index, dtype=tf.int32))
+
+        embedding = self.__get_embedding(token_index)
+        embedding = tf.reshape(embedding, [1, self.env.embedding_size, 1])
+
+        token_index = tf.squeeze(tf.cond(
+            pred=is_target,
+            true_fn=lambda: self.target_actor(embedding, training=training),
+            false_fn=lambda: self.actor_model(embedding, training=training)
+        ))
+
+        return is_target, training, action, token_index
 
 
-    def policy(self, state, noise_object, actor_model: keras.Model):
-        sampled_actions = tf.squeeze(actor_model(state))
-        noise = noise_object()
+    @tf.function
+    def policy(self, state, noise_object, target: bool, training: bool):
+        action_size = tf.constant(self.env.action_size)
+        embeddings_length = tf.constant(len(self.env.embeddings), dtype=tf.float32)
+
+        action = tf.zeros([0], dtype=tf.float32)
+
+        token_index = 0.0
+
+        _, __, action, token_index = tf.while_loop(
+            cond=lambda _, __, action, token_index: tf.logical_and(
+                tf.logical_and(tf.less(action.shape[0], action_size), tf.greater_equal(token_index, 1.0)),
+                          tf.less(token_index, embeddings_length)),
+            body=self.__action_to_embedding,
+            loop_vars=[target, training, action, token_index])
+        #noise = noise_object()
 
         
         # Adding noise to action
-        sampled_actions = sampled_actions.numpy() + noise
+        #sampled_actions = sampled_actions.numpy() + noise
 
         # We make sure action is within bounds
-        legal_action = np.clip(sampled_actions, -1.0, 1.0)
+        #legal_action = np.clip(sampled_actions, -1.0, 1.0)
 
-        return legal_action
+        return action
+
+        #return np.array(action).reshape(-1, self.env.action_size) if training else np.array(action)
 
 
     def run(self, total_demonstration_steps: int):
         std_dev = 1.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.001, theta=0.01)
-        batch_size = 4096
+        batch_size = 1
 
         actor_model = self.get_actor(batch_size=batch_size)
         critic_model = self.get_critic()
 
         target_actor = self.get_actor(batch_size=batch_size)
         target_critic = self.get_critic()
+
+        self.actor_model = actor_model
+        self.target_actor = target_actor
 
         # Making the weights equal initially
         target_actor.set_weights(actor_model.get_weights())
@@ -117,16 +142,21 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=batch_size, target_actor=target_actor, target_critic=target_critic,
-                              actor_model=actor_model, critic_model=critic_model, actor_optimizer=actor_optimizer,
+                              buffer_capacity=50000, batch_size=batch_size,
+                              actor_model=actor_model,
+                              policy=lambda state: self.policy(state, noise_object=None, target=False, training=True),
+                              target_policy=lambda state: self.policy(state, noise_object=None, target=True, training=True),
+                              target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
+        '''
         print('Gathering demonstration transitions...')
         
         for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
             buffer.record(obs)
 
         print('Transitions gathered.')
+        '''
         print('Running DDPG...')
 
         # To store reward history of each episode
@@ -147,9 +177,9 @@ class DDPG:
 
                 tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
-                action = self.policy(tf_prev_state, ou_noise, actor_model=actor_model)
+                action = self.policy(tf_prev_state, ou_noise, target=False, training=False)
                 # Recieve state and reward from environment.
-                state, reward, done = self.env.perform_action(action) 
+                state, reward, done = self.env.perform_action(action)
 
                 buffer.record((prev_state, action, reward, state))
                 episodic_reward += reward

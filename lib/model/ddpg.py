@@ -37,6 +37,7 @@ class DDPG:
         # Add a termination token.
         dictionary_length = len(self.env.dictionary) + 1
 
+        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
         units = 300 + dictionary_length
 
         input = layers.Input(shape=(None, 1))
@@ -97,7 +98,7 @@ class DDPG:
             true_fn=lambda: self.target_actor(input, training=training),
             false_fn=lambda: self.actor_model(input, training=training))
         
-        # TODO: Put this size/calculation into a field as it is repeated in get_actor and should not change.
+        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
         lstm_state = tf.reshape(tf.squeeze(output[0]), [300 + tf.constant(len(self.env.dictionary), dtype=tf.float32) + 1])
         token_index = tf.reduce_max(output[1])
         
@@ -118,7 +119,7 @@ class DDPG:
 
         action = tf.fill([action_size], empty_token)
         
-        # TODO: Put this size/calculation into a field as it is repeated in get_actor and should not change.
+        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
         lstm_state = tf.zeros([300 + dictionary_length + 1])
 
         action_index = 0

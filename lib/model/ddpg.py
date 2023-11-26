@@ -34,9 +34,11 @@ class DDPG:
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
+        # Add a termination token.
+        units = len(self.env.dictionary) + 1
+
         return keras.Sequential([
-            layers.LSTM(64, input_shape=(None, 1), kernel_initializer=last_init),
-            layers.Lambda(lambda h: h[-1]),
+            layers.LSTM(units, input_shape=(None, 1), kernel_initializer=last_init, activation='softmax'),
         ])
 
     def get_critic(self):
@@ -72,41 +74,36 @@ class DDPG:
         embedding = self.__get_embedding(token_index)
         embedding = tf.reshape(embedding, [1, self.env.embedding_size, 1])
 
-        token_index = tf.squeeze(tf.cond(
-            pred=is_target,
-            true_fn=lambda: self.target_actor(embedding, training=training),
-            false_fn=lambda: self.actor_model(embedding, training=training)
-        )[-1])
+        token_index = tf.reduce_max(
+            tf.squeeze(
+                tf.cond(
+                    pred=is_target,
+                    true_fn=lambda: self.target_actor(embedding, training=training),
+                    false_fn=lambda: self.actor_model(embedding, training=training)
+                )))
 
         return is_target, training, action, token_index
 
 
     @tf.function
-    def policy(self, state, noise_object, target: bool, training: bool):
+    def policy(self, state, noise_object: OUActionNoise, target: bool, training: bool):
         action_size = tf.constant(self.env.action_size)
-        embeddings_length = tf.constant(len(self.env.embeddings), dtype=tf.float32)
+        dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
+
+        empty_token = dictionary_length - 1.0
 
         action = tf.zeros([0], dtype=tf.float32)
 
-        token_index = 0.0
+        token_index = empty_token
 
         _, __, action, token_index = tf.while_loop(
-            cond=lambda _, __, action, token_index: tf.logical_and(
-                tf.logical_and(tf.less(action.shape[0], action_size), tf.greater_equal(token_index, 1.0)),
-                          tf.less(token_index, embeddings_length)),
+            cond=lambda _, __, ___, token_index: tf.logical_or(tf.less(token_index, 0.0), tf.greater_equal(token_index, dictionary_length)),
             body=self.__action_to_embedding,
-            loop_vars=[target, training, action, token_index])
+            loop_vars=[target, training, action, token_index],
+            maximum_iterations=action_size)
 
-        action = tf.concat([action, tf.zeros([action_size - action.shape[0]])], axis=0)
-
-        if not training:
-            noise = noise_object()
-            action += noise
-
-        return action
-
-        #return np.array(action).reshape(-1, self.env.action_size) if training else np.array(action)
-
+        return tf.concat([action, tf.fill([action_size - action.shape[0]], empty_token)], axis=0)
+    
 
     def run(self, total_demonstration_steps: int):
         std_dev = 1.0
@@ -177,6 +174,10 @@ class DDPG:
                 tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
                 action = self.policy(tf_prev_state, ou_noise, target=False, training=False)
+                action += ou_noise()
+
+                print(action)
+                print(ou_noise.x_prev)
 
                 # Recieve state and reward from environment.
                 state, reward, done = self.env.perform_action(action)

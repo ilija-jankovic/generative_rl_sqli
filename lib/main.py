@@ -107,8 +107,16 @@ def print_decoded_injections():
 print_decoded_injections()
 
 def main():    
-    ddpg = DDPG(environment, demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads))
-    
+    # The additional token placeholder counts as a termination token for the LSTM.
+    dictionary_length = len(dictionary) + 1
+
+    lstm_units = 50 + dictionary_length
+
+    ddpg = DDPG(
+        environment,
+        demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads),
+        lstm_units=lstm_units)
+
     ddpg.run(total_demonstration_steps=1000)
 
 if __name__ == '__main__':

@@ -18,10 +18,18 @@ from .replay_buffer import ReplayBuffer
 class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
+    lstm_units: int
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory):        
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int):
+        '''
+        `lstm_units` must be at least the length of the environment's dictionary, plus one. The
+        additional token placeholder acts as a termination token when generating payloads.
+        '''
+        assert(lstm_units >= len(env.dictionary) + 1)
+
         self.env = env
         self.demonstrations_factory = demonstrations_factory
+        self.lstm_units = lstm_units
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -37,22 +45,19 @@ class DDPG:
         # Add a termination token.
         dictionary_length = len(self.env.dictionary) + 1
 
-        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
-        units = 300 + dictionary_length
-
         input = layers.Input(shape=(None, 1))
         #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(input)
         #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(lstm)
         #lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(lstm)
 
-        lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(input)
+        lstm = layers.LSTM(self.lstm_units, kernel_initializer=last_init, return_state=True)(input)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
 
-        state_output = layers.Dense(units, activation='linear')(state_c)
+        state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
         one_hot_output = layers.Dense(dictionary_length, activation='softmax')(state_h)
 
         return keras.Model(input, [state_output, one_hot_output])
@@ -100,8 +105,7 @@ class DDPG:
             true_fn=lambda: self.target_actor(input, training=training),
             false_fn=lambda: self.actor_model(input, training=training))
         
-        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
-        lstm_state = tf.reshape(tf.squeeze(output[0]), [300 + tf.constant(len(self.env.dictionary), dtype=tf.float32) + 1])
+        lstm_state = tf.reshape(tf.squeeze(output[0]), [self.lstm_units])
         token_index = tf.reduce_max(output[1])
         
         action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
@@ -121,8 +125,7 @@ class DDPG:
 
         action = tf.fill([action_size], empty_token)
         
-        # TODO: Put this size/calculation into a field as it is repeated in this file and should not change.
-        lstm_state = tf.zeros([300 + dictionary_length + 1])
+        lstm_state = tf.zeros([self.lstm_units])
 
         action_index = 0
 

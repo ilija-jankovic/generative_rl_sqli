@@ -41,9 +41,11 @@ class DDPG:
         units = 300 + dictionary_length
 
         input = layers.Input(shape=(None, 1))
-        lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(input)
-        lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(lstm)
-        lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(lstm)
+        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(input)
+        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(lstm)
+        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(lstm)
+
+        lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(input)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/

@@ -35,11 +35,24 @@ class DDPG:
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
         # Add a termination token.
-        units = len(self.env.dictionary) + 1
+        dictionary_length = len(self.env.dictionary) + 1
 
-        return keras.Sequential([
-            layers.LSTM(units, input_shape=(None, 1), kernel_initializer=last_init, activation='softmax'),
-        ])
+        units = 300 + dictionary_length
+
+        input = layers.Input(shape=(None, 1))
+        lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(input)
+        lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(lstm)
+        lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(lstm)
+
+        # Output of LSTM guide by Jason Brownlee from:
+        # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
+        state_h = lstm[1]
+        state_c = lstm[2]
+
+        state_output = layers.Dense(units, activation='linear')(state_c)
+        one_hot_output = layers.Dense(dictionary_length, activation='softmax')(state_h)
+
+        return keras.Model(input, [state_output, one_hot_output])
 
     def get_critic(self):
         # State as input
@@ -65,30 +78,34 @@ class DDPG:
     
     @tf.function
     def __get_embedding(self, index: tf.Tensor):
-        embedding = tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
-        return tf.reshape(embedding, [1, self.env.embedding_size, 1])
+        return tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
     
     @tf.function
-    def __action_to_embedding(self, is_target: bool, training: bool, state, action, token_index, action_index: int):
+    def __action_to_embedding(self, is_target: bool, training: bool, rl_state, lstm_state, action, token_index, action_index: int):
         input = tf.cond(
             pred=tf.equal(action_index, 0),
-            true_fn=lambda: tf.expand_dims(tf.cast(state, dtype=tf.float32), -1),
-            false_fn=lambda: self.__get_embedding(token_index)
+            true_fn=lambda: tf.reshape(
+                tf.concat([tf.cast(tf.squeeze(rl_state), dtype=tf.float32), lstm_state], axis=0),
+                [1, -1, 1]),
+            false_fn=lambda: tf.reshape(
+                tf.concat([tf.squeeze(self.__get_embedding(token_index)), lstm_state], axis=0),
+                [1, -1, 1])
         )
 
-        token_index = tf.reduce_max(
-            tf.squeeze(
-                tf.cond(
-                    pred=is_target,
-                    true_fn=lambda: self.target_actor(input, training=training),
-                    false_fn=lambda: self.actor_model(input, training=training)
-                )))
+        output = tf.cond(
+            pred=is_target,
+            true_fn=lambda: self.target_actor(input, training=training),
+            false_fn=lambda: self.actor_model(input, training=training))
+        
+        # TODO: Put this size/calculation into a field as it is repeated in get_actor and should not change.
+        lstm_state = tf.reshape(tf.squeeze(output[0]), [300 + tf.constant(len(self.env.dictionary), dtype=tf.float32) + 1])
+        token_index = tf.reduce_max(output[1])
         
         action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
         
         action_index += 1
 
-        return is_target, training, state, action, token_index, action_index
+        return is_target, training, rl_state, lstm_state, action, token_index, action_index
 
 
     @tf.function
@@ -100,14 +117,17 @@ class DDPG:
         empty_token = dictionary_length - 1.0
 
         action = tf.fill([action_size], empty_token)
+        
+        # TODO: Put this size/calculation into a field as it is repeated in get_actor and should not change.
+        lstm_state = tf.zeros([300 + dictionary_length + 1])
 
         action_index = 0
         token_index = -1.0
 
-        _, __, ___, action, ____, _____ = tf.while_loop(
-            cond=lambda _, __, ___, ____, token_index, _____: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
+        _, __, ___, ____, action, _____, ______ = tf.while_loop(
+            cond=lambda _, __, ___, ____, _____, token_index, ______: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
             body=self.__action_to_embedding,
-            loop_vars=[target, training, state, action, token_index, action_index],
+            loop_vars=[target, training, state, lstm_state, action, token_index, action_index],
             maximum_iterations=action_size)
 
         return action
@@ -161,6 +181,7 @@ class DDPG:
 
         print('Transitions gathered.')
         '''
+
         print('Running DDPG...')
 
         # To store reward history of each episode

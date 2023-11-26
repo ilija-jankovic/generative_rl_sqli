@@ -98,6 +98,8 @@ class DDPG:
             loop_vars=[target, training, action, token_index])
         #noise = noise_object()
 
+        action = tf.concat([action, tf.zeros([action_size - action.shape[0]])], axis=0)
+
         
         # Adding noise to action
         #sampled_actions = sampled_actions.numpy() + noise

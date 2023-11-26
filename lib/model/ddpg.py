@@ -68,9 +68,7 @@ class DDPG:
         return tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
     
     @tf.function
-    def __action_to_embedding(self, is_target: bool, training: bool, action, token_index):
-        action = tf.concat(action, tf.cast(token_index, dtype=tf.int32))
-
+    def __action_to_embedding(self, is_target: bool, training: bool, action, token_index, action_index: int):
         embedding = self.__get_embedding(token_index)
         embedding = tf.reshape(embedding, [1, self.env.embedding_size, 1])
 
@@ -81,33 +79,38 @@ class DDPG:
                     true_fn=lambda: self.target_actor(embedding, training=training),
                     false_fn=lambda: self.actor_model(embedding, training=training)
                 )))
+        
+        action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
+        
+        action_index += 1
 
-        return is_target, training, action, token_index
+        return is_target, training, action, token_index, action_index
 
 
     @tf.function
-    def policy(self, state, noise_object: OUActionNoise, target: bool, training: bool):
+    def policy(self, state, target: bool, training: bool):
         action_size = tf.constant(self.env.action_size)
         dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
 
         empty_token = dictionary_length - 1.0
 
-        action = tf.zeros([0], dtype=tf.float32)
+        action = tf.fill([action_size], empty_token)
 
+        action_index = 0
         token_index = empty_token
 
-        _, __, action, token_index = tf.while_loop(
-            cond=lambda _, __, ___, token_index: tf.logical_or(tf.less(token_index, 0.0), tf.greater_equal(token_index, dictionary_length)),
+        _, __, action, token_index, action_index = tf.while_loop(
+            cond=lambda _, __, ___, token_index, ____: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
             body=self.__action_to_embedding,
-            loop_vars=[target, training, action, token_index],
+            loop_vars=[target, training, action, token_index, action_index],
             maximum_iterations=action_size)
 
-        return tf.concat([action, tf.fill([action_size - action.shape[0]], empty_token)], axis=0)
+        return action
     
 
     def run(self, total_demonstration_steps: int):
         std_dev = 1.0
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.001, theta=0.01)
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
         batch_size = 1
 
@@ -140,8 +143,8 @@ class DDPG:
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
                               buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, noise_object=ou_noise, target=False, training=True),
-                              target_policy=lambda state: self.policy(state, noise_object=ou_noise, target=True, training=True),
+                              policy=lambda state: self.policy(state, target=False, training=True),
+                              target_policy=lambda state: self.policy(state, target=True, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
@@ -173,11 +176,8 @@ class DDPG:
 
                 tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
-                action = self.policy(tf_prev_state, ou_noise, target=False, training=False)
+                action = self.policy(tf_prev_state, target=False, training=False)
                 action += ou_noise()
-
-                print(action)
-                print(ou_noise.x_prev)
 
                 # Recieve state and reward from environment.
                 state, reward, done = self.env.perform_action(action)

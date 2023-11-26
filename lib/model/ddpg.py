@@ -35,7 +35,7 @@ class DDPG:
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
         return keras.Sequential([
-            layers.LSTM(1, input_shape=(None, 1), kernel_initializer=last_init),
+            layers.LSTM(64, input_shape=(None, 1), kernel_initializer=last_init),
             layers.Lambda(lambda h: h[-1]),
         ])
 
@@ -76,7 +76,7 @@ class DDPG:
             pred=is_target,
             true_fn=lambda: self.target_actor(embedding, training=training),
             false_fn=lambda: self.actor_model(embedding, training=training)
-        ))
+        )[-1])
 
         return is_target, training, action, token_index
 
@@ -96,16 +96,12 @@ class DDPG:
                           tf.less(token_index, embeddings_length)),
             body=self.__action_to_embedding,
             loop_vars=[target, training, action, token_index])
-        #noise = noise_object()
 
         action = tf.concat([action, tf.zeros([action_size - action.shape[0]])], axis=0)
 
-        
-        # Adding noise to action
-        #sampled_actions = sampled_actions.numpy() + noise
-
-        # We make sure action is within bounds
-        #legal_action = np.clip(sampled_actions, -1.0, 1.0)
+        if not training:
+            noise = noise_object()
+            action += noise
 
         return action
 
@@ -115,6 +111,7 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         std_dev = 1.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.001, theta=0.01)
+
         batch_size = 1
 
         actor_model = self.get_actor(batch_size=batch_size)
@@ -146,8 +143,8 @@ class DDPG:
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
                               buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, noise_object=None, target=False, training=True),
-                              target_policy=lambda state: self.policy(state, noise_object=None, target=True, training=True),
+                              policy=lambda state: self.policy(state, noise_object=ou_noise, target=False, training=True),
+                              target_policy=lambda state: self.policy(state, noise_object=ou_noise, target=True, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
@@ -180,6 +177,7 @@ class DDPG:
                 tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
                 action = self.policy(tf_prev_state, ou_noise, target=False, training=False)
+
                 # Recieve state and reward from environment.
                 state, reward, done = self.env.perform_action(action)
 

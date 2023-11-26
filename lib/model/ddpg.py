@@ -123,7 +123,8 @@ class DDPG:
         lstm_state = tf.zeros([300 + dictionary_length + 1])
 
         action_index = 0
-        token_index = -1.0
+
+        token_index = empty_token
 
         _, __, ___, ____, action, _____, ______ = tf.while_loop(
             cond=lambda _, __, ___, ____, _____, token_index, ______: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
@@ -205,6 +206,8 @@ class DDPG:
 
                 action = self.policy(tf_prev_state, target=False, training=False)
                 action += ou_noise()
+
+                print(action)
 
                 # Recieve state and reward from environment.
                 state, reward, done = self.env.perform_action(action)

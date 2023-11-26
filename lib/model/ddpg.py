@@ -65,26 +65,30 @@ class DDPG:
     
     @tf.function
     def __get_embedding(self, index: tf.Tensor):
-        return tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
+        embedding = tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
+        return tf.reshape(embedding, [1, self.env.embedding_size, 1])
     
     @tf.function
-    def __action_to_embedding(self, is_target: bool, training: bool, action, token_index, action_index: int):
-        embedding = self.__get_embedding(token_index)
-        embedding = tf.reshape(embedding, [1, self.env.embedding_size, 1])
+    def __action_to_embedding(self, is_target: bool, training: bool, state, action, token_index, action_index: int):
+        input = tf.cond(
+            pred=tf.equal(action_index, 0),
+            true_fn=lambda: tf.expand_dims(tf.cast(state, dtype=tf.float32), -1),
+            false_fn=lambda: self.__get_embedding(token_index)
+        )
 
         token_index = tf.reduce_max(
             tf.squeeze(
                 tf.cond(
                     pred=is_target,
-                    true_fn=lambda: self.target_actor(embedding, training=training),
-                    false_fn=lambda: self.actor_model(embedding, training=training)
+                    true_fn=lambda: self.target_actor(input, training=training),
+                    false_fn=lambda: self.actor_model(input, training=training)
                 )))
         
         action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
         
         action_index += 1
 
-        return is_target, training, action, token_index, action_index
+        return is_target, training, state, action, token_index, action_index
 
 
     @tf.function
@@ -97,12 +101,12 @@ class DDPG:
         action = tf.fill([action_size], empty_token)
 
         action_index = 0
-        token_index = empty_token
+        token_index = -1.0
 
-        _, __, action, token_index, action_index = tf.while_loop(
-            cond=lambda _, __, ___, token_index, ____: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
+        _, __, ___, action, ____, _____ = tf.while_loop(
+            cond=lambda _, __, ___, ____, token_index, _____: tf.logical_and(tf.greater_equal(token_index, 0.0), tf.less(token_index, dictionary_length)),
             body=self.__action_to_embedding,
-            loop_vars=[target, training, action, token_index, action_index],
+            loop_vars=[target, training, state, action, token_index, action_index],
             maximum_iterations=action_size)
 
         return action

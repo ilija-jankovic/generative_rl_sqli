@@ -106,7 +106,7 @@ class DDPG:
             false_fn=lambda: self.actor_model(input, training=training))
         
         lstm_state = tf.reshape(tf.squeeze(output[0]), [self.lstm_units])
-        token_index = tf.reduce_max(output[1])
+        token_index = tf.cast(tf.argmax(tf.squeeze(output[1])), dtype=tf.float32)
         
         action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
         
@@ -117,7 +117,7 @@ class DDPG:
 
     @tf.function
     def policy(self, state, target: bool, training: bool):
-        action_size = tf.constant(self.env.action_size)
+        action_size = tf.constant(self.env.action_size, dtype=tf.int32)
         dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
 
         # TODO: Ensure empty token is not part of the dictionary (unnecessary).
@@ -180,15 +180,12 @@ class DDPG:
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
-        '''
         print('Gathering demonstration transitions...')
         
         for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
             buffer.record(obs)
 
         print('Transitions gathered.')
-        '''
-
         print('Running DDPG...')
 
         # To store reward history of each episode
@@ -211,8 +208,6 @@ class DDPG:
 
                 action = self.policy(tf_prev_state, target=False, training=False)
                 action += ou_noise()
-
-                print(action)
 
                 # Recieve state and reward from environment.
                 state, reward, done = self.env.perform_action(action)

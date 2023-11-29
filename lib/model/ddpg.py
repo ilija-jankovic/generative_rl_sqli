@@ -19,8 +19,9 @@ class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
     lstm_units: int
+    batch_size: int
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, batch_size: int = 2048):
         '''
         `lstm_units` must be at least the length of the environment's dictionary, plus one. The
         additional token placeholder acts as a termination token when generating payloads.
@@ -30,6 +31,7 @@ class DDPG:
         self.env = env
         self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
+        self.batch_size = batch_size
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -38,15 +40,11 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
-    def get_actor(self, batch_size: int):
+    def get_actor(self):
         # Add a termination token.
         dictionary_length = len(self.env.dictionary) + 1
 
         input = layers.Input(shape=(None, 1))
-        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(input)
-        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_sequences=True)(lstm)
-        #lstm = layers.LSTM(units, kernel_initializer=last_init, return_state=True)(lstm)
-
         lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -80,71 +78,87 @@ class DDPG:
         model = tf.keras.Model([state_input, action_input], outputs)
 
         return model
+        
+    @tf.function
+    def __get_rl_state_lstm_input(self, batch_size, rl_states):
+        return tf.reshape(rl_states, [batch_size, self.env.state_size, 1])
     
     @tf.function
-    def __get_embedding(self, index: tf.Tensor):
-        return tf.gather(self.env.embeddings, [tf.cast(index, tf.int32)])
+    def __get_embeddings(self, indicies: tf.Tensor):
+        return tf.gather(self.env.embeddings, tf.cast(indicies, dtype=tf.int32))
     
     @tf.function
-    def __action_to_embedding(self, is_target: bool, training: bool, rl_state, lstm_state, action, action_index: int):
+    def __get_embedded_lstm_input(self, batch_size, actions, lstm_states):
+        embeddings = self.__get_embeddings(actions)
+        
+        # TODO: Remove this reshaping and process the -1 dimension as LSTM features.
+        embeddings = tf.reshape(embeddings, [batch_size, self.env.embedding_size * self.env.action_size])
+
+        input = tf.concat([embeddings, lstm_states], axis=1)
+        return tf.expand_dims(input, axis=-1)
+
+    @tf.function
+    def __concat_next_token_indicies(self, batch_size, actions, action_index, target: bool, training: bool, rl_states, lstm_states):
         input = tf.cond(
             pred=tf.equal(action_index, 0),
-            true_fn=lambda: tf.reshape(
-                tf.cast(tf.squeeze(rl_state), dtype=tf.float32),
-                [1, -1, 1]),
-            false_fn=lambda: tf.reshape(
-                tf.concat([tf.reshape(tf.map_fn(lambda index: self.__get_embedding(index), action), [self.env.action_size * self.env.embedding_size]), lstm_state], axis=0),
-                [1, -1, 1])
+            true_fn=lambda: self.__get_rl_state_lstm_input(batch_size, rl_states),
+            false_fn=lambda: self.__get_embedded_lstm_input(batch_size, actions, lstm_states)
         )
 
         output = tf.cond(
-            pred=is_target,
+            pred=target,
             true_fn=lambda: self.target_actor(input, training=training),
             false_fn=lambda: self.actor_model(input, training=training))
         
-        lstm_state = tf.reshape(tf.squeeze(output[0]), [self.lstm_units])
-        token_index = tf.cast(tf.argmax(tf.squeeze(output[1])), dtype=tf.float32)
-        
-        action = tf.tensor_scatter_nd_update(action, [[action_index]], [token_index])
-        
-        action_index += 1
+        lstm_states = output[0]
+        one_hot = output[1]
 
-        return is_target, training, rl_state, lstm_state, action, action_index
+        token_indicies = tf.argmax(one_hot, axis=1)
+        token_indicies = tf.cast(token_indicies, dtype=tf.float32)
 
+        action_indicies = tf.range(0, batch_size, dtype=tf.float32)
+
+        action_indicies = tf.concat([action_indicies, token_indicies], axis=1)
+        
+        actions = tf.tensor_scatter_nd_update(actions, action_indicies, token_indicies)
+        
+        action_index = tf.add(action_index, 1)
+        
+        return batch_size, actions, action_index, target, training, rl_states, lstm_states
 
     @tf.function
-    def policy(self, state, target: bool, training: bool):
+    def policy(self, states, target: bool, training: bool, batch_size):
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
         dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
 
         # TODO: Ensure empty token is not part of the dictionary (unnecessary).
         empty_token = dictionary_length - 1.0
 
-        action = tf.fill([action_size], empty_token)
-        
-        lstm_state = tf.zeros([self.lstm_units])
+        states = tf.convert_to_tensor(states)
+        actions = tf.fill([batch_size, action_size], empty_token)
+        lstm_states = tf.zeros([batch_size, self.lstm_units])
 
-        action_index = 0
+        action_index = tf.constant(0)
 
-        _, __, ___, ____, action, _____ = tf.while_loop(
-            cond=lambda _, __, ___, ____, _____, ______: tf.greater_equal(action[-1], 0.0) & tf.less(action[-1], dictionary_length),
-            body=self.__action_to_embedding,
-            loop_vars=[target, training, state, lstm_state, action, action_index],
-            maximum_iterations=action_size)
+        tf.while_loop(
+            cond=lambda *_: True,
+            body=self.__concat_next_token_indicies,
+            loop_vars=[batch_size, actions, action_index, target, training, states, lstm_states],
+            maximum_iterations=action_size,
+            shape_invariants=[tf.TensorShape([]), actions.get_shape(), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+        )
 
-        return action
+        return actions
     
 
     def run(self, total_demonstration_steps: int):
         std_dev = 1.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
-        batch_size = 1
-
-        actor_model = self.get_actor(batch_size=batch_size)
+        actor_model = self.get_actor()
         critic_model = self.get_critic()
 
-        target_actor = self.get_actor(batch_size=batch_size)
+        target_actor = self.get_actor()
         target_critic = self.get_critic()
 
         self.actor_model = actor_model
@@ -168,10 +182,10 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=batch_size,
+                              buffer_capacity=50000, batch_size=self.batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, target=False, training=True),
-                              target_policy=lambda state: self.policy(state, target=True, training=True),
+                              policy=lambda state: self.policy(state, target=False, training=True, batch_size=self.batch_size),
+                              target_policy=lambda state: self.policy(state, target=True, training=True, batch_size=self.batch_size),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
@@ -203,7 +217,7 @@ class DDPG:
 
                 tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
-                action = self.policy(tf_prev_state, target=False, training=False)
+                action = self.policy([tf_prev_state], target=False, training=False, batch_size=1)[0]
                 action += ou_noise()
 
                 # Recieve state and reward from environment.

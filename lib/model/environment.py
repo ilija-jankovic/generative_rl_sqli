@@ -15,6 +15,7 @@ class Environment():
 
     action_size: int
     state_size: int
+    batch_size: int
 
     columns: List[str]
     tables: List[str]
@@ -28,7 +29,7 @@ class Environment():
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
-    __episode = EpisodeState(100)
+    __episode: EpisodeState
 
     def __init__(
             self,
@@ -36,6 +37,7 @@ class Environment():
             embeddings: List[List[int]], 
             action_size: int,
             state_size: int,
+            batch_size: int,
             columns: List[str],
             tables: List[str],
             send_request_callback: Callable[[str], Response]
@@ -53,6 +55,7 @@ class Environment():
 
         self.action_size = action_size
         self.state_size = state_size
+        self.batch_size = batch_size
 
         self.embeddings = embeddings
         self.embedding_size = len(embeddings[0])
@@ -61,6 +64,7 @@ class Environment():
         self.tables = tables
         
         self.send_request_callback = send_request_callback
+        self.__episode = EpisodeState(100, batch_size=batch_size)
 
     def __inject_random_payloads(self):
         self.__inject_payload('')

@@ -16,6 +16,8 @@ from model.environment import Environment
 #
 #
 
+BATCH_SIZE = 16
+
 EMBEDDING_DIM = 32
 
 ACTION_SIZE = 10
@@ -79,6 +81,7 @@ environment = Environment(
     dictionary,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
+    batch_size=BATCH_SIZE,
     embeddings=embeddings,
     columns=columns,
     tables=tables,

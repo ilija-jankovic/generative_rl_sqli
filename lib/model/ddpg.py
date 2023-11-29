@@ -19,13 +19,11 @@ class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
     lstm_units: int
-    batch_size: int
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, batch_size: int = 32):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int):
         self.env = env
         self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
-        self.batch_size = batch_size
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -93,7 +91,9 @@ class DDPG:
         return tf.expand_dims(input, axis=-1)
 
     @tf.function
-    def __concat_next_token_indicies(self, batch_size, actions, action_index, embeddings, target: bool, training: bool, rl_states, lstm_states):
+    def __concat_next_token_indicies(self, actions, action_index, embeddings, target: bool, training: bool, rl_states, lstm_states):
+        batch_size = self.env.batch_size
+
         input = tf.cond(
             pred=tf.equal(action_index, 0),
             true_fn=lambda: self.__get_rl_state_lstm_input(rl_states),
@@ -117,10 +117,12 @@ class DDPG:
 
         action_index = tf.add(action_index, 1)
         
-        return batch_size, actions, action_index, embeddings, target, training, rl_states, lstm_states
+        return actions, action_index, embeddings, target, training, rl_states, lstm_states
 
     @tf.function
-    def policy(self, states, target: bool, training: bool, batch_size):
+    def policy(self, states, target: bool, training: bool):
+        batch_size = self.env.batch_size
+
         action_size = tf.constant(self.env.action_size)
 
         actions = tf.zeros([batch_size, action_size], dtype=tf.int64)
@@ -132,15 +134,17 @@ class DDPG:
         tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
-            loop_vars=[batch_size, actions, action_index, embeddings, target, training, states, lstm_states],
+            loop_vars=[actions, action_index, embeddings, target, training, states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[tf.TensorShape([]), actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+            shape_invariants=[actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions
     
 
     def run(self, total_demonstration_steps: int):
+        batch_size = self.env.batch_size
+
         std_dev = 1.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
@@ -171,10 +175,10 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=self.batch_size,
+                              buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, target=False, training=True, batch_size=self.batch_size),
-                              target_policy=lambda state: self.policy(state, target=True, training=True, batch_size=self.batch_size),
+                              policy=lambda state: self.policy(state, target=False, training=True),
+                              target_policy=lambda state: self.policy(state, target=True, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
@@ -204,14 +208,20 @@ class DDPG:
                 # But not in a python notebook.
                 # env.render()
 
-                action = self.policy(prev_state, target=False, training=False, batch_size=1)[0]
-                action += ou_noise()
+                batched_prev_state = tf.tile(prev_state, [batch_size, 1])
 
-                # Recieve state and reward from environment.
-                state, reward, done = self.env.perform_action(action)
+                actions = self.policy(batched_prev_state, target=False, training=False)
 
-                buffer.record((prev_state, action, reward, state))
-                episodic_reward += reward
+                for action in actions:
+                    action += ou_noise()
+
+                    # Recieve state and reward from environment.
+                    state, reward, done = self.env.perform_action(action)
+
+                    buffer.record((prev_state, action, reward, state))
+                    episodic_reward += reward
+
+                    frame += 1
 
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, tau)
@@ -222,8 +232,6 @@ class DDPG:
                     break
 
                 prev_state = state
-
-                frame += 1
 
             ep_reward_list.append(episodic_reward)
 

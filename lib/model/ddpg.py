@@ -21,13 +21,7 @@ class DDPG:
     lstm_units: int
     batch_size: int
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, batch_size: int = 2048):
-        '''
-        `lstm_units` must be at least the length of the environment's dictionary, plus one. The
-        additional token placeholder acts as a termination token when generating payloads.
-        '''
-        assert(lstm_units >= len(env.dictionary) + 1)
-
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, batch_size: int = 32):
         self.env = env
         self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
@@ -40,9 +34,16 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
+    @tf.function
+    def __get_embeddings(self, one_hot_encoding):
+        indicies = tf.argmax(one_hot_encoding, axis=1)
+        embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
+        
+        return indicies, tf.gather(embeddings, indicies)
+
     def get_actor(self):
         # Add a termination token.
-        dictionary_length = len(self.env.dictionary) + 1
+        dictionary_length = len(self.env.dictionary)
 
         input = layers.Input(shape=(None, 1))
         lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
@@ -53,9 +54,11 @@ class DDPG:
         state_c = lstm[2]
 
         state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
-        one_hot_output = layers.Dense(dictionary_length, activation='softmax')(state_h)
 
-        return keras.Model(input, [state_output, one_hot_output])
+        one_hot_encoding = layers.Dense(dictionary_length, activation='softmax')(state_h)
+        indices_output, embedding_output = layers.Lambda(self.__get_embeddings)(one_hot_encoding)
+
+        return keras.Model(input, [state_output, indices_output, embedding_output])
 
     def get_critic(self):
         # State as input
@@ -80,64 +83,48 @@ class DDPG:
         return model
         
     @tf.function
-    def __get_rl_state_lstm_input(self, batch_size, rl_states):
-        input = tf.reshape(rl_states, [batch_size, self.env.state_size, 1])
-        
-        return tf.cast(input, dtype=tf.float32)
+    def __get_rl_state_lstm_input(self, rl_states):
+        return tf.expand_dims(rl_states, axis=-1)
     
     @tf.function
-    def __get_embeddings(self, indicies: tf.Tensor):
-        return tf.gather(self.env.embeddings, tf.cast(indicies, dtype=tf.int32))
-    
-    @tf.function
-    def __get_embedded_lstm_input(self, batch_size, actions, lstm_states):
-        embeddings = self.__get_embeddings(actions)
-        
-        # TODO: Remove this reshaping and process the -1 dimension as LSTM features.
-        embeddings = tf.reshape(embeddings, [batch_size, self.env.embedding_size * self.env.action_size])
-
+    def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
+
         return tf.expand_dims(input, axis=-1)
 
     @tf.function
-    def __concat_next_token_indicies(self, batch_size, actions, action_index, target: bool, training: bool, rl_states, lstm_states):
+    def __concat_next_token_indicies(self, batch_size, actions, action_index, embeddings, target: bool, training: bool, rl_states, lstm_states):
         input = tf.cond(
             pred=tf.equal(action_index, 0),
-            true_fn=lambda: self.__get_rl_state_lstm_input(batch_size, rl_states),
-            false_fn=lambda: self.__get_embedded_lstm_input(batch_size, actions, lstm_states)
+            true_fn=lambda: self.__get_rl_state_lstm_input(rl_states),
+            false_fn=lambda: self.__get_embedded_lstm_input(embeddings, lstm_states)
         )
 
         output = tf.cond(
             pred=target,
             true_fn=lambda: self.target_actor(input, training=training),
             false_fn=lambda: self.actor_model(input, training=training))
-        
+
         lstm_states = output[0]
-        one_hot = output[1]
+        indices = output[1]
+        embeddings = output[2]
 
-        token_indicies = tf.argmax(one_hot, axis=1)
-        token_indicies = tf.cast(token_indicies, dtype=tf.float32)
+        action_indices = tf.range(0, batch_size)
+        action_indices = tf.expand_dims(action_indices, axis=1)
+        action_indices = tf.concat([action_indices, tf.fill([batch_size, 1], action_index)], axis=1)
 
-        action_indicies = tf.range(0, batch_size, dtype=tf.int32)
-        action_indicies = tf.expand_dims(action_indicies, axis=1)
-        action_indicies = tf.concat([action_indicies, tf.fill([batch_size, 1], action_index)], axis=1)
-        
-        actions = tf.tensor_scatter_nd_update(actions, action_indicies, token_indicies)
-        
+        actions = tf.tensor_scatter_nd_add(actions, action_indices, indices)
+
         action_index = tf.add(action_index, 1)
         
-        return batch_size, actions, action_index, target, training, rl_states, lstm_states
+        return batch_size, actions, action_index, embeddings, target, training, rl_states, lstm_states
 
     @tf.function
     def policy(self, states, target: bool, training: bool, batch_size):
-        action_size = tf.constant(self.env.action_size, dtype=tf.int32)
-        dictionary_length = tf.constant(len(self.env.dictionary), dtype=tf.float32)
+        action_size = tf.constant(self.env.action_size)
 
-        # TODO: Ensure empty token is not part of the dictionary (unnecessary).
-        empty_token = dictionary_length - 1.0
-
-        states = tf.convert_to_tensor(states)
-        actions = tf.fill([batch_size, action_size], empty_token)
+        actions = tf.zeros([batch_size, action_size], dtype=tf.int64)
+        embeddings = tf.zeros([batch_size, self.env.embedding_size])
         lstm_states = tf.zeros([batch_size, self.lstm_units])
 
         action_index = tf.constant(0)
@@ -145,9 +132,9 @@ class DDPG:
         tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
-            loop_vars=[batch_size, actions, action_index, target, training, states, lstm_states],
+            loop_vars=[batch_size, actions, action_index, embeddings, target, training, states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[tf.TensorShape([]), actions.get_shape(), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+            shape_invariants=[tf.TensorShape([]), actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions
@@ -217,9 +204,7 @@ class DDPG:
                 # But not in a python notebook.
                 # env.render()
 
-                tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
-
-                action = self.policy([tf_prev_state], target=False, training=False, batch_size=1)[0]
+                action = self.policy(prev_state, target=False, training=False, batch_size=1)[0]
                 action += ou_noise()
 
                 # Recieve state and reward from environment.

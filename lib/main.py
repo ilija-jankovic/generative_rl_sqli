@@ -107,10 +107,7 @@ def print_decoded_injections():
 print_decoded_injections()
 
 def main():    
-    # The additional token placeholder counts as a termination token for the LSTM.
-    dictionary_length = len(dictionary) + 1
-
-    lstm_units = 20 + dictionary_length
+    lstm_units = 20 + len(dictionary)
 
     ddpg = DDPG(
         environment,

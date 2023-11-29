@@ -81,7 +81,9 @@ class DDPG:
         
     @tf.function
     def __get_rl_state_lstm_input(self, batch_size, rl_states):
-        return tf.reshape(rl_states, [batch_size, self.env.state_size, 1])
+        input = tf.reshape(rl_states, [batch_size, self.env.state_size, 1])
+        
+        return tf.cast(input, dtype=tf.float32)
     
     @tf.function
     def __get_embeddings(self, indicies: tf.Tensor):
@@ -116,9 +118,9 @@ class DDPG:
         token_indicies = tf.argmax(one_hot, axis=1)
         token_indicies = tf.cast(token_indicies, dtype=tf.float32)
 
-        action_indicies = tf.range(0, batch_size, dtype=tf.float32)
-
-        action_indicies = tf.concat([action_indicies, token_indicies], axis=1)
+        action_indicies = tf.range(0, batch_size, dtype=tf.int32)
+        action_indicies = tf.expand_dims(action_indicies, axis=1)
+        action_indicies = tf.concat([action_indicies, tf.fill([batch_size, 1], action_index)], axis=1)
         
         actions = tf.tensor_scatter_nd_update(actions, action_indicies, token_indicies)
         

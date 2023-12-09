@@ -35,7 +35,7 @@ class DDPG:
     @tf.function
     def __get_embeddings(self, one_hot_encoding):
         indicies = tf.argmax(one_hot_encoding, axis=1)
-        embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
+        embeddings = tf.concat([tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32), tf.zeros((self.lstm_units - len(self.env.dictionary), self.env.embedding_size))], axis=0)
         
         return indicies, tf.gather(embeddings, indicies)
 
@@ -51,12 +51,12 @@ class DDPG:
         state_h = lstm[1]
         state_c = lstm[2]
 
-        state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
+        #state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
 
-        one_hot_encoding = layers.Dense(dictionary_length, activation='softmax')(state_h)
+        one_hot_encoding = layers.Dense(self.lstm_units, activation='softmax')(state_h)
         indices_output, embedding_output = layers.Lambda(self.__get_embeddings)(one_hot_encoding)
 
-        return keras.Model(input, [state_output, indices_output, embedding_output])
+        return keras.Model(input, [state_c, indices_output, embedding_output])
 
     def get_critic(self):
         # State as input
@@ -145,8 +145,8 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = 1.0
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
+        std_dev = len(self.env.dictionary) * 0.1
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -170,7 +170,7 @@ class DDPG:
 
         total_episodes = 10000
         # Discount factor for future rewards
-        gamma = 0.99
+        gamma = 0.9
         # Used to update target networks
         tau = 0.005
 

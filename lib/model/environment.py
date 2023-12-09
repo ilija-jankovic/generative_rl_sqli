@@ -77,7 +77,7 @@ class Environment():
         self.__inject_random_payloads()
 
     def __get_payload(self, action: np.ndarray):
-        tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else self.dictionary[0] for i in action]
+        tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
         return ''.join(tokens)
 
     def __record_payload(self, payload: str):

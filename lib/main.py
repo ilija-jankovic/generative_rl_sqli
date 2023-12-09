@@ -16,7 +16,7 @@ from model.environment import Environment
 #
 #
 
-BATCH_SIZE = 16
+BATCH_SIZE = 128
 
 EMBEDDING_DIM = 32
 

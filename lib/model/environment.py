@@ -64,7 +64,7 @@ class Environment():
         self.tables = tables
         
         self.send_request_callback = send_request_callback
-        self.__episode = EpisodeState(100, batch_size=batch_size)
+        self.__episode = EpisodeState(batch_size=batch_size, batches_in_initial_episode_frames=5)
 
     def __inject_random_payloads(self):
         self.__inject_payload('')

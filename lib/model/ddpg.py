@@ -179,14 +179,12 @@ class DDPG:
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
-        '''
         print('Gathering demonstration transitions...')
         
         for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
             buffer.record(obs)
 
         print('Transitions gathered.')
-        '''
         print('Running DDPG...')
 
         # To store reward history of each episode

@@ -3,6 +3,7 @@ from typing import List
 from .environment import Environment
 import random as random
 import numpy as np
+import tensorflow as tf
 
 class InitialTransitionsFactory:
     env: Environment
@@ -20,7 +21,7 @@ class InitialTransitionsFactory:
             state = state_next
 
             encoded_payload = random.choice(self.encoded_payloads)
-            action = np.array(encoded_payload)
+            action = tf.convert_to_tensor(encoded_payload)
 
             state_next, reward, _ = self.env.perform_action(action)
 

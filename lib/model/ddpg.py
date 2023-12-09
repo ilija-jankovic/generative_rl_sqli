@@ -40,9 +40,6 @@ class DDPG:
         return indicies, tf.gather(embeddings, indicies)
 
     def get_actor(self):
-        # Add a termination token.
-        dictionary_length = len(self.env.dictionary)
-
         input = layers.Input(shape=(None, 1))
         lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
 
@@ -175,7 +172,7 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=batch_size,
+                              buffer_capacity=1000000, batch_size=batch_size,
                               actor_model=actor_model,
                               policy=lambda state: self.policy(state, target=False, training=True),
                               target_policy=lambda state: self.policy(state, target=True, training=True),
@@ -235,7 +232,6 @@ class DDPG:
 
             ep_reward_list.append(episodic_reward)
 
-            # Mean of last 40 episodes
-            avg_reward = np.mean(ep_reward_list[-40:])
-            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Frame Count: {}".format(ep, avg_reward, episodic_reward, frame))
+            avg_reward = np.mean(ep_reward_list)
+            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Frame Count: {}".format(ep + 1, avg_reward, episodic_reward, frame))
             avg_reward_list.append(avg_reward)

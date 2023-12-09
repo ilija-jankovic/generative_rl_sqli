@@ -11,7 +11,7 @@ from model.ddpg import DDPG
 from model.environment import Environment
 
 args = sys.argv[1:]
-run_sqlmap = '--no-sqlmap' not in args
+run_sqlmap = '--no-run-sqlmap' not in args
 
 #
 #
@@ -54,7 +54,7 @@ if run_sqlmap:
     sqlmap.run(COOKIE)
     print('Attempted payloads gathered from sqlmap.')
 else:
-    print('Skipping sqlmap...')
+    print('Skipping running sqlmap...')
 
 data_service = SQLDataService()
 

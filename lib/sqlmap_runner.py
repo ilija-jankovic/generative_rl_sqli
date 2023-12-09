@@ -1,7 +1,7 @@
 #!/usr/local/bin/python
 import os
 import subprocess
-from typing import List
+from typing import Dict, List
 from urllib.parse import unquote, urlparse
 
 class SqlmapRunner:
@@ -45,8 +45,11 @@ class SqlmapRunner:
             f.write(lines)
         f.close()
 
-    def run(self, cookie: str):
+    def run(self, headers: Dict[str, str], cookie: str):
         url = self.open_url + self.default_vulnerable_param_value
+
+        headers_str = [f'{key}: {value}' for key, value in headers.items()]
+        headers_str = '\n'.join(headers_str)
 
         # --flush-session ensures full logs to get as much expert data for the DDPGfD as possible.
         # --batch ensures no blocking for user input.
@@ -54,7 +57,7 @@ class SqlmapRunner:
             'python', self.__sqlmap_path,
             '-u', url,
             '-p', self.vulernable_param,
-            '--headers', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+            '--headers', headers_str,
             '--cookie', cookie,
             '--level', '5',
             '-v', '5',

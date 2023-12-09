@@ -34,6 +34,8 @@ ACTION_SIZE = 10
 STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
 
 OPEN_URL = 'http://localhost/products.php?id='
+
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
 COOKIE = 'pma_lang=en; PHPSESSID=9cde755c26180d12c37c82fb3c0ecb5e; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # TODO: Ensure token parser checks for empty string instead of assuming
@@ -51,7 +53,7 @@ sqlmap = SqlmapRunner(OPEN_URL, vulernable_param='id', default_vulnerable_param_
 
 if run_sqlmap:
     print('Running sqlmap...')
-    sqlmap.run(COOKIE)
+    sqlmap.run(HEADERS, COOKIE)
     print('Attempted payloads gathered from sqlmap.')
 else:
     print('Skipping running sqlmap...')
@@ -92,6 +94,9 @@ embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
     encoded_queries + encoded_payloads, len(dictionary))
 print('Embeddings learned.')
 
+headers = HEADERS.copy()
+headers.update({'cookie': COOKIE})
+
 environment = Environment(
     dictionary,
     action_size=ACTION_SIZE,
@@ -101,10 +106,7 @@ environment = Environment(
     columns=columns,
     tables=tables,
     send_request_callback= lambda payload:
-        requests.get(OPEN_URL + payload, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-            'cookie': COOKIE
-        }))
+        requests.get(OPEN_URL + payload, headers=headers))
                                          
 state: np.ndarray
 
@@ -116,8 +118,6 @@ def print_decoded_injections():
     for injection in encoded_payloads:
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
-
-print_decoded_injections()
 
 def main():    
     lstm_units = len(dictionary) * 2

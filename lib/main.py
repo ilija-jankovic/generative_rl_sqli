@@ -88,7 +88,7 @@ environment = Environment(
     send_request_callback= lambda payload:
         requests.get(f'http://{IP}/products.php?id={payload}', headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-            'cookie': 'pma_lang=en; PHPSESSID=7e793e5f680d2d4b1de814c5c9b88752; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+            'cookie': 'pma_lang=en; PHPSESSID=eaccdf1bae5e4ac8f0a7b27e759a2384; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
         }))
         #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
         #requests.post('http://localhost:3000/rest/user/login', data={

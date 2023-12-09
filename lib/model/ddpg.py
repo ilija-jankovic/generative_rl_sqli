@@ -8,6 +8,8 @@ from keras import layers
 import numpy as np
 import tqdm
 
+from .rl_lstm_cell import RLLSTMCell
+
 from .initial_transitions_factory import InitialTransitionsFactory
 
 from .environment import Environment
@@ -43,11 +45,22 @@ class DDPG:
         # Add a termination token.
         dictionary_length = len(self.env.dictionary)
 
-        input = layers.Input(shape=(None, 1))
-        lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
+        rl_state_input = layers.Input(shape=(self.env.batch_size, self.env.state_size))
+        rl_state_dense = layers.Dense(self.env.state_size, activation='linear')
+
+        rl_state_dense.build(input_shape=(self.env.batch_size, self.env.state_size))
+
+        lstm_input = layers.Input(shape=(self.env.batch_size, 1, 1))
+        lstm = layers.RNN(RLLSTMCell(rl_state_layer=rl_state_dense, units=self.lstm_units), return_state=True)(lstm_input)
+
+        rl_state_dense = rl_state_dense(rl_state_input)
+
+        concat = layers.Concatenate()([lstm, rl_state_dense])
+        lstm = concat[0]
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
+
         state_h = lstm[1]
         state_c = lstm[2]
 
@@ -56,7 +69,7 @@ class DDPG:
         one_hot_encoding = layers.Dense(dictionary_length, activation='softmax')(state_h)
         indices_output, embedding_output = layers.Lambda(self.__get_embeddings)(one_hot_encoding)
 
-        return keras.Model(input, [state_output, indices_output, embedding_output])
+        return keras.Model([rl_state_input, lstm_input], [state_output, indices_output, embedding_output])
 
     def get_critic(self):
         # State as input
@@ -94,16 +107,12 @@ class DDPG:
     def __concat_next_token_indicies(self, actions, action_index, embeddings, target: bool, training: bool, rl_states, lstm_states):
         batch_size = self.env.batch_size
 
-        input = tf.cond(
-            pred=tf.equal(action_index, 0),
-            true_fn=lambda: self.__get_rl_state_lstm_input(rl_states),
-            false_fn=lambda: self.__get_embedded_lstm_input(embeddings, lstm_states)
-        )
+        lstm_input = self.__get_embedded_lstm_input(embeddings, lstm_states)
 
         output = tf.cond(
             pred=target,
-            true_fn=lambda: self.target_actor(input, training=training),
-            false_fn=lambda: self.actor_model(input, training=training))
+            true_fn=lambda: self.target_actor([rl_states, lstm_input], training=training),
+            false_fn=lambda: self.actor_model([rl_states, lstm_input], training=training))
 
         lstm_states = output[0]
         indices = output[1]
@@ -131,12 +140,14 @@ class DDPG:
 
         action_index = tf.constant(0)
 
+        rl_states = self.__get_rl_state_lstm_input(states)
+
         tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
-            loop_vars=[actions, action_index, embeddings, target, training, states, lstm_states],
+            loop_vars=[actions, action_index, embeddings, target, training, rl_states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+            shape_invariants=[actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), rl_states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions

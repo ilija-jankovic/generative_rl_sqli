@@ -17,15 +17,15 @@ class SQLDataService:
 
         return data
 
-    def load_payload_files(self, ip: str):
+    def load_payload_files(self, domain_name: str):
         payloads: List[str] = []
 
         lines = self.__read_lines('../../SQLiV3.csv')
         for row in csv.reader(lines):
             payloads.append(''.join(row))
 
-        try:
-            payloads += self.__read_lines(f'../sqlmap/sqlmap-log/{ip}/attempted-payloads.txt')
+        try:            
+            payloads += self.__read_lines(f'../../sqlmap-log/{domain_name}/attempted-payloads.txt')
         except FileNotFoundError:
             print('sqlmap log not found. Skipping...')
 

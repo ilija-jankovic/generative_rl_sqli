@@ -38,13 +38,6 @@ OPEN_URL = 'http://localhost/products.php?id='
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
 COOKIE = 'pma_lang=en; PHPSESSID=f8ba90a90d120aaafd29a3e52bb08ab9; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
-# TODO: Ensure token parser checks for empty string instead of assuming
-# its position at end of descending list.
-#
-# Must be an empty string due to token parsing in descending alphabetical
-# order.
-PADDING_TOKEN = ''
-
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
     [chr(i) for i in range(123, 127)]

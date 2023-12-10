@@ -133,7 +133,7 @@ class DDPG:
             body=self.__concat_next_token_indicies,
             loop_vars=[actions, action_index, embeddings, target, training, states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[actions.get_shape(), tf.TensorShape([]), embeddings.get_shape(), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+            shape_invariants=[actions.get_shape(), tf.TensorShape([]), tf.TensorShape([None, self.env.embedding_size]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions
@@ -190,13 +190,16 @@ class DDPG:
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
 
-        print('Gathering demonstration transitions...')
-        
-        for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
-            buffer.record(obs)
+        if self.demonstrations_factory is None:
+            print('Skipping demonstrations...')
+        else:
+            print('Gathering demonstration transitions...')
+            
+            for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
+                buffer.record(obs)
 
-        print('Transitions gathered.')
-        print('Running DDPG...')
+            print('Transitions gathered.')
+            print('Running DDPG...')
 
         # To store reward history of each episode
         ep_reward_list = []
@@ -214,7 +217,8 @@ class DDPG:
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]
 
-                states = [env_tuple[0] for env_tuple in env_tuples]
+                states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
+
                 episodic_reward += sum([env_tuple[1] for env_tuple in env_tuples])
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
 

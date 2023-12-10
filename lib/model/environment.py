@@ -64,7 +64,7 @@ class Environment():
         self.tables = tables
         
         self.send_request_callback = send_request_callback
-        self.__episode = EpisodeState(batch_size=batch_size, batches_in_initial_episode_frames=5)
+        self.__episode = EpisodeState(self.batch_size * 5)
 
     def __inject_random_payloads(self):
         self.__inject_payload('')
@@ -111,11 +111,6 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __filter_found_tokens(self, tokens: List[str]):
-        for token in tokens:
-            if token not in self.__found_tokens:
-                yield token
-
     def __inject_payload(self, payload: str):
         '''
         Returns new tokens found after filtering responses.
@@ -127,7 +122,7 @@ class Environment():
         resText2 = self.__filter_payload_from_text(res2.text, payload)
 
         unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
-        new_tokens = list(self.__filter_found_tokens(unique_tokens))
+        new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
 
         self.__found_tokens += new_tokens
 
@@ -171,8 +166,7 @@ class Environment():
         res_data = res_data[:len(res_data)] + [-1.0]*(res_section_size - len(res_data))
         res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
 
-        state = tf.convert_to_tensor(embeddings + res_data + res_new_tokens_joined, dtype=tf.float32)
-        return tf.expand_dims(state, axis=0)
+        return tf.convert_to_tensor(embeddings + res_data + res_new_tokens_joined, dtype=tf.float32)
     
     def perform_action(self, action: np.ndarray):
         #

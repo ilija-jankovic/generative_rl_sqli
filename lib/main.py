@@ -12,6 +12,7 @@ from model.environment import Environment
 
 args = sys.argv[1:]
 run_sqlmap = '--no-run-sqlmap' not in args
+record_demonstrations = '--no-demonstrations' not in args
 
 #
 #
@@ -36,7 +37,7 @@ STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=f8ba90a90d120aaafd29a3e52bb08ab9; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=4432b1fe431e7bf8689cef58c8f00c21; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -115,9 +116,12 @@ def print_decoded_injections():
 def main():    
     lstm_units = len(dictionary) * 2
 
+    demonstrations = InitialTransitionsFactory(environment, encoded_payloads) \
+        if record_demonstrations else None
+
     ddpg = DDPG(
         environment,
-        demonstrations_factory=InitialTransitionsFactory(environment, encoded_payloads),
+        demonstrations_factory=demonstrations,
         lstm_units=lstm_units)
 
     ddpg.run(total_demonstration_steps=1000)

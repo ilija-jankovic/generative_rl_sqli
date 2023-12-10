@@ -16,6 +16,8 @@ args = sys.argv[1:]
 run_sqlmap = '--no-run-sqlmap' not in args
 record_demonstrations = '--no-demonstrations' not in args
 
+embedding_data_rows = None
+
 try:
     for arg in args:
         if arg.startswith('--embedding-dataset-count='):
@@ -23,7 +25,6 @@ try:
             break
 except:
     pass
-
 
 #
 #
@@ -135,7 +136,7 @@ def main():
         demonstrations_factory=demonstrations,
         lstm_units=lstm_units)
 
-    ddpg.run(total_demonstration_steps=1000)
+    ddpg.run(total_demonstration_steps=5000)
 
 if __name__ == '__main__':
     main()

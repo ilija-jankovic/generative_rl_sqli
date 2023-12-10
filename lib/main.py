@@ -10,9 +10,20 @@ from model.token_embedder import TokenEmbedder
 from model.ddpg import DDPG
 from model.environment import Environment
 
+# TODO: Use argparse instead.
 args = sys.argv[1:]
+
 run_sqlmap = '--no-run-sqlmap' not in args
 record_demonstrations = '--no-demonstrations' not in args
+
+try:
+    for arg in args:
+        if arg.startswith('--embedding-dataset-count='):
+            embedding_data_rows = int(arg.split('--embedding-dataset-count=')[1])
+            break
+except:
+    pass
+
 
 #
 #
@@ -60,8 +71,8 @@ tables = data_service.load_tables()
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
-queries = data_service.load_wikisql_queries()
-payloads = data_service.load_payload_files(sqlmap.domain_name)
+queries = data_service.load_wikisql_queries(embedding_data_rows)
+payloads = data_service.load_payload_files(sqlmap.domain_name, rows=embedding_data_rows)
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars
 

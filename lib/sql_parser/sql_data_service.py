@@ -2,7 +2,7 @@ import csv
 import os
 from typing import List
 
-class SQLDataService: 
+class SQLDataService:
     __dirname: str
 
     def __init__(self):
@@ -17,19 +17,21 @@ class SQLDataService:
 
         return data
 
-    def load_payload_files(self, domain_name: str):
+    def load_payload_files(self, domain_name: str, rows: int):
         payloads: List[str] = []
 
         lines = self.__read_lines('../../SQLiV3.csv')
         for row in csv.reader(lines):
             payloads.append(''.join(row))
 
-        try:            
-            payloads += self.__read_lines(f'../../sqlmap-log/{domain_name}/attempted-payloads.txt')
+        try:
+            # Ensure sqlmap payloads are priority (at top of list).            
+            payloads = self.__read_lines(f'../../sqlmap-log/{domain_name}/attempted-payloads.txt') + payloads
         except FileNotFoundError:
             print('sqlmap log not found. Skipping...')
 
-        return list(map(lambda payload: payload.upper(), payloads))[:100]
+        payloads = list(map(lambda payload: payload.upper(), payloads))
+        return payloads if rows is None else payloads[:rows]
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')
@@ -43,6 +45,8 @@ class SQLDataService:
     def load_sql_blacklist(self):
         return self.__read_lines('../../sql_blacklist.txt')
 
-    def load_wikisql_queries(self):
+    def load_wikisql_queries(self, rows: int):
         queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
-        return list(map(lambda query: query.upper(), queries))[:100]
+
+        queries = list(map(lambda query: query.upper(), queries))
+        return queries if rows is None else queries[:rows]

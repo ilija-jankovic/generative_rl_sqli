@@ -69,7 +69,7 @@ token_blacklist = data_service.load_sql_blacklist()
 queries = data_service.load_wikisql_queries()
 payloads = data_service.load_payload_files(sqlmap.domain_name)
 
-dictionary = [PADDING_TOKEN] + sql_tokens + tables + columns + visible_uppercase_chars
+dictionary = sql_tokens + tables + columns + visible_uppercase_chars
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.

@@ -35,8 +35,7 @@ class TokenParser:
             if token in datum:
                 return True
         
-        # Ignore padding token at end of list.
-        for token in self.tokens[:-1]:
+        for token in self.tokens:
             datum = datum.replace(token, '')
 
         return len(datum) > 0
@@ -56,8 +55,7 @@ class TokenParser:
         for datum in tqdm.tqdm(data):
             index_map_list: List[Tuple[int, int]] = []
 
-            # Ignore padding token at end of list.
-            for token in self.tokens[:-1]:
+            for token in self.tokens:
                 indices = [i for i,
                            item in enumerate(datum) if item == token]
 

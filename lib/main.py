@@ -21,7 +21,7 @@ run_sqlmap = '--no-run-sqlmap' not in args
 #
 #
 
-BATCH_SIZE = 128
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 32
 
@@ -36,7 +36,7 @@ STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=9cde755c26180d12c37c82fb3c0ecb5e; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=f8ba90a90d120aaafd29a3e52bb08ab9; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # TODO: Ensure token parser checks for empty string instead of assuming
 # its position at end of descending list.

@@ -139,6 +139,17 @@ class DDPG:
         return actions
     
 
+    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
+        action += ou_noise()
+
+        # Recieve state and reward from environment.
+        state, reward, done = self.env.perform_action(action)
+
+        buffer.record((prev_state, action, reward, state))
+
+        return state, reward, done
+    
+
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
@@ -194,29 +205,20 @@ class DDPG:
 
         for ep in range(total_episodes):
 
-            prev_state = self.env.create_empty_state()
+            prev_states = tf.tile(self.env.create_empty_state(), [batch_size, 1])
             episodic_reward = 0
             frame = 0
 
             while True:
-                # Uncomment this to see the Actor in action
-                # But not in a python notebook.
-                # env.render()
+                actions = self.policy(prev_states, target=False, training=False)
 
-                batched_prev_state = tf.tile(prev_state, [batch_size, 1])
+                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]
 
-                actions = self.policy(batched_prev_state, target=False, training=False)
+                states = [env_tuple[0] for env_tuple in env_tuples]
+                episodic_reward += sum([env_tuple[1] for env_tuple in env_tuples])
+                done = True in [env_tuple[2] for env_tuple in env_tuples]
 
-                for action in actions:
-                    action += ou_noise()
-
-                    # Recieve state and reward from environment.
-                    state, reward, done = self.env.perform_action(action)
-
-                    buffer.record((prev_state, action, reward, state))
-                    episodic_reward += reward
-
-                    frame += 1
+                frame += self.env.batch_size
 
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, tau)
@@ -226,7 +228,7 @@ class DDPG:
                 if done:
                     break
 
-                prev_state = state
+                prev_states = states
 
             ep_reward_list.append(episodic_reward)
 

@@ -23,6 +23,6 @@ class InitialTransitionsFactory:
             encoded_payload = random.choice(self.encoded_payloads)
             action = tf.convert_to_tensor(encoded_payload)
 
-            state_next, reward, _ = self.env.perform_action(action)
+            state_next, reward, _ = self.env.perform_action(action, ignore_episode=True)
 
             yield (state, action, reward, state_next)

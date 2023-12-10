@@ -168,7 +168,11 @@ class Environment():
 
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens_joined, dtype=tf.float32)
     
-    def perform_action(self, action: np.ndarray):
+    def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
+        '''
+        If `ignore_episode` is `True`, this method always returns `False` for episode ended,
+        and resets token cache on every invocation.
+        '''
         #
         #
         # !IMPORTANT!
@@ -202,8 +206,10 @@ class Environment():
         
         state = self.__create_state(action, response.text, new_tokens)
 
-        # NOTE: extend=reward > 1.0 (strictly greater) only if static
-        # rewards count, as we should only end an episode if data is found.
-        episode_ended = self.__update_episode(extend=reward >= 1.0)
+        if ignore_episode:
+            episode_ended = False
+            self.__reset_token_cache()
+        else:
+            episode_ended = self.__update_episode(extend=reward >= 1.0)
 
         return state, reward, episode_ended

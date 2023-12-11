@@ -30,10 +30,10 @@ class ReplayBuffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.state_buffer = np.zeros((self.buffer_capacity, state_size // embedding_size, embedding_size))
+        self.state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
         self.action_buffer = np.zeros((self.buffer_capacity, action_size))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, state_size // embedding_size, embedding_size))
+        self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
 
         self.gamma = gamma
 

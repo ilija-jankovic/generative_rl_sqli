@@ -40,13 +40,13 @@ EMBEDDING_DIM = 32
 
 ACTION_SIZE = 10
 
-# TODO: Ensure states do not need to be larger than actions * length of embedding space.
+# TODO: Ensure states does not need to be larger than action size.
 #
-# NOTE: Must be divisible by 4 and a multiple of EMBEDDING_DIM.
+# NOTE: Must be divisible by 2.
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM
+STATE_SIZE = ACTION_SIZE * 2
 
 OPEN_URL = 'http://localhost/products.php?id='
 

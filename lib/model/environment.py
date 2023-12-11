@@ -43,7 +43,9 @@ class Environment():
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
+
         assert(state_size > 0)
+        assert(state_size % 2 == 0)
 
         assert(len(embeddings) == len(dictionary))
         
@@ -87,7 +89,7 @@ class Environment():
         return payload in self.__attempted_payloads
 
     def create_empty_state(self):
-        return tf.zeros((self.state_size // self.embedding_size, self.embedding_size))
+        return tf.zeros((self.state_size, self.embedding_size))
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -148,18 +150,19 @@ class Environment():
     
     # TODO: Add table and column names from response to state definition.
     def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
-        #res_size = self.state_size - (self.action_size * self.embedding_size)
+        res_size = self.state_size - self.action_size
 
         embeddings = [self.embeddings[i.numpy()] if i.numpy() > 0.0 and i.numpy() < len(self.dictionary) else [0.0] * self.embedding_size for i in action]
 
-        #res_section_size = res_size // 2
+        res_section_size = res_size // 2
 
-        #res_data = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embeddings for char in data[:res_section_size]]
+        res_data = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embedding_size for char in data[:res_section_size]]
+        res_new_tokens = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embedding_size for char in new_tokens[:res_section_size]]
 
-        #res_new_tokens = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embeddings for char in data[:res_section_size]]
-        #res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
+        res_data += [[0.0] * self.embedding_size] * (res_section_size - len(res_data))
+        res_new_tokens += [[0.0] * self.embedding_size] * (res_section_size - len(res_new_tokens))
 
-        return tf.convert_to_tensor(embeddings, dtype=tf.float32)
+        return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
     
     def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
         '''

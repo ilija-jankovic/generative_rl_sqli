@@ -57,7 +57,7 @@ class DDPG:
 
     def get_critic(self):
         # State as input
-        state_input = layers.Input(shape=(self.env.state_size // self.env.embedding_size, self.env.embedding_size))
+        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size))
         state_flatten = layers.Flatten()(state_input)
         state_out = layers.Dense(16, activation="relu",)(state_flatten)
         state_out = layers.Dense(32, activation="relu")(state_out)
@@ -83,7 +83,10 @@ class DDPG:
     def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
 
-        return tf.reshape(input, [self.env.batch_size, 1 + self.lstm_units // self.env.embedding_size, self.env.embedding_size])
+        # The additional unit accounts for the latest embedding.
+        input_size = self.lstm_units // self.env.embedding_size + 1
+
+        return tf.reshape(input, [self.env.batch_size, input_size, self.env.embedding_size])
 
     @tf.function
     def __concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):

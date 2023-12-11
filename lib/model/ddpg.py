@@ -88,7 +88,7 @@ class DDPG:
         return tf.expand_dims(input, axis=-1)
 
     @tf.function
-    def __concat_next_token_indicies(self, actions, action_index, embeddings, target: bool, training: bool, rl_states, lstm_states):
+    def __concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
         batch_size = self.env.batch_size
 
         input = tf.cond(
@@ -104,7 +104,14 @@ class DDPG:
 
         lstm_states = output[0]
         indices = output[1]
-        embeddings = output[2]
+
+        # action_index_float is the length of the action after incrementing, which
+        # is then used in the below embedding average calculation.
+        action_index_float = tf.add(action_index_float, 1.0)
+
+        # Adding to an average solution by Damien and Dan Dascalescu from:
+        # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
+        embeddings = embeddings + (output[2] - embeddings) / action_index_float
 
         action_indices = tf.range(0, batch_size)
         action_indices = tf.expand_dims(action_indices, axis=1)
@@ -114,7 +121,7 @@ class DDPG:
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, embeddings, target, training, rl_states, lstm_states
+        return actions, action_index, action_index_float, embeddings, target, training, rl_states, lstm_states
 
     @tf.function
     def policy(self, states, target: bool, training: bool):
@@ -127,13 +134,14 @@ class DDPG:
         lstm_states = tf.zeros([batch_size, self.lstm_units])
 
         action_index = tf.constant(0)
+        action_index_float = tf.constant(0.0)
 
         tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
-            loop_vars=[actions, action_index, embeddings, target, training, states, lstm_states],
+            loop_vars=[actions, action_index, action_index_float, embeddings, target, training, states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[actions.get_shape(), tf.TensorShape([]), tf.TensorShape([None, self.env.embedding_size]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
+            shape_invariants=[actions.get_shape(), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([None, self.env.embedding_size]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions

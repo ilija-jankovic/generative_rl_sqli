@@ -42,9 +42,11 @@ ACTION_SIZE = 10
 
 # TODO: Ensure states do not need to be larger than actions * length of embedding space.
 #
+# NOTE: Must be divisible by 4 and a multiple of EMBEDDING_DIM.
+#
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM + 500
+STATE_SIZE = ACTION_SIZE * EMBEDDING_DIM
 
 OPEN_URL = 'http://localhost/products.php?id='
 
@@ -126,7 +128,7 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():    
-    lstm_units = len(dictionary) * 2
+    lstm_units = ((len(dictionary) * 2) // EMBEDDING_DIM + 1) * EMBEDDING_DIM
 
     demonstrations = InitialTransitionsFactory(environment, encoded_payloads) \
         if record_demonstrations else None

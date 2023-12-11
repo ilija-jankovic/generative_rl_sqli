@@ -40,7 +40,7 @@ class DDPG:
         return indicies, tf.gather(embeddings, indicies)
 
     def get_actor(self):
-        input = layers.Input(shape=(None, 1))
+        input = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
         lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -57,8 +57,9 @@ class DDPG:
 
     def get_critic(self):
         # State as input
-        state_input = layers.Input(shape=(self.env.state_size,))
-        state_out = layers.Dense(16, activation="relu",)(state_input)
+        state_input = layers.Input(shape=(self.env.state_size // self.env.embedding_size, self.env.embedding_size))
+        state_flatten = layers.Flatten()(state_input)
+        state_out = layers.Dense(16, activation="relu",)(state_flatten)
         state_out = layers.Dense(32, activation="relu")(state_out)
 
         # Action as input
@@ -76,16 +77,13 @@ class DDPG:
         model = tf.keras.Model([state_input, action_input], outputs)
 
         return model
-        
-    @tf.function
-    def __get_rl_state_lstm_input(self, rl_states):
-        return tf.expand_dims(rl_states, axis=-1)
+
     
     @tf.function
     def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
 
-        return tf.expand_dims(input, axis=-1)
+        return tf.reshape(input, [self.env.batch_size, 1 + self.lstm_units // self.env.embedding_size, self.env.embedding_size])
 
     @tf.function
     def __concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
@@ -93,7 +91,7 @@ class DDPG:
 
         input = tf.cond(
             pred=tf.equal(action_index, 0),
-            true_fn=lambda: self.__get_rl_state_lstm_input(rl_states),
+            true_fn=lambda: rl_states,
             false_fn=lambda: self.__get_embedded_lstm_input(embeddings, lstm_states)
         )
 
@@ -141,7 +139,6 @@ class DDPG:
             body=self.__concat_next_token_indicies,
             loop_vars=[actions, action_index, action_index_float, embeddings, target, training, states, lstm_states],
             maximum_iterations=action_size,
-            shape_invariants=[actions.get_shape(), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([None, self.env.embedding_size]), tf.TensorShape([]), tf.TensorShape([]), states.get_shape(), tf.TensorShape([None, self.lstm_units])]
         )
 
         return actions
@@ -190,7 +187,7 @@ class DDPG:
         # Used to update target networks
         tau = 0.005
 
-        buffer = ReplayBuffer(state_size=self.env.state_size, action_size=self.env.action_size,
+        buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
                               buffer_capacity=1000000, batch_size=batch_size,
                               actor_model=actor_model,
                               policy=lambda state: self.policy(state, target=False, training=True),
@@ -216,7 +213,9 @@ class DDPG:
 
         for ep in range(total_episodes):
 
-            prev_states = tf.tile(self.env.create_empty_state(), [batch_size, 1])
+            prev_states = [self.env.create_empty_state() for _ in range(self.env.batch_size)]
+            prev_states = tf.convert_to_tensor(prev_states)
+
             episodic_reward = 0
             frame = 0
 

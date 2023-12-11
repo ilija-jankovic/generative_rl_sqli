@@ -8,7 +8,7 @@ import numpy as np
 import sys
 
 class ReplayBuffer:
-    def __init__(self, state_size: int, action_size: int, target_policy: Callable[[np.array], np.array], target_critic: keras.Model,
+    def __init__(self, state_size: int, embedding_size: int, action_size: int, target_policy: Callable[[np.array], np.array], target_critic: keras.Model,
                  policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: keras.optimizers.Optimizer,
                  critic_optimizer: keras.optimizers.Optimizer, buffer_capacity=100000, batch_size=64, gamma=0.99):
         # Number of "experiences" to store at max
@@ -30,10 +30,10 @@ class ReplayBuffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.state_buffer = np.zeros((self.buffer_capacity, state_size))
+        self.state_buffer = np.zeros((self.buffer_capacity, state_size // embedding_size, embedding_size))
         self.action_buffer = np.zeros((self.buffer_capacity, action_size))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, state_size))
+        self.next_state_buffer = np.zeros((self.buffer_capacity, state_size // embedding_size, embedding_size))
 
         self.gamma = gamma
 

@@ -87,9 +87,7 @@ class Environment():
         return payload in self.__attempted_payloads
 
     def create_empty_state(self):
-        state = tf.convert_to_tensor([-1.0] * self.state_size)
-
-        return tf.expand_dims(state, axis=0)
+        return tf.zeros((self.state_size // self.embedding_size, self.embedding_size))
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -150,23 +148,18 @@ class Environment():
     
     # TODO: Add table and column names from response to state definition.
     def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
-        res_size = self.state_size - (self.action_size * self.embedding_size)
+        #res_size = self.state_size - (self.action_size * self.embedding_size)
 
-        embeddings = [self.embeddings[i.numpy()] if i.numpy() > 0.0 and i.numpy() < len(self.dictionary) else self.embeddings[0] for i in action]
+        embeddings = [self.embeddings[i.numpy()] if i.numpy() > 0.0 and i.numpy() < len(self.dictionary) else [0.0] * self.embedding_size for i in action]
 
-        # Flatten list. Solution by Alex Martelli and user3064538 from:
-        # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
-        embeddings = [embedded_value for embedding in embeddings for embedded_value in embedding]
+        #res_section_size = res_size // 2
 
-        res_section_size = res_size // 2
+        #res_data = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embeddings for char in data[:res_section_size]]
 
-        res_data = [ord(char) for char in data[:res_section_size]]
-        res_new_tokens_joined = [ord(char) for char in ','.join(new_tokens)[:res_section_size]]
+        #res_new_tokens = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embeddings for char in data[:res_section_size]]
+        #res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
 
-        res_data = res_data[:len(res_data)] + [-1.0]*(res_section_size - len(res_data))
-        res_new_tokens_joined = res_new_tokens_joined[:len(res_new_tokens_joined)] + [-1.0]*(res_section_size - len(res_new_tokens_joined))
-
-        return tf.convert_to_tensor(embeddings + res_data + res_new_tokens_joined, dtype=tf.float32)
+        return tf.convert_to_tensor(embeddings, dtype=tf.float32)
     
     def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
         '''

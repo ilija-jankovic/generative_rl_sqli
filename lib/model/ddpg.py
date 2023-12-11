@@ -49,11 +49,16 @@ class DDPG:
         state_c = lstm[2]
 
         #state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
+        
+        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, self.env.embedding_size - (self.lstm_units % self.env.embedding_size)]]))(state_c)
 
         one_hot_encoding = layers.Dense(self.lstm_units, activation='softmax')(state_h)
         indices_output, embedding_output = layers.Lambda(self.__get_embeddings)(one_hot_encoding)
 
-        return keras.Model(input, [state_c, indices_output, embedding_output])
+        print(embedding_output.shape)
+        print(padded_state_c.shape)
+
+        return keras.Model(input, [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
         # State as input
@@ -83,10 +88,7 @@ class DDPG:
     def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
 
-        # The additional unit accounts for the latest embedding.
-        input_size = self.lstm_units // self.env.embedding_size + 1
-
-        return tf.reshape(input, [self.env.batch_size, input_size, self.env.embedding_size])
+        return tf.reshape(input, [self.env.batch_size, -1, self.env.embedding_size])
 
     @tf.function
     def __concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
@@ -132,7 +134,7 @@ class DDPG:
 
         actions = tf.zeros([batch_size, action_size], dtype=tf.int64)
         embeddings = tf.zeros([batch_size, self.env.embedding_size])
-        lstm_states = tf.zeros([batch_size, self.lstm_units])
+        lstm_states = tf.zeros([batch_size, self.lstm_units + self.env.embedding_size - (self.lstm_units % self.env.embedding_size)])
 
         action_index = tf.constant(0)
         action_index_float = tf.constant(0.0)

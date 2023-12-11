@@ -127,8 +127,8 @@ def print_decoded_injections():
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
 
-def main():    
-    lstm_units = ((len(dictionary) * 2) // EMBEDDING_DIM + 1) * EMBEDDING_DIM
+def main():
+    lstm_units = len(dictionary) + 1
 
     demonstrations = InitialTransitionsFactory(environment, encoded_payloads) \
         if record_demonstrations else None

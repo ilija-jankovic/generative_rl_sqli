@@ -22,7 +22,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 1.0):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.9):
         assert(psi >= 0.0 and psi <= 1.0)
 
         self.env = env
@@ -37,20 +37,27 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
-    def __get_mask(self, payload):        
-        mask = tf.fill((self.lstm_units,), 1.0 - self.psi)
+    @tf.function
+    def __get_mask(self, payload):
+        dictionary_length = len(self.env.dictionary)
+
+        mask = []
         
-        for i in range(len(self.env.dictionary)):
+        for i in range(dictionary_length):
             token = self.env.dictionary[i]
 
             try:
                 sqltree(payload + token)
-                mask[i] = 1.0
+                mask.append(1.0)
             except:
-                pass
+                mask.append(1.0 - self.psi)
 
-        return mask
+        # Account for termination tokens.
+        mask += (self.lstm_units - dictionary_length) * [1.0]
 
+        return tf.stack(mask)
+
+    @tf.function
     def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 

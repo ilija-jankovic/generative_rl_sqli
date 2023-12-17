@@ -21,8 +21,6 @@ class DDPG:
     demonstrations_factory: InitialTransitionsFactory
     lstm_units: int
     psi: float
-
-    __syntax_token_indices: List[int]
     
     def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.9):
         assert(psi >= 0.0 and psi <= 1.0)

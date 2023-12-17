@@ -16,21 +16,21 @@ from .environment import Environment
 from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
-SYNTAX_TOKENS = 'SELECT ', 'UNION ', 'WHERE ', 'FROM '
-
 class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
     lstm_units: int
+    psi: float
 
     __syntax_token_indices: List[int]
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.9):
+        assert(psi >= 0.0 and psi <= 1.0)
+
         self.env = env
         self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
-
-        self.__syntax_token_indices = list(map(lambda token: self.env.dictionary.index(token), SYNTAX_TOKENS))
+        self.psi = psi
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -40,7 +40,7 @@ class DDPG:
             a.assign(b * tau + a * (1 - tau))
 
     def __get_mask(self, payload_fragment):        
-        mask = tf.zeros((self.lstm_units,), dtype=tf.float32)
+        mask = tf.fill((self.lstm_units,), 1.0 - self.psi)
         
         for i in range(len(self.env.dictionary)):
             token = self.env.dictionary[i]
@@ -56,22 +56,8 @@ class DDPG:
     def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
-        syntactic_indices = []
-
-        for token_index in self.__syntax_token_indices:
-            min_index = tf.argmin(tf.where(tf.equal(action, tf.fill((self.env.action_size,), token_index))))
-            syntactic_indices += min_index
-
-        syntactic_indices = tf.convert_to_tensor(syntactic_indices)
-
-        first_syntactic_index = tf.argmin(syntactic_indices)
-
-        return tf.cond(
-            tf.equal(tf.size(first_syntactic_index), 0),
-            true_fn=lambda: single_one_hot_encoding,
-            false_fn=lambda: single_one_hot_encoding * self.__get_mask(tf.strings.substr(payload, first_syntactic_index, -1))
-        )
-
+        return single_one_hot_encoding * self.__get_mask(payload)
+    
     @tf.function
     def __get_embeddings(self, one_hot_encoding, actions):
         one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]

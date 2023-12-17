@@ -188,7 +188,7 @@ class Environment():
         response, new_tokens = self.__inject_payload(payload)
 
         new_tokens_count = len(new_tokens)
-        print(payload)
+        
         if new_tokens_count > 0:
             reward = new_tokens_count
 

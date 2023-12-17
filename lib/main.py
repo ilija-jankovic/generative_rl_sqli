@@ -34,7 +34,7 @@ except:
 #
 #
 
-BATCH_SIZE = 1
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 32
 
@@ -138,7 +138,7 @@ def main():
         demonstrations_factory=demonstrations,
         lstm_units=lstm_units)
 
-    ddpg.run(total_demonstration_steps=10000)
+    ddpg.run(total_demonstration_steps=1000)
 
 if __name__ == '__main__':
     main()

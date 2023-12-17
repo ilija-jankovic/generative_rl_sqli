@@ -3,14 +3,13 @@
 
 from typing import Callable, List
 import tensorflow as tf
-import keras;
+import keras
 import numpy as np
-import sys
 
 class ReplayBuffer:
     def __init__(self, state_size: int, embedding_size: int, action_size: int, target_policy: Callable[[np.array], np.array], target_critic: keras.Model,
-                 policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: keras.optimizers.Optimizer,
-                 critic_optimizer: keras.optimizers.Optimizer, buffer_capacity=100000, batch_size=64, gamma=0.99):
+                 policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: tf.keras.optimizers.Adam,
+                 critic_optimizer: tf.keras.optimizers.Adam, buffer_capacity=100000, batch_size=64, gamma=0.99):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
@@ -31,7 +30,7 @@ class ReplayBuffer:
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
         self.state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-        self.action_buffer = np.zeros((self.buffer_capacity, action_size))
+        self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
 
@@ -69,7 +68,7 @@ class ReplayBuffer:
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
-            zip(critic_grad, self.critic_model.trainable_variables)
+            zip(critic_grad, self.critic_model.trainable_variables),
         )
 
         with tf.GradientTape() as tape:
@@ -81,7 +80,7 @@ class ReplayBuffer:
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
         self.actor_optimizer.apply_gradients(
-            zip(actor_grad, self.actor_model.trainable_variables)
+            zip(actor_grad, self.actor_model.trainable_variables), 
         )
 
     # We compute the loss and update parameters
@@ -93,7 +92,7 @@ class ReplayBuffer:
 
         # Convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int64)
+        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
         reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)

@@ -22,7 +22,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.9):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.0):
         assert(psi >= 0.0 and psi <= 1.0)
 
         self.env = env
@@ -66,9 +66,9 @@ class DDPG:
     @tf.function
     def __get_embeddings(self, one_hot_encoding, actions):
         one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
-        one_hot_encoding = tf.convert_to_tensor(one_hot_encoding)
+        one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
 
-        indices = tf.argmax(one_hot_encoding, axis=1)
+        indices = tf.argmax(one_hot_encoding, axis=1, output_type=tf.int32)
         embeddings = tf.concat([tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32), tf.zeros((self.lstm_units - len(self.env.dictionary), self.env.embedding_size))], axis=0)
         
         return indices, tf.gather(embeddings, indices)
@@ -76,14 +76,19 @@ class DDPG:
     def get_actor(self):
         C_PADDING = self.env.embedding_size - (self.lstm_units % self.env.embedding_size)
 
+        # Initialize weights between -3e-3 and 3-e3
+        last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
+
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
-        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax')(input_lstm)
+        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax', kernel_initializer=last_init)(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
         
+        #one_hot_encoding = layers.Dense(self.lstm_units, activation='sigmoid')(state_h)
+
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
@@ -115,6 +120,8 @@ class DDPG:
         return model
 
     
+    # Concat appears to break gradients:
+    # https://github.com/tensorflow/tensorflow/issues/37726#issuecomment-1101018112
     @tf.function
     def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
@@ -147,9 +154,9 @@ class DDPG:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
         embeddings = embeddings + (output[2] - embeddings) / action_index_float
 
-        action_indices = tf.range(0, batch_size)
+        action_indices = tf.range(0, batch_size, dtype=tf.int32)
         action_indices = tf.expand_dims(action_indices, axis=1)
-        action_indices = tf.concat([action_indices, tf.fill([batch_size, 1], action_index)], axis=1)
+        action_indices = tf.pad(action_indices, [[0, 0], [0, 1]], constant_values=action_index)
 
         actions = tf.tensor_scatter_nd_update(actions, action_indices, indices)
 
@@ -161,20 +168,20 @@ class DDPG:
     def policy(self, states, target: bool, training: bool):
         batch_size = self.env.batch_size
 
-        action_size = tf.constant(self.env.action_size)
+        action_size = tf.constant(self.env.action_size, dtype=tf.int32)
 
-        actions = tf.fill([batch_size, action_size], tf.int64.min)
+        actions = tf.fill([batch_size, action_size], tf.int32.min)
         
-        embeddings = tf.zeros([batch_size, self.env.embedding_size])
-        lstm_states = tf.zeros([batch_size, self.lstm_units + self.env.embedding_size - (self.lstm_units % self.env.embedding_size)])
+        embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, self.lstm_units + self.env.embedding_size - (self.lstm_units % self.env.embedding_size)], dtype=tf.float32)
 
-        action_index = tf.constant(0)
-        action_index_float = tf.constant(0.0)
+        action_index = tf.constant(0, dtype=tf.int32)
+        action_index_float = tf.constant(0.0, dtype=tf.float32)
 
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
-            loop_vars=[actions, action_index, action_index_float, embeddings, target, training, states, lstm_states],
+            loop_vars=(actions, action_index, action_index_float, embeddings, target, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 
@@ -258,6 +265,7 @@ class DDPG:
             frame = 0
 
             while True:
+                #print(target_actor.trainable_variables[0])
                 actions = self.policy(prev_states, target=False, training=False)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]

@@ -196,8 +196,8 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = len(self.env.dictionary) * 0.1
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
+        std_dev = len(self.env.dictionary) * 0.2
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()

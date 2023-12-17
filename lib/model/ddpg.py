@@ -76,11 +76,11 @@ class DDPG:
     def get_actor(self):
         C_PADDING = self.env.embedding_size - (self.lstm_units % self.env.embedding_size)
 
-        # Initialize weights between -3e-3 and 3-e3
-        last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
+        # Needs large difference in weights to begin learning.
+        initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
-        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax', kernel_initializer=last_init)(input_lstm)
+        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax', kernel_initializer=initial_weights)(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -119,9 +119,6 @@ class DDPG:
 
         return model
 
-    
-    # Concat appears to break gradients:
-    # https://github.com/tensorflow/tensorflow/issues/37726#issuecomment-1101018112
     @tf.function
     def __get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
@@ -265,7 +262,6 @@ class DDPG:
             frame = 0
 
             while True:
-                #print(target_actor.trainable_variables[0])
                 actions = self.policy(prev_states, target=False, training=False)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]

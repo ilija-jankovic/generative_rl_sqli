@@ -68,16 +68,16 @@ class DDPG:
         one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
         one_hot_encoding = tf.convert_to_tensor(one_hot_encoding)
 
-        indicies = tf.argmax(one_hot_encoding, axis=1)
+        indices = tf.argmax(one_hot_encoding, axis=1)
         embeddings = tf.concat([tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32), tf.zeros((self.lstm_units - len(self.env.dictionary), self.env.embedding_size))], axis=0)
         
-        return indicies, tf.gather(embeddings, indicies)
+        return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
         C_PADDING = self.env.embedding_size - (self.lstm_units % self.env.embedding_size)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
-        lstm = layers.LSTM(self.lstm_units, return_state=True)(input_lstm)
+        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax')(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -86,10 +86,8 @@ class DDPG:
         
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
-        one_hot_encoding = layers.Dense(self.lstm_units, activation='softmax')(state_h)
-
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
-        indices_output, embedding_output = layers.Lambda(lambda input: self.__get_embeddings(input[0], input[1]))((one_hot_encoding, input_actions))
+        indices_output, embedding_output = layers.Lambda(lambda input: self.__get_embeddings(input[0], input[1]))((state_h, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
@@ -153,7 +151,7 @@ class DDPG:
         action_indices = tf.expand_dims(action_indices, axis=1)
         action_indices = tf.concat([action_indices, tf.fill([batch_size, 1], action_index)], axis=1)
 
-        actions = tf.tensor_scatter_nd_add(actions, action_indices, indices)
+        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices)
 
         action_index = tf.add(action_index, 1)
         
@@ -165,14 +163,15 @@ class DDPG:
 
         action_size = tf.constant(self.env.action_size)
 
-        actions = tf.zeros([batch_size, action_size], dtype=tf.int64)
+        actions = tf.fill([batch_size, action_size], tf.int64.min)
+        
         embeddings = tf.zeros([batch_size, self.env.embedding_size])
         lstm_states = tf.zeros([batch_size, self.lstm_units + self.env.embedding_size - (self.lstm_units % self.env.embedding_size)])
 
         action_index = tf.constant(0)
         action_index_float = tf.constant(0.0)
 
-        tf.while_loop(
+        actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.__concat_next_token_indicies,
             loop_vars=[actions, action_index, action_index_float, embeddings, target, training, states, lstm_states],
@@ -183,6 +182,7 @@ class DDPG:
     
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
+        print(action)
         action += ou_noise()
 
         # Recieve state and reward from environment.

@@ -1,7 +1,6 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
-from typing import List
 import tensorflow as tf
 import keras
 from keras import layers
@@ -22,7 +21,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.0):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.95):
         assert(psi >= 0.0 and psi <= 1.0)
 
         self.env = env
@@ -186,7 +185,6 @@ class DDPG:
     
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
-        print(action)
         action += ou_noise()
 
         # Recieve state and reward from environment.
@@ -200,8 +198,8 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = len(self.env.dictionary) * 0.2
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
+        std_dev = len(self.env.dictionary) * 0.1
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -253,13 +251,14 @@ class DDPG:
         # To store average reward history of last few episodes
         avg_reward_list = []
 
+        frame = 0
+
         for ep in range(total_episodes):
 
             prev_states = [self.env.create_empty_state() for _ in range(self.env.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
 
             episodic_reward = 0
-            frame = 0
 
             while True:
                 actions = self.policy(prev_states, target=False, training=False)
@@ -286,5 +285,5 @@ class DDPG:
             ep_reward_list.append(episodic_reward)
 
             avg_reward = np.mean(ep_reward_list)
-            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Frame Count: {}".format(ep + 1, avg_reward, episodic_reward, frame))
+            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Total Frame Count: {}".format(ep + 1, avg_reward, episodic_reward, frame))
             avg_reward_list.append(avg_reward)

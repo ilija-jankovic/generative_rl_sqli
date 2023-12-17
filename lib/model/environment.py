@@ -1,7 +1,6 @@
 import numpy as np
 from typing import List
 import re
-from sqltree import sqltree
 from requests import Response
 from typing import Callable
 from numpy import dot
@@ -78,7 +77,7 @@ class Environment():
         # Ensures data from non-useful injections is not rewarded.
         self.__inject_random_payloads()
 
-    def __get_payload(self, action: np.ndarray):
+    def get_payload(self, action: np.ndarray):
         tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
         return ''.join(tokens)
 
@@ -178,7 +177,7 @@ class Environment():
         #
         #
 
-        payload = self.__get_payload(action)
+        payload = self.get_payload(action)
 
         self.__record_payload(payload)
 
@@ -189,7 +188,7 @@ class Environment():
         response, new_tokens = self.__inject_payload(payload)
 
         new_tokens_count = len(new_tokens)
-
+        print(payload)
         if new_tokens_count > 0:
             reward = new_tokens_count
 

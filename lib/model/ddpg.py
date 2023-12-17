@@ -7,6 +7,7 @@ import keras
 from keras import layers
 import numpy as np
 import tqdm
+from sqltree import sqltree
 
 from .initial_transitions_factory import InitialTransitionsFactory
 
@@ -15,15 +16,21 @@ from .environment import Environment
 from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
+SYNTAX_TOKENS = 'SELECT ', 'UNION ', 'WHERE ', 'FROM '
+
 class DDPG:
     env: Environment
     demonstrations_factory: InitialTransitionsFactory
     lstm_units: int
+
+    __syntax_token_indices: List[int]
     
     def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int):
         self.env = env
         self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
+
+        self.__syntax_token_indices = list(map(lambda token: self.env.dictionary.index(token), SYNTAX_TOKENS))
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -32,33 +39,68 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
+    def __get_mask(self, payload_fragment):        
+        mask = tf.zeros((self.lstm_units,), dtype=tf.float32)
+        
+        for i in range(len(self.env.dictionary)):
+            token = self.env.dictionary[i]
+
+            try:
+                sqltree(payload_fragment + token)
+                mask[i] = 1.0
+            except:
+                pass
+
+        return mask
+
+    def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
+        payload = tf.py_function(self.env.get_payload, [action], tf.string)
+
+        syntactic_indices = []
+
+        for token_index in self.__syntax_token_indices:
+            min_index = tf.argmin(tf.where(tf.equal(action, tf.fill((self.env.action_size,), token_index))))
+            syntactic_indices += min_index
+
+        syntactic_indices = tf.convert_to_tensor(syntactic_indices)
+
+        first_syntactic_index = tf.argmin(syntactic_indices)
+
+        return tf.cond(
+            tf.equal(tf.size(first_syntactic_index), 0),
+            true_fn=lambda: single_one_hot_encoding,
+            false_fn=lambda: single_one_hot_encoding * self.__get_mask(tf.strings.substr(payload, first_syntactic_index, -1))
+        )
+
     @tf.function
-    def __get_embeddings(self, one_hot_encoding):
+    def __get_embeddings(self, one_hot_encoding, actions):
+        one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
+        one_hot_encoding = tf.convert_to_tensor(one_hot_encoding)
+
         indicies = tf.argmax(one_hot_encoding, axis=1)
         embeddings = tf.concat([tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32), tf.zeros((self.lstm_units - len(self.env.dictionary), self.env.embedding_size))], axis=0)
         
         return indicies, tf.gather(embeddings, indicies)
 
     def get_actor(self):
-        input = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
-        lstm = layers.LSTM(self.lstm_units, return_state=True)(input)
+        C_PADDING = self.env.embedding_size - (self.lstm_units % self.env.embedding_size)
+
+        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
+        lstm = layers.LSTM(self.lstm_units, return_state=True)(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
-
-        #state_output = layers.Dense(self.lstm_units, activation='linear')(state_c)
         
-        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, self.env.embedding_size - (self.lstm_units % self.env.embedding_size)]]))(state_c)
+        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         one_hot_encoding = layers.Dense(self.lstm_units, activation='softmax')(state_h)
-        indices_output, embedding_output = layers.Lambda(self.__get_embeddings)(one_hot_encoding)
 
-        print(embedding_output.shape)
-        print(padded_state_c.shape)
+        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
+        indices_output, embedding_output = layers.Lambda(lambda input: self.__get_embeddings(input[0], input[1]))((one_hot_encoding, input_actions))
 
-        return keras.Model(input, [padded_state_c, indices_output, embedding_output])
+        return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
         # State as input
@@ -96,8 +138,8 @@ class DDPG:
 
         input = tf.cond(
             pred=tf.equal(action_index, 0),
-            true_fn=lambda: rl_states,
-            false_fn=lambda: self.__get_embedded_lstm_input(embeddings, lstm_states)
+            true_fn=lambda: (rl_states, actions),
+            false_fn=lambda: (self.__get_embedded_lstm_input(embeddings, lstm_states), actions)
         )
 
         output = tf.cond(
@@ -181,14 +223,14 @@ class DDPG:
 
         # Learning rate for actor-critic models
         critic_lr = 0.0005
-        actor_lr = 0.00025
+        actor_lr = 0.0025
 
         critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
         actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-        total_episodes = 10000
+        total_episodes = 500
         # Discount factor for future rewards
-        gamma = 0.9
+        gamma = 0.98
         # Used to update target networks
         tau = 0.005
 

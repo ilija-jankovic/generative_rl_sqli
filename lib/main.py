@@ -34,7 +34,7 @@ except:
 #
 #
 
-BATCH_SIZE = 512
+BATCH_SIZE = 32
 
 EMBEDDING_DIM = 32
 

@@ -22,7 +22,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.9):
+    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 1.0):
         assert(psi >= 0.0 and psi <= 1.0)
 
         self.env = env
@@ -37,14 +37,14 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
-    def __get_mask(self, payload_fragment):        
+    def __get_mask(self, payload):        
         mask = tf.fill((self.lstm_units,), 1.0 - self.psi)
         
         for i in range(len(self.env.dictionary)):
             token = self.env.dictionary[i]
 
             try:
-                sqltree(payload_fragment + token)
+                sqltree(payload + token)
                 mask[i] = 1.0
             except:
                 pass

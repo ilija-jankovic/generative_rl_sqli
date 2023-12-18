@@ -3,7 +3,6 @@ import sys
 import numpy as np
 import requests
 from sqlmap_runner import SqlmapRunner
-from model.initial_transitions_factory import InitialTransitionsFactory
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
 from model.token_embedder import TokenEmbedder 
@@ -34,9 +33,9 @@ except:
 #
 #
 
-BATCH_SIZE = 1
+BATCH_SIZE = 32
 
-EMBEDDING_DIM = 32
+EMBEDDING_DIM = 128
 
 ACTION_SIZE = 10
 
@@ -51,7 +50,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=a10149c35b3eba6373416a1545e2bef4; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=45f8683c525cd188f2293ded6661cf81; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -77,7 +76,7 @@ token_blacklist = data_service.load_sql_blacklist()
 queries = data_service.load_wikisql_queries(embedding_data_rows)
 payloads = data_service.load_payload_files(sqlmap.domain_name, rows=embedding_data_rows)
 
-dictionary = sql_tokens + tables + columns + visible_uppercase_chars
+dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.
@@ -85,7 +84,7 @@ dictionary = list(set(dictionary))
 
 dictionary.sort(reverse=True)
 
-token_parser = TokenParser(dictionary, token_blacklist, tokens_per_row=ACTION_SIZE)
+token_parser = TokenParser(dictionary, token_blacklist)
 
 print('Encoding queries...')
 encoded_queries = token_parser.parse(queries)
@@ -128,17 +127,15 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
-    lstm_units = len(dictionary) + 1
-
-    demonstrations = InitialTransitionsFactory(environment, encoded_payloads) \
-        if record_demonstrations else None
+    lstm_units = len(dictionary)
 
     ddpg = DDPG(
         environment,
-        demonstrations_factory=demonstrations,
+        encoded_payloads=encoded_payloads,
         lstm_units=lstm_units)
 
-    ddpg.run(total_demonstration_steps=100)
+    print('Running DDPG...')
+    ddpg.run(total_demonstration_steps=1000 if record_demonstrations else None)
 
 if __name__ == '__main__':
     main()

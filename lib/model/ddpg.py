@@ -1,14 +1,14 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+import random
+from typing import List
 import tensorflow as tf
 import keras
 from keras import layers
 import numpy as np
 import tqdm
 from sqltree import sqltree
-
-from .initial_transitions_factory import InitialTransitionsFactory
 
 from .environment import Environment
 
@@ -17,17 +17,28 @@ from .replay_buffer import ReplayBuffer
 
 class DDPG:
     env: Environment
-    demonstrations_factory: InitialTransitionsFactory
+    encoded_payloads: List[List[int]]
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, demonstrations_factory: InitialTransitionsFactory, lstm_units: int, psi: float = 0.95):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 0.9):
         assert(psi >= 0.0 and psi <= 1.0)
 
+        # Ensure last token in dictionary is the empty token.
+        assert(len(env.dictionary) > 0 and env.dictionary[-1] == '')
+
         self.env = env
-        self.demonstrations_factory = demonstrations_factory
         self.lstm_units = lstm_units
         self.psi = psi
+
+        # Take out empty tokens.
+        encoded_payloads = [[token for token in payload if token != len(env.dictionary) - 1] for payload in encoded_payloads]
+
+        # Filter all payloads within action size.
+        encoded_payloads = list(filter(lambda payload: len(payload) <= self.env.action_size, encoded_payloads))
+
+        # Pad with min int.
+        self.encoded_payloads = [[payload[i] if i < len(payload) else tf.int32.min for i in range(self.env.action_size)] for payload in encoded_payloads]
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -46,7 +57,7 @@ class DDPG:
             token = self.env.dictionary[i]
 
             try:
-                sqltree(payload + token)
+                sqltree(f'SELECT * FROM products WHERE id= \'{payload + token}\'')
                 mask.append(1.0)
             except:
                 mask.append(1.0 - self.psi)
@@ -79,6 +90,9 @@ class DDPG:
         initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
+
+        lstm = layers.LSTM(self.lstm_units, return_state=True, return_sequences=True, kernel_initializer=initial_weights)(input_lstm)
+        lstm = layers.LSTM(self.lstm_units, return_state=True, return_sequences=True, kernel_initializer=initial_weights)(input_lstm)
         lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax', kernel_initializer=initial_weights)(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -185,10 +199,12 @@ class DDPG:
     
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
-        action += ou_noise()
-
         # Recieve state and reward from environment.
-        state, reward, done = self.env.perform_action(action)
+        state, reward, done = self.env.perform_action(action + ou_noise())
+
+        if reward >= 1.0:
+            print('Without random:')
+            print(self.env.get_payload(action.numpy()))
 
         buffer.record((prev_state, action, reward, state))
 
@@ -198,8 +214,8 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = len(self.env.dictionary) * 0.1
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
+        std_dev = 0.7
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -223,7 +239,7 @@ class DDPG:
 
         total_episodes = 500
         # Discount factor for future rewards
-        gamma = 0.98
+        gamma = 0.99
         # Used to update target networks
         tau = 0.005
 
@@ -234,17 +250,8 @@ class DDPG:
                               target_policy=lambda state: self.policy(state, target=True, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
-
-        if self.demonstrations_factory is None:
-            print('Skipping demonstrations...')
-        else:
-            print('Gathering demonstration transitions...')
-            
-            for obs in tqdm.tqdm(self.demonstrations_factory.gather_transitions(total_demonstration_steps)):
-                buffer.record(obs)
-
-            print('Transitions gathered.')
-            print('Running DDPG...')
+        
+        demonstrations_completed = 0
 
         # To store reward history of each episode
         ep_reward_list = []
@@ -252,6 +259,11 @@ class DDPG:
         avg_reward_list = []
 
         frame = 0
+
+        run_demonstrations = total_demonstration_steps is not None and self.encoded_payloads is not None
+
+        if run_demonstrations:
+            print('Gathering demonstrations...')
 
         for ep in range(total_episodes):
 
@@ -261,7 +273,17 @@ class DDPG:
             episodic_reward = 0
 
             while True:
-                actions = self.policy(prev_states, target=False, training=False)
+                if run_demonstrations and demonstrations_completed < total_demonstration_steps:
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads)] * self.env.batch_size)
+                    demonstrations_completed += self.env.batch_size
+
+                    print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
+
+                    if demonstrations_completed >= total_demonstration_steps:
+                        print('Transitions gathered.')
+                else:
+                   actions = self.policy(prev_states, target=False, training=False)
+
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]
 

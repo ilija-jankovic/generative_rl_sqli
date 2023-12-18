@@ -6,12 +6,10 @@ class TokenParser:
     tokens: List[str]
     token_blacklist: List[str]
     data: List[str]
-    tokens_per_row: int
 
     def __init__(self,
             tokens: List[str],
-            token_blacklist: List[str],
-            tokens_per_row: int):
+            token_blacklist: List[str]):
         '''
         `tokens` must be in descending order.
         '''
@@ -27,8 +25,6 @@ class TokenParser:
             raise Exception('Tokens must be sorted in descending order.')
 
         self.token_blacklist = token_blacklist
-
-        self.tokens_per_row = tokens_per_row
 
     def __contains_blacklisted_token(self, datum: str):
         for token in self.token_blacklist:
@@ -50,6 +46,8 @@ class TokenParser:
         '''
         Assumes `data` does not contain any blacklisted tokens.
         '''
+        tokens_per_row = len(max(data, key=len))
+
         indexed_data: List[List[int]] = []
 
         for datum in tqdm.tqdm(data):
@@ -69,7 +67,7 @@ class TokenParser:
 
             # Pad with padding token (which is expected to be at the bottom of the tokens list
             # due to it being an empty string after sorting).
-            indexed_datum += [len(self.tokens) - 1] * (self.tokens_per_row - len(indexed_datum))
+            indexed_datum += [len(self.tokens) - 1] * (tokens_per_row - len(indexed_datum))
 
             indexed_data.append(indexed_datum)
 

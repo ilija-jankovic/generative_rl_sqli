@@ -202,10 +202,6 @@ class DDPG:
         # Recieve state and reward from environment.
         state, reward, done = self.env.perform_action(action + ou_noise())
 
-        if reward >= 1.0:
-            print('Without random:')
-            print(self.env.get_payload(action.numpy()))
-
         buffer.record((prev_state, action, reward, state))
 
         return state, reward, done

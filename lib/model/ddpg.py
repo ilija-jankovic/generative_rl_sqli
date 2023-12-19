@@ -21,7 +21,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 1.0):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 0.9):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -71,7 +71,9 @@ class DDPG:
     def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
-        return single_one_hot_encoding * self.__get_mask(payload)
+        return tf.cond(tf.less_equal(self.psi, 0.0),
+            true_fn=lambda: single_one_hot_encoding,
+            false_fn=lambda: single_one_hot_encoding * self.__get_mask(payload))
     
     @tf.function
     def __get_embeddings(self, one_hot_encoding, actions):

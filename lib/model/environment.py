@@ -67,6 +67,8 @@ class Environment():
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(self.batch_size * 5)
 
+        self.__inject_random_payloads()
+
     def __inject_random_payloads(self):
         self.__inject_payload('')
         self.__inject_payload('random string')
@@ -171,7 +173,7 @@ class Environment():
 
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
     
-    def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
+    def perform_action(self, action: np.ndarray):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -209,10 +211,6 @@ class Environment():
         
         state = self.__create_state(action, response.text, new_tokens)
 
-        if ignore_episode:
-            episode_ended = False
-            self.__reset_token_cache()
-        else:
-            episode_ended = self.__update_episode(extend=reward >= 1.0)
+        episode_ended = self.__update_episode(extend=reward >= 1.0)
 
         return state, reward, episode_ended

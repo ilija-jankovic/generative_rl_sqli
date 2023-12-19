@@ -79,7 +79,15 @@ class Environment():
 
     def get_payload(self, action: np.ndarray):
         tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
-        return ''.join(tokens)
+
+        try:
+            empty_token_index = tokens.index('')
+        except:
+            empty_token_index = None
+
+        # Empty token counts as termination token for the agent. Slice tokens list 
+        # up to first empty token.
+        return ''.join(tokens if empty_token_index is None else tokens[:empty_token_index])
 
     def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)

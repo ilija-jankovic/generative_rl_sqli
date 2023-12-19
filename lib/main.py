@@ -37,7 +37,7 @@ BATCH_SIZE = 32
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 10
+ACTION_SIZE = 20
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -50,7 +50,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=45f8683c525cd188f2293ded6661cf81; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=5dc3c01aaf7a7b98c22f74c59fbbbfe8; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \

@@ -21,7 +21,7 @@ class DDPG:
     lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 0.9):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 1.0):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -200,7 +200,7 @@ class DDPG:
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
         # Recieve state and reward from environment.
-        state, reward, done = self.env.perform_action(action + ou_noise())
+        state, reward, done = self.env.perform_action(action)
 
         buffer.record((prev_state, action, reward, state))
 
@@ -240,7 +240,7 @@ class DDPG:
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
-                              buffer_capacity=1000000, batch_size=batch_size,
+                              buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
                               policy=lambda state: self.policy(state, target=False, training=True),
                               target_policy=lambda state: self.policy(state, target=True, training=True),
@@ -278,8 +278,7 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions = self.policy(prev_states, target=False, training=False)
-
+                   actions = self.policy(prev_states, target=False, training=False) + ou_noise()
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]
 

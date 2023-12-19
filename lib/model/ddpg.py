@@ -71,6 +71,8 @@ class DDPG:
     def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
+        # Avoid unnecessary mask construction if psi is zero, as the mask will always
+        # be ones in this case.
         return tf.cond(tf.less_equal(self.psi, 0.0),
             true_fn=lambda: single_one_hot_encoding,
             false_fn=lambda: single_one_hot_encoding * self.__get_mask(payload))

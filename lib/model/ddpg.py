@@ -46,7 +46,7 @@ class DDPG:
             a.assign(b * tau + a * (1 - tau))
 
     @tf.function
-    def __get_mask(self, payload):
+    def get_mask(self, payload):
         dictionary_length = len(self.env.dictionary)
 
         mask = []
@@ -66,18 +66,18 @@ class DDPG:
         return tf.stack(mask)
 
     @tf.function
-    def __mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
+    def mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
         # Avoid unnecessary mask construction if psi is zero, as the mask will always
         # be ones in this case.
         return tf.cond(tf.less_equal(self.psi, 0.0),
             true_fn=lambda: single_one_hot_encoding,
-            false_fn=lambda: single_one_hot_encoding * self.__get_mask(payload))
+            false_fn=lambda: single_one_hot_encoding * self.get_mask(payload))
     
     @tf.function
-    def __get_embeddings(self, one_hot_encoding, actions):        
-        one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
+    def get_embeddings(self, one_hot_encoding, actions):        
+        one_hot_encoding = [self.mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
         one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
 
         indices = tf.argmax(one_hot_encoding, axis=1, output_type=tf.int32)
@@ -107,7 +107,7 @@ class DDPG:
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
-        indices_output, embedding_output = layers.Lambda(lambda input: self.__get_embeddings(input[0], input[1]))((state_h, input_actions))
+        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((state_h, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
@@ -135,19 +135,19 @@ class DDPG:
         return model
 
     @tf.function
-    def __get_embedded_lstm_input(self, embeddings, lstm_states):
+    def get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
 
         return tf.reshape(input, [self.env.batch_size, -1, self.env.embedding_size])
 
     @tf.function
-    def __concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
+    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
         batch_size = self.env.batch_size
 
         input = tf.cond(
             pred=tf.equal(action_index, 0),
             true_fn=lambda: (rl_states, actions),
-            false_fn=lambda: (self.__get_embedded_lstm_input(embeddings, lstm_states), actions)
+            false_fn=lambda: (self.get_embedded_lstm_input(embeddings, lstm_states), actions)
         )
 
         output = tf.cond(
@@ -194,7 +194,7 @@ class DDPG:
 
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
-            body=self.__concat_next_token_indicies,
+            body=self.concat_next_token_indicies,
             loop_vars=(actions, action_index, action_index_float, embeddings, target, training, states, lstm_states),
             maximum_iterations=action_size,
         )

@@ -59,7 +59,7 @@ class ReplayBuffer:
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
-            target_actions = self.target_policy(next_state_batch)
+            target_actions = tf.reshape(self.target_policy(next_state_batch), [self.batch_size, -1, 1])
             y = reward_batch + self.gamma * self.target_critic(
                 [next_state_batch, target_actions], training=True
             )
@@ -72,7 +72,7 @@ class ReplayBuffer:
         )
 
         with tf.GradientTape() as tape:
-            actions = self.policy(state_batch)
+            actions = tf.reshape(self.policy(state_batch), [self.batch_size, -1, 1])
             critic_value = self.critic_model([state_batch, actions], training=True)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions

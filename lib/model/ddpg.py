@@ -7,7 +7,6 @@ import tensorflow as tf
 import keras
 from keras import layers
 import numpy as np
-import tqdm
 from sqltree import sqltree
 
 from .environment import Environment
@@ -91,13 +90,15 @@ class DDPG:
         C_PADDING = self.env.embedding_size - (dictionary_length % self.env.embedding_size)
 
         # Needs large difference in weights to begin learning.
-        initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
-        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
-        lstm = layers.LSTM(dictionary_length, return_state=True, activation='softmax', kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1)(input_lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1)(lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, activation='softmax', kernel_initializer=initial_weights_lstm_3, dropout=0.1)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -112,18 +113,24 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
+        initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
+
         # State as input
-        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size))
-        state_flatten = layers.Flatten()(state_input)
-        state_out = layers.Dense(128, activation="relu",)(state_flatten)
-        state_out = layers.Dense(128, activation="relu")(state_out)
+        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
+
+        #lstm = layers.LSTM(512, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(state_input)
+        #lstm = layers.LSTM(256, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(lstm)
+        lstm_state_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights, dropout=0.1)(state_input)
 
         # Action as input
-        action_input = layers.Input(shape=(self.env.action_size,))
-        action_out = layers.Dense(128, activation="relu")(action_input)
+        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
+
+        #lstm = layers.LSTM(512, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(state_input)
+        #lstm = layers.LSTM(256, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(lstm)
+        lstm_action_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights, dropout=0.1)(action_input)
 
         # Both are passed through seperate layer before concatenating
-        concat = layers.Concatenate()([state_out, action_out])
+        concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
 
         out = layers.Dense(1024, activation="relu")(concat)
         out = layers.Dense(1024, activation="relu")(out)

@@ -19,7 +19,7 @@ class DDPG:
     encoded_payloads: List[List[int]]
     psi: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.9):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -113,21 +113,27 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        #lstm = layers.LSTM(512, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(state_input)
-        #lstm = layers.LSTM(256, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(lstm)
-        lstm_state_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights, dropout=0.1)(state_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1, unroll=True)(state_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1, unroll=True)(lstm)
+        lstm_state_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights_lstm_3, dropout=0.1, unroll=True)(lstm)
+
+        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
 
-        #lstm = layers.LSTM(512, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(state_input)
-        #lstm = layers.LSTM(256, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(lstm)
-        lstm_action_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights, dropout=0.1)(action_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1, unroll=True)(state_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1, unroll=True)(lstm)
+        lstm_action_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights_lstm_3, dropout=0.1, unroll=True)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
@@ -222,7 +228,7 @@ class DDPG:
         batch_size = self.env.batch_size
 
         std_dev = 2.0
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
+        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -281,7 +287,7 @@ class DDPG:
 
             while True:
                 if run_demonstrations and demonstrations_completed < total_demonstration_steps:
-                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads)] * self.env.batch_size)
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.env.batch_size)])
                     demonstrations_completed += self.env.batch_size
 
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')

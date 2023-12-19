@@ -18,17 +18,15 @@ from .replay_buffer import ReplayBuffer
 class DDPG:
     env: Environment
     encoded_payloads: List[List[int]]
-    lstm_units: int
     psi: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], lstm_units: int, psi: float = 0.9):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.9):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
         assert(len(env.dictionary) > 0 and env.dictionary[-1] == '')
 
         self.env = env
-        self.lstm_units = lstm_units
         self.psi = psi
 
         # Take out empty tokens.
@@ -53,7 +51,7 @@ class DDPG:
 
         mask = []
         
-        for i in range(dictionary_length):
+        for i in range(dictionary_length - 1):
             token = self.env.dictionary[i]
 
             try:
@@ -62,8 +60,8 @@ class DDPG:
             except:
                 mask.append(1.0 - self.psi)
 
-        # Account for termination tokens.
-        mask += (self.lstm_units - dictionary_length) * [1.0]
+        # Account for termination token.
+        mask += [1.0]
 
         return tf.stack(mask)
 
@@ -78,33 +76,33 @@ class DDPG:
             false_fn=lambda: single_one_hot_encoding * self.__get_mask(payload))
     
     @tf.function
-    def __get_embeddings(self, one_hot_encoding, actions):
+    def __get_embeddings(self, one_hot_encoding, actions):        
         one_hot_encoding = [self.__mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
         one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
 
         indices = tf.argmax(one_hot_encoding, axis=1, output_type=tf.int32)
-        embeddings = tf.concat([tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32), tf.zeros((self.lstm_units - len(self.env.dictionary), self.env.embedding_size))], axis=0)
+        embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
         
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
-        C_PADDING = self.env.embedding_size - (self.lstm_units % self.env.embedding_size)
+        dictionary_length = len(self.env.dictionary)
+
+        C_PADDING = self.env.embedding_size - (dictionary_length % self.env.embedding_size)
 
         # Needs large difference in weights to begin learning.
         initial_weights = tf.random_uniform_initializer(minval=-300, maxval=300)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(self.lstm_units, return_state=True, return_sequences=True, kernel_initializer=initial_weights)(input_lstm)
-        lstm = layers.LSTM(self.lstm_units, return_state=True, return_sequences=True, kernel_initializer=initial_weights)(input_lstm)
-        lstm = layers.LSTM(self.lstm_units, return_state=True, activation='softmax', kernel_initializer=initial_weights)(input_lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, activation='softmax', kernel_initializer=initial_weights, dropout=0.1)(input_lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
-        
-        #one_hot_encoding = layers.Dense(self.lstm_units, activation='sigmoid')(state_h)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
@@ -117,18 +115,18 @@ class DDPG:
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size))
         state_flatten = layers.Flatten()(state_input)
-        state_out = layers.Dense(16, activation="relu",)(state_flatten)
-        state_out = layers.Dense(32, activation="relu")(state_out)
+        state_out = layers.Dense(128, activation="relu",)(state_flatten)
+        state_out = layers.Dense(128, activation="relu")(state_out)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size,))
-        action_out = layers.Dense(32, activation="relu")(action_input)
+        action_out = layers.Dense(128, activation="relu")(action_input)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([state_out, action_out])
 
-        out = layers.Dense(256, activation="relu")(concat)
-        out = layers.Dense(256, activation="relu")(out)
+        out = layers.Dense(1024, activation="relu")(concat)
+        out = layers.Dense(1024, activation="relu")(out)
         outputs = layers.Dense(1)(out)
 
         # Outputs single value for give state-action
@@ -180,6 +178,8 @@ class DDPG:
 
     @tf.function
     def policy(self, states, target: bool, training: bool):
+        dictionary_length = len(self.env.dictionary)
+
         batch_size = self.env.batch_size
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
@@ -187,7 +187,7 @@ class DDPG:
         actions = tf.fill([batch_size, action_size], tf.int32.min)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, self.lstm_units + self.env.embedding_size - (self.lstm_units % self.env.embedding_size)], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, dictionary_length + self.env.embedding_size - (dictionary_length % self.env.embedding_size)], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)
@@ -202,7 +202,7 @@ class DDPG:
         return actions
     
 
-    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ou_noise: OUActionNoise):
+    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer):
         # Recieve state and reward from environment.
         state, reward, done = self.env.perform_action(action)
 
@@ -214,7 +214,7 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = 0.7
+        std_dev = 2.0
         ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.1, theta=0.01)
 
         actor_model = self.get_actor()
@@ -282,9 +282,9 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions = self.policy(prev_states, target=False, training=False) + ou_noise()
+                   actions = [action + ou_noise() for action in self.policy(prev_states, target=False, training=False)]
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ou_noise) for i in range(len(actions))]
+                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
 

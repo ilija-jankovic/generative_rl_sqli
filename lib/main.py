@@ -33,7 +33,7 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 
 EMBEDDING_DIM = 128
 
@@ -131,8 +131,7 @@ def main():
 
     ddpg = DDPG(
         environment,
-        encoded_payloads=encoded_payloads,
-        lstm_units=lstm_units)
+        encoded_payloads=encoded_payloads)
 
     print('Running DDPG...')
     ddpg.run(total_demonstration_steps=1000 if record_demonstrations else None)

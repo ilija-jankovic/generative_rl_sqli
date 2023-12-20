@@ -214,6 +214,33 @@ class DDPG:
 
         return actions
     
+    
+    def __add_noise_to_action_embeddings(self, actions: tf.Tensor, ou_noise: OUActionNoise):
+        embedded_actions = [[self.env.embeddings[i].copy() for i in action] for action in actions]
+        embedded_actions += ou_noise()
+
+        actions_with_noise = []
+
+        for embedded_action in embedded_actions:
+            action_with_noise = []
+
+            for action_embedding in embedded_action:
+                cosine_similarity = tf.keras.metrics.CosineSimilarity()
+
+                similarities = []
+                
+                for embedding in self.env.embeddings:
+                    cosine_similarity.reset_state()
+                    cosine_similarity.update_state(embedding, action_embedding)
+
+                    similarities.append(cosine_similarity.result())
+
+                action_with_noise.append(tf.argmax(similarities, output_type=tf.int32))
+
+            actions_with_noise.append(action_with_noise)
+
+        return tf.convert_to_tensor(actions_with_noise)
+    
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer):
         # Recieve state and reward from environment.
@@ -227,8 +254,10 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        std_dev = 2.0
-        ou_noise = OUActionNoise(mean=np.zeros(self.env.action_size), std_deviation=std_dev * np.ones(self.env.action_size), dt=0.01, theta=0.01)
+        std_dev = 1.0
+
+        ou_shape = (self.env.batch_size, self.env.action_size, self.env.embedding_size)
+        ou_noise = OUActionNoise(mean=np.zeros(ou_shape), std_deviation=std_dev * np.ones(ou_shape), dt=0.01, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -295,7 +324,8 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions = [action + ou_noise() for action in self.policy(prev_states, target=False, training=False)]
+                   actions = self.policy(prev_states, target=False, training=False)
+                   actions = self.__add_noise_to_action_embeddings(actions, ou_noise)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 

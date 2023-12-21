@@ -1,6 +1,7 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+import datetime
 import random
 from typing import List
 import tensorflow as tf
@@ -216,28 +217,27 @@ class DDPG:
     
     
     def __add_noise_to_action_embeddings(self, actions: tf.Tensor, ou_noise: OUActionNoise):
-        embedded_actions = [[self.env.embeddings[i].copy() for i in action] for action in actions]
+        embeddings = np.array(self.env.embeddings)
+
+        embedded_actions = [[embeddings[i] for i in action] for action in actions]
         embedded_actions += ou_noise()
 
         actions_with_noise = []
 
         for embedded_action in embedded_actions:
-            action_with_noise = []
+            action = []
 
             for action_embedding in embedded_action:
-                cosine_similarity = tf.keras.metrics.CosineSimilarity()
+                embedding_normalized = np.linalg.norm(embeddings, axis=1)
+                action_embedding_normalized = np.linalg.norm(action_embedding)
 
-                similarities = []
-                
-                for embedding in self.env.embeddings:
-                    cosine_similarity.reset_state()
-                    cosine_similarity.update_state(embedding, action_embedding)
+                cosine_similarities = (embeddings @ action_embedding) / (embedding_normalized * action_embedding_normalized)
 
-                    similarities.append(cosine_similarity.result())
+                index = tf.argmax(cosine_similarities, output_type=tf.int32)
+                action.append(index)
 
-                action_with_noise.append(tf.argmax(similarities, output_type=tf.int32))
-
-            actions_with_noise.append(action_with_noise)
+            action = tf.convert_to_tensor(action, dtype=tf.int32)
+            actions_with_noise.append(action)
 
         return tf.convert_to_tensor(actions_with_noise)
     
@@ -349,5 +349,5 @@ class DDPG:
             ep_reward_list.append(episodic_reward)
 
             avg_reward = np.mean(ep_reward_list)
-            print("Episode: {}, Avg Reward: {}, Episode Reward: {} Total Frame Count: {}".format(ep + 1, avg_reward, episodic_reward, frame))
+            print("[{}] Episode: {}, Avg Reward: {}, Episode Reward: {} Total Frame Count: {}".format(datetime.datetime.now(), ep + 1, avg_reward, episodic_reward, frame))
             avg_reward_list.append(avg_reward)

@@ -207,7 +207,7 @@ class Environment():
         elif self.__payload_attempted(payload):
             reward = -1.0
         else:
-            reward = -0.1
+            reward = -1.0 / self.batch_size
         
         state = self.__create_state(action, response.text, new_tokens)
 

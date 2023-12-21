@@ -107,7 +107,7 @@ class DDPG:
         dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
-        gaussian_output = layers.GaussianNoise(stddev=0.1)(dense, training=True)
+        gaussian_output = layers.GaussianNoise(stddev=0.001)(dense, training=True)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 

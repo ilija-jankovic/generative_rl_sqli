@@ -312,6 +312,8 @@ class DDPG:
 
         for ep in range(total_episodes):
 
+            ou_noise.reset()
+
             prev_states = [self.env.create_empty_state() for _ in range(self.env.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
 

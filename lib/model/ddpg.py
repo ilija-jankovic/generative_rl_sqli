@@ -11,8 +11,6 @@ import numpy as np
 from sqltree import sqltree
 
 from .environment import Environment
-
-from .ou_action_noise import OUActionNoise
 from .replay_buffer import ReplayBuffer
 
 class DDPG:
@@ -99,17 +97,22 @@ class DDPG:
 
         lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1)(input_lstm)
         lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1)(lstm)
-        lstm = layers.LSTM(dictionary_length, return_state=True, activation='softmax', kernel_initializer=initial_weights_lstm_3, dropout=0.1)(lstm)
+        lstm = layers.LSTM(dictionary_length, return_state=True, kernel_initializer=initial_weights_lstm_3, dropout=0.1)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
 
+        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.Dense(dictionary_length, activation='softmax')(dense)
+        gaussian_output = layers.GaussianNoise(stddev=0.1)(dense, training=True)
+
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
-        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((state_h, input_actions))
+        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((gaussian_output, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
@@ -214,36 +217,7 @@ class DDPG:
         )
 
         return actions
-    
-    
-    def __add_noise_to_action_embeddings(self, actions: tf.Tensor, ou_noise: OUActionNoise):
-        embeddings = np.array(self.env.embeddings)
 
-        embedded_actions = [[embeddings[i] for i in action] for action in actions]
-        embedded_actions += ou_noise()
-
-        actions_with_noise = []
-
-        for embedded_action in embedded_actions:
-            action = []
-
-            for action_embedding in embedded_action:
-                
-                # Cosine similarity between 2-D and 1-D vectors algorithm by Bi Rico and kmario23 from:
-                # https://stackoverflow.com/questions/52048562/efficient-way-to-compute-cosine-similarity-between-1d-array-and-all-rows-in-a-2d
-                embedding_normalized = np.linalg.norm(embeddings, axis=1)
-                action_embedding_normalized = np.linalg.norm(action_embedding)
-
-                cosine_similarities = (embeddings @ action_embedding) / (embedding_normalized * action_embedding_normalized)
-
-                index = tf.argmax(cosine_similarities, output_type=tf.int32)
-                action.append(index)
-
-            action = tf.convert_to_tensor(action, dtype=tf.int32)
-            actions_with_noise.append(action)
-
-        return tf.convert_to_tensor(actions_with_noise)
-    
 
     def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer):
         # Recieve state and reward from environment.
@@ -256,11 +230,6 @@ class DDPG:
 
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
-
-        std_dev = 1.0
-
-        ou_shape = (self.env.batch_size, self.env.action_size, self.env.embedding_size)
-        ou_noise = OUActionNoise(mean=np.zeros(ou_shape), std_deviation=std_dev * np.ones(ou_shape), dt=0.01, theta=0.01)
 
         actor_model = self.get_actor()
         critic_model = self.get_critic()
@@ -311,9 +280,6 @@ class DDPG:
             print('Gathering demonstrations...')
 
         for ep in range(total_episodes):
-
-            ou_noise.reset()
-
             prev_states = [self.env.create_empty_state() for _ in range(self.env.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
 
@@ -330,7 +296,7 @@ class DDPG:
                         print('Transitions gathered.')
                 else:
                    actions = self.policy(prev_states, target=False, training=False)
-                   actions = self.__add_noise_to_action_embeddings(actions, ou_noise)
+                   #actions = self.__add_noise_to_action_embeddings(actions, ou_noise)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 

@@ -5,6 +5,7 @@ from typing import List
 from .word2vec import Word2Vec
 import tensorflow as tf
 import tqdm
+import numpy as np
   
 class TokenEmbedder:
   embedding_dim: int
@@ -91,5 +92,10 @@ class TokenEmbedder:
       # TODO: Save the weights if training data is not based on table/column names.
       # Better solution is to add table/column names to training data.
 
-      return word2vec.get_layer('w2v_embedding').get_weights()[0].tolist()
+      embeddings = word2vec.get_layer('w2v_embedding').get_weights()[0].tolist()
+
+      # Normalize for better application of noise when learning.
+      embeddings = tf.convert_to_tensor(embeddings)
+      return tf.linalg.normalize(embeddings, axis=1)[0]
+
 

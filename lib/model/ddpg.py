@@ -228,6 +228,9 @@ class DDPG:
             action = []
 
             for action_embedding in embedded_action:
+                
+                # Cosine similarity between 2-D and 1-D vectors algorithm by Bi Rico and kmario23 from:
+                # https://stackoverflow.com/questions/52048562/efficient-way-to-compute-cosine-similarity-between-1d-array-and-all-rows-in-a-2d
                 embedding_normalized = np.linalg.norm(embeddings, axis=1)
                 action_embedding_normalized = np.linalg.norm(action_embedding)
 

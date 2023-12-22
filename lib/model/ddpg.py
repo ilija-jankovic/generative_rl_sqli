@@ -9,6 +9,7 @@ import keras
 from keras import layers
 import numpy as np
 from sqltree import sqltree
+from numpy.random import normal
 
 from .environment import Environment
 from .replay_buffer import ReplayBuffer
@@ -18,6 +19,13 @@ class DDPG:
     encoded_payloads: List[List[int]]
     psi: float
     actor_lstm_units: int
+    
+    # Definitions can be found on page 3 of
+    # PARAMETER SPACE NOISE FOR EXPLORATION:
+    # https://openreview.net/pdf?id=ByBAl2eAZ
+    __adaptive_sigma: float = 1.0
+    __adaptive_delta_threshold: float = 1.0
+    __adaptive_alpha_scalar: float = 2.0
     
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0, actor_lstm_units: int = 256):
         assert(psi >= 0.0 and psi <= 1.0)
@@ -85,7 +93,7 @@ class DDPG:
         
         return indices, tf.gather(embeddings, indices)
 
-    def get_actor(self, add_noise: bool):
+    def get_actor(self):
         dictionary_length = len(self.env.dictionary)
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
@@ -105,18 +113,12 @@ class DDPG:
 
         dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.Dense(1024, activation='relu')(dense)
-        dense = layers.Dense(dictionary_length, activation='softmax')(dense)
-
-        # GaussianNoise is only active if add_noise is True.
-        #
-        # "As it is a regularization layer, it is only active at training time."
-        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/GaussianNoise
-        gaussian_output = layers.GaussianNoise(stddev=0.0001)(dense, training=add_noise)
+        dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
-        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((gaussian_output, input_actions))
+        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
@@ -154,7 +156,7 @@ class DDPG:
         return tf.reshape(input, [self.env.batch_size, -1, self.env.embedding_size])
 
     @tf.function
-    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, target: bool, training: bool, rl_states, lstm_states):
+    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, actor_model: keras.Model, training: bool, rl_states, lstm_states):
         batch_size = self.env.batch_size
 
         input = tf.cond(
@@ -163,10 +165,7 @@ class DDPG:
             false_fn=lambda: (self.get_embedded_lstm_input(embeddings, lstm_states), actions)
         )
 
-        output = tf.cond(
-            pred=target,
-            true_fn=lambda: self.target_actor(input, training=training),
-            false_fn=lambda: self.actor_model(input, training=training))
+        output = actor_model(input, training=training)
 
         lstm_states = output[0]
         indices = output[1]
@@ -187,10 +186,10 @@ class DDPG:
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, action_index_float, embeddings, target, training, rl_states, lstm_states
+        return actions, action_index, action_index_float, embeddings, actor_model, training, rl_states, lstm_states
 
     @tf.function
-    def policy(self, states, target: bool, training: bool):
+    def policy(self, states, actor_model: keras.Model, training: bool):
         batch_size = self.env.batch_size
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
@@ -206,7 +205,7 @@ class DDPG:
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, action_index, action_index_float, embeddings, target, training, states, lstm_states),
+            loop_vars=(actions, action_index, action_index_float, embeddings, actor_model, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 
@@ -221,14 +220,41 @@ class DDPG:
 
         return state, reward, done
     
+    # Adapted solution by Sören Kirchner:
+    # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
+    #
+    # Changed distance and sigma definitions based on the
+    # PARAMETER SPACE NOISE FOR EXPLORATION paper:
+    # https://openreview.net/pdf?id=ByBAl2eAZ
+    def __get_perturbed_actions(self, states: tf.Tensor):
+        perturbed_actor_model = tf.keras.models.clone_model(self.actor_model)
+
+        # Adding noise to model weights algorithm by Daan Klijn:
+        # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
+        for layer in perturbed_actor_model.trainable_weights:
+            noise = normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
+            layer.assign_add(noise)
+
+        actions = self.policy(states, self.actor_model, training=False)
+        perturbed_actions = self.policy(states, perturbed_actor_model, training=False)
+
+        distance = np.sqrt(np.mean(actions-np.square(perturbed_actions)))
+
+        if distance <= self.__adaptive_delta_threshold:
+            self.__adaptive_sigma *= self.__adaptive_alpha_scalar
+        else:
+            self.__adaptive_sigma /= self.__adaptive_alpha_scalar
+
+        return perturbed_actions
+    
 
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        actor_model = self.get_actor(add_noise=True)
+        actor_model = self.get_actor()
         critic_model = self.get_critic()
 
-        target_actor = self.get_actor(add_noise=False)
+        target_actor = self.get_actor()
         target_critic = self.get_critic()
 
         self.actor_model = actor_model
@@ -256,8 +282,8 @@ class DDPG:
         buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
                               buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, target=False, training=True),
-                              target_policy=lambda state: self.policy(state, target=True, training=True),
+                              policy=lambda state: self.policy(state, actor_model, training=True),
+                              target_policy=lambda state: self.policy(state, target_actor, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
         
@@ -291,7 +317,7 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions = self.policy(prev_states, target=False, training=False)
+                   actions = self.__get_perturbed_actions(prev_states)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 

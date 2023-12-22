@@ -37,7 +37,7 @@ BATCH_SIZE = 32
 
 EMBEDDING_DIM = 32
 
-ACTION_SIZE = 10
+ACTION_SIZE = 20
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -134,7 +134,7 @@ def main():
         encoded_payloads=encoded_payloads)
 
     print('Running DDPG...')
-    ddpg.run(total_demonstration_steps=4096 if record_demonstrations else None)
+    ddpg.run(total_demonstration_steps=environment.batch_size * 10 if record_demonstrations else None)
 
 if __name__ == '__main__':
     main()

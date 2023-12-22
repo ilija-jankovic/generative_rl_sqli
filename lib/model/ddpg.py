@@ -113,11 +113,11 @@ class DDPG:
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(input_lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -125,8 +125,10 @@ class DDPG:
         state_c = lstm[2]
 
         dense = layers.Dense(1024, activation='relu')(state_h)
-        dense = layers.Dense(1024, activation='relu')(dense)
-        dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
+        dropout = layers.Dropout(0.2)(dense)
+        dense = layers.Dense(1024, activation='relu')(dropout)
+        dropout = layers.Dropout(0.2)(dense)
+        dense_output = layers.Dense(dictionary_length, activation='softmax')(dropout)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 

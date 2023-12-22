@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from typing import List
 import re
@@ -95,7 +96,14 @@ class Environment():
         return payload in self.__attempted_payloads
 
     def create_empty_state(self):
-        return tf.zeros((self.state_size, self.embedding_size))
+        '''
+        Creates a state filled with a normal distribution with a mean of zero 
+        and a standard deviation of 1.
+
+        Useful for variability in the agent's starting actions, which leads to
+        unique branches for every item in a batch.
+        '''
+        return tf.random.normal((self.state_size, self.embedding_size))
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')

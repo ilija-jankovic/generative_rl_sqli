@@ -94,6 +94,8 @@ class DDPG:
 
         lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(input_lstm)
         lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
         lstm = layers.LSTM(self.actor_lstm_units, return_state=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:

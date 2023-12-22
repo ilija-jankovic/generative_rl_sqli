@@ -264,7 +264,10 @@ class DDPG:
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        distance = np.sqrt(np.mean(np.square(actions-perturbed_actions)))
+        actions_normalized = tf.linalg.normalize(tf.cast(actions, dtype=tf.float32), axis=-1)[0]
+        perturbed_actions_normalized = tf.linalg.normalize(tf.cast(perturbed_actions, dtype=tf.float32), axis=-1)[0]
+
+        distance = np.sqrt(np.mean(np.square(actions_normalized-perturbed_actions_normalized)))
 
         if distance <= self.__delta_threshold:
             self.__adaptive_sigma *= self.__alpha_scalar

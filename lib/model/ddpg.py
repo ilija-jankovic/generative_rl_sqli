@@ -141,16 +141,16 @@ class DDPG:
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_state_out = layers.LSTM(128, activation='relu', unroll=True)(lstm)
+        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_state_out = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_action_out = layers.LSTM(128, activation='relu', unroll=True)(lstm)
+        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_action_out = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])

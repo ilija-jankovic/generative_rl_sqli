@@ -127,8 +127,6 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
-    lstm_units = len(dictionary)
-
     ddpg = DDPG(
         environment,
         encoded_payloads=encoded_payloads)

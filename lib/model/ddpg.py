@@ -11,6 +11,7 @@ import numpy as np
 from sqltree import sqltree
 from numpy.random import normal
 
+from .enums.policy_type import PolicyType
 from .environment import Environment
 from .replay_buffer import ReplayBuffer
 
@@ -20,6 +21,8 @@ class DDPG:
     psi: float
     actor_lstm_units: int
     
+    actor_perturbed: keras.Model
+
     # Definitions can be found on page 3 of
     # PARAMETER SPACE NOISE FOR EXPLORATION:
     # https://openreview.net/pdf?id=ByBAl2eAZ
@@ -156,7 +159,7 @@ class DDPG:
         return tf.reshape(input, [self.env.batch_size, -1, self.env.embedding_size])
 
     @tf.function
-    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, actor_model: keras.Model, training: bool, rl_states, lstm_states):
+    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
         batch_size = self.env.batch_size
 
         input = tf.cond(
@@ -165,7 +168,13 @@ class DDPG:
             false_fn=lambda: (self.get_embedded_lstm_input(embeddings, lstm_states), actions)
         )
 
-        output = actor_model(input, training=training)
+        output = tf.cond(
+            tf.equal(type, PolicyType.NORMAL.value),
+            true_fn=lambda: self.actor_model(input, training=training),
+            false_fn=lambda: tf.cond(
+                tf.equal(type, PolicyType.PERTURBED.value),
+                    true_fn=lambda: self.actor_perturbed(input, training=training),
+                    false_fn=lambda: self.target_actor(input, training=training)))
 
         lstm_states = output[0]
         indices = output[1]
@@ -186,10 +195,15 @@ class DDPG:
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, action_index_float, embeddings, actor_model, training, rl_states, lstm_states
+        return actions, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
 
     @tf.function
-    def policy(self, states, actor_model: keras.Model, training: bool):
+    def policy(self, states, type: int, training: bool):
+        '''
+        `type` is expected to be the enumerated value of a `PolicyType`.
+
+        This enum cannot be passed directly due to `@tf.function` limitations.
+        '''
         batch_size = self.env.batch_size
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
@@ -205,7 +219,7 @@ class DDPG:
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, action_index, action_index_float, embeddings, actor_model, training, states, lstm_states),
+            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 
@@ -227,18 +241,18 @@ class DDPG:
     # PARAMETER SPACE NOISE FOR EXPLORATION paper:
     # https://openreview.net/pdf?id=ByBAl2eAZ
     def __get_perturbed_actions(self, states: tf.Tensor):
-        perturbed_actor_model = tf.keras.models.clone_model(self.actor_model)
+        self.actor_perturbed = tf.keras.models.clone_model(self.actor_model)
 
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
-        for layer in perturbed_actor_model.trainable_weights:
+        for layer in self.actor_perturbed.trainable_weights:
             noise = normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
             layer.assign_add(noise)
 
-        actions = self.policy(states, self.actor_model, training=False)
-        perturbed_actions = self.policy(states, perturbed_actor_model, training=False)
+        actions = self.policy(states, PolicyType.NORMAL.value, training=False)
+        perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        distance = np.sqrt(np.mean(actions-np.square(perturbed_actions)))
+        distance = np.sqrt(np.mean(np.square(actions-perturbed_actions)))
 
         if distance <= self.__adaptive_delta_threshold:
             self.__adaptive_sigma *= self.__adaptive_alpha_scalar
@@ -282,8 +296,8 @@ class DDPG:
         buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
                               buffer_capacity=50000, batch_size=batch_size,
                               actor_model=actor_model,
-                              policy=lambda state: self.policy(state, actor_model, training=True),
-                              target_policy=lambda state: self.policy(state, target_actor, training=True),
+                              policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
+                              target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),
                               target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
                               critic_optimizer=critic_optimizer, gamma=gamma)
         

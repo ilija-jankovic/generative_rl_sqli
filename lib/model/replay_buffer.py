@@ -8,8 +8,8 @@ import numpy as np
 
 class ReplayBuffer:
     def __init__(self, state_size: int, embedding_size: int, action_size: int, target_policy: Callable[[np.array], np.array], target_critic: keras.Model,
-                 policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: tf.keras.optimizers.Adam,
-                 critic_optimizer: tf.keras.optimizers.Adam, buffer_capacity=100000, batch_size=64, gamma=0.99):
+                 policy: Callable[[np.array], np.array], actor_model: keras.Model, critic_model: keras.Model, actor_optimizer: tf.keras.optimizers.Optimizer,
+                 critic_optimizer: tf.keras.optimizers.Optimizer, buffer_capacity=100000, batch_size=64, gamma=0.99):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.

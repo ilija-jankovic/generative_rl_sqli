@@ -85,7 +85,7 @@ class DDPG:
         
         return indices, tf.gather(embeddings, indices)
 
-    def get_actor(self):
+    def get_actor(self, add_noise: bool):
         dictionary_length = len(self.env.dictionary)
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
@@ -106,7 +106,12 @@ class DDPG:
         dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
-        gaussian_output = layers.GaussianNoise(stddev=0.0001)(dense, training=True)
+
+        # GaussianNoise is only active if add_noise is True.
+        #
+        # "As it is a regularization layer, it is only active at training time."
+        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/GaussianNoise
+        gaussian_output = layers.GaussianNoise(stddev=0.0001)(dense, training=add_noise)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
@@ -186,8 +191,6 @@ class DDPG:
 
     @tf.function
     def policy(self, states, target: bool, training: bool):
-        dictionary_length = len(self.env.dictionary)
-
         batch_size = self.env.batch_size
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
@@ -222,10 +225,10 @@ class DDPG:
     def run(self, total_demonstration_steps: int):
         batch_size = self.env.batch_size
 
-        actor_model = self.get_actor()
+        actor_model = self.get_actor(add_noise=True)
         critic_model = self.get_critic()
 
-        target_actor = self.get_actor()
+        target_actor = self.get_actor(add_noise=False)
         target_critic = self.get_critic()
 
         self.actor_model = actor_model
@@ -239,8 +242,10 @@ class DDPG:
         critic_lr = 0.0005
         actor_lr = 0.0025
 
-        critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
-        actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
+        # Nadam for RNNs recommended by OverLordGoldDragon:
+        # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
+        critic_optimizer = tf.keras.optimizers.Nadam(critic_lr)
+        actor_optimizer = tf.keras.optimizers.Nadam(actor_lr)
 
         total_episodes = 500
         # Discount factor for future rewards

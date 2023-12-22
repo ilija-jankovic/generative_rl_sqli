@@ -9,7 +9,6 @@ import keras
 from keras import layers
 import numpy as np
 from sqltree import sqltree
-from numpy.random import normal
 
 from .enums.policy_type import PolicyType
 from .environment import Environment
@@ -114,11 +113,11 @@ class DDPG:
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(input_lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -181,8 +180,8 @@ class DDPG:
 
         output = tf.cond(
             tf.equal(type, PolicyType.NORMAL.value),
-            true_fn=lambda: self.actor_model(input, training=training),
-            false_fn=lambda: tf.cond(
+                true_fn=lambda: self.actor_model(input, training=training),
+                false_fn=lambda: tf.cond(
                 tf.equal(type, PolicyType.PERTURBED.value),
                     true_fn=lambda: self.actor_perturbed(input, training=training),
                     false_fn=lambda: self.target_actor(input, training=training)))
@@ -252,18 +251,21 @@ class DDPG:
     # PARAMETER SPACE NOISE FOR EXPLORATION paper:
     # https://openreview.net/pdf?id=ByBAl2eAZ
     def __get_perturbed_actions(self, states: tf.Tensor):
-        self.actor_perturbed = tf.keras.models.clone_model(self.actor_model)
+        self.actor_perturbed.set_weights(self.actor_model.get_weights()) 
 
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
         for layer in self.actor_perturbed.trainable_weights:
-            noise = normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
+            noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
             layer.assign_add(noise)
 
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        distance = np.sqrt(np.mean(np.square(actions-perturbed_actions)))
+        actions_normalized = tf.linalg.normalize(tf.cast(actions, dtype=tf.float32), axis=-1)[0]
+        perturbed_actions_normalized = tf.linalg.normalize(tf.cast(perturbed_actions, dtype=tf.float32), axis=-1)[0]
+
+        distance = np.sqrt(np.mean(np.square(actions_normalized-perturbed_actions_normalized)))
 
         if distance <= self.__delta_threshold:
             self.__adaptive_sigma *= self.__alpha_scalar
@@ -277,12 +279,14 @@ class DDPG:
         batch_size = self.env.batch_size
 
         actor_model = self.get_actor()
+        actor_perturbed = self.get_actor()
         critic_model = self.get_critic()
 
         target_actor = self.get_actor()
         target_critic = self.get_critic()
 
         self.actor_model = actor_model
+        self.actor_perturbed = actor_perturbed
         self.target_actor = target_actor
 
         # Making the weights equal initially

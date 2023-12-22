@@ -17,8 +17,9 @@ class DDPG:
     env: Environment
     encoded_payloads: List[List[int]]
     psi: float
+    actor_lstm_units: int
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0, actor_lstm_units: int = 256):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -26,6 +27,7 @@ class DDPG:
 
         self.env = env
         self.psi = psi
+        self.actor_lstm_units = actor_lstm_units
 
         # Take out empty tokens.
         encoded_payloads = [[token for token in payload if token != len(env.dictionary) - 1] for payload in encoded_payloads]
@@ -86,18 +88,13 @@ class DDPG:
     def get_actor(self):
         dictionary_length = len(self.env.dictionary)
 
-        C_PADDING = self.env.embedding_size - (dictionary_length % self.env.embedding_size)
-
-        # Needs large difference in weights to begin learning.
-        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1)(input_lstm)
-        lstm = layers.LSTM(dictionary_length, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1)(lstm)
-        lstm = layers.LSTM(dictionary_length, return_state=True, kernel_initializer=initial_weights_lstm_3, dropout=0.1)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(input_lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, return_sequences=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, return_state=True, dropout=0.1, recurrent_dropout=0.2)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -117,27 +114,19 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
-
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1, unroll=True)(state_input)
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1, unroll=True)(lstm)
-        lstm_state_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights_lstm_3, dropout=0.1, unroll=True)(lstm)
-
-        initial_weights_lstm_1 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_2 = tf.random_uniform_initializer(minval=-300, maxval=300)
-        initial_weights_lstm_3 = tf.random_uniform_initializer(minval=-300, maxval=300)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_state_out = layers.LSTM(128, activation='relu', unroll=True)(lstm)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_1, dropout=0.1, unroll=True)(state_input)
-        lstm = layers.LSTM(128, return_state=True, return_sequences=True, kernel_initializer=initial_weights_lstm_2, dropout=0.1, unroll=True)(lstm)
-        lstm_action_out = layers.LSTM(128, activation='relu', kernel_initializer=initial_weights_lstm_3, dropout=0.1, unroll=True)(lstm)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(128, return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_action_out = layers.LSTM(128, activation='relu', unroll=True)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
@@ -204,7 +193,7 @@ class DDPG:
         actions = tf.fill([batch_size, action_size], tf.int32.min)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, dictionary_length + self.env.embedding_size - (dictionary_length % self.env.embedding_size)], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)

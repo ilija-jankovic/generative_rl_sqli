@@ -296,7 +296,6 @@ class DDPG:
                         print('Transitions gathered.')
                 else:
                    actions = self.policy(prev_states, target=False, training=False)
-                   #actions = self.__add_noise_to_action_embeddings(actions, ou_noise)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 
@@ -320,5 +319,5 @@ class DDPG:
             ep_reward_list.append(episodic_reward)
 
             avg_reward = np.mean(ep_reward_list)
-            print("[{}] Episode: {}, Avg Reward: {}, Episode Reward: {} Total Frame Count: {}".format(datetime.datetime.now(), ep + 1, avg_reward, episodic_reward, frame))
+            print("[{}] Episode: {}, Avg Reward: {}, Episode Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep + 1, avg_reward, episodic_reward, frame))
             avg_reward_list.append(avg_reward)

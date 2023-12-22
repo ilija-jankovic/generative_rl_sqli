@@ -73,9 +73,6 @@ class Environment():
         self.__inject_payload('')
         self.__inject_payload('random string')
 
-    def __reset_payload_cache(self):
-        self.__attempted_payloads.clear()
-
     def __reset_token_cache(self):
         self.__found_tokens.clear()
 
@@ -151,9 +148,8 @@ class Environment():
         if episode_ended:
             self.__episode.next_episode()
 
-            # Remove found tokens and payloads to allow DDPG to learn
+            # Remove found tokens to allow DDPG to learn
             # with more reward opportunity.
-            self.__reset_payload_cache()
             self.__reset_token_cache()
 
             # Ensures data from non-useful injections is not rewarded.
@@ -201,17 +197,11 @@ class Environment():
         #reward = static_reward + dynamic_reward
         response, new_tokens = self.__inject_payload(payload)
 
-        new_tokens_count = len(new_tokens)
+        reward = len(new_tokens)
         
-        if new_tokens_count > 0:
-            reward = new_tokens_count
-
+        if reward > 0:
             print(f'Successful payload (reward: {reward}):')
             print(payload)
-        elif self.__payload_attempted(payload):
-            reward = -1.0
-        else:
-            reward = -1.0 / self.batch_size
         
         state = self.__create_state(action, response.text, new_tokens)
 

@@ -23,12 +23,23 @@ class DDPG:
     
     actor_perturbed: keras.Model
 
-    # Definitions can be found on page 3 of
+    # Definitions can be found on Page 3 of
     # PARAMETER SPACE NOISE FOR EXPLORATION:
     # https://openreview.net/pdf?id=ByBAl2eAZ
-    __adaptive_sigma: float = 1.0
-    __adaptive_delta_threshold: float = 1.0
-    __adaptive_alpha_scalar: float = 2.0
+    #
+    # Page 12:
+    # "Sparse environments use an action space noise with σ = 0.6"
+    #
+    # Page 14:
+    # "In our experiments, we always use α = 1.01."
+    #
+    # Page 15:
+    # "Setting δ := σ as
+    # the adaptive parameter space threshold thus results in effective action space noise that has the same
+    # standard deviation as regular Gaussian action space noise."
+    __adaptive_sigma: float = 0.6
+    __delta_threshold: float = 0.6
+    __alpha_scalar: float = 1.01
     
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0, actor_lstm_units: int = 256):
         assert(psi >= 0.0 and psi <= 1.0)
@@ -254,10 +265,10 @@ class DDPG:
 
         distance = np.sqrt(np.mean(np.square(actions-perturbed_actions)))
 
-        if distance <= self.__adaptive_delta_threshold:
-            self.__adaptive_sigma *= self.__adaptive_alpha_scalar
+        if distance <= self.__delta_threshold:
+            self.__adaptive_sigma *= self.__alpha_scalar
         else:
-            self.__adaptive_sigma /= self.__adaptive_alpha_scalar
+            self.__adaptive_sigma /= self.__alpha_scalar
 
         return perturbed_actions
     

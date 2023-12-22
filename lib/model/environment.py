@@ -73,11 +73,11 @@ class Environment():
         self.__inject_payload('')
         self.__inject_payload('random string')
 
+    def __reset_payload_cache(self):
+        self.__attempted_payloads.clear()
+
     def __reset_token_cache(self):
         self.__found_tokens.clear()
-
-        # Ensures data from non-useful injections is not rewarded.
-        self.__inject_random_payloads()
 
     def get_payload(self, action: np.ndarray):
         tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
@@ -151,9 +151,13 @@ class Environment():
         if episode_ended:
             self.__episode.next_episode()
 
-            # Remove found tokens from demonstrations to allow DDPG to learn
+            # Remove found tokens and payloads to allow DDPG to learn
             # with more reward opportunity.
+            self.__reset_payload_cache()
             self.__reset_token_cache()
+
+            # Ensures data from non-useful injections is not rewarded.
+            self.__inject_random_payloads()
 
         return episode_ended
     

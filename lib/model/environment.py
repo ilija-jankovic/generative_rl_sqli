@@ -4,14 +4,14 @@ from typing import List
 import re
 from requests import Response
 from typing import Callable
-from numpy import dot
-from numpy.linalg import norm
 import tensorflow as tf
 
+from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
 class Environment():
     dictionary: List[str]
+    payload_builder: PayloadBuilder
 
     action_size: int
     state_size: int
@@ -33,7 +33,7 @@ class Environment():
 
     def __init__(
             self,
-            dictionary: List[str],
+            payload_builder: PayloadBuilder,
             embeddings: List[List[int]], 
             action_size: int,
             state_size: int,
@@ -46,14 +46,17 @@ class Environment():
 
         assert(state_size > 0)
         assert(state_size % 2 == 0)
+        
+        dictionary = payload_builder.dictionary
 
         assert(len(embeddings) == len(dictionary))
-        
+
         for embedding in embeddings[1:]:
             if len(embedding) != len(embeddings[0]):
                 raise Exception('All embeddings must be of the same length')
             
         self.dictionary = dictionary
+        self.payload_builder = payload_builder
 
         self.action_size = action_size
         self.state_size = state_size
@@ -77,17 +80,8 @@ class Environment():
     def __reset_token_cache(self):
         self.__found_tokens.clear()
 
-    def get_payload(self, action: np.ndarray):
-        tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
-
-        try:
-            empty_token_index = tokens.index('')
-        except:
-            empty_token_index = None
-
-        # Empty token counts as termination token for the agent. Slice tokens list 
-        # up to first empty token.
-        return ''.join(tokens if empty_token_index is None else tokens[:empty_token_index])
+    def get_payload(self, action: tf.Tensor):
+        return self.payload_builder.convert_action_to_payload(action)
 
     def __record_payload(self, payload: str):
         self.__attempted_payloads.append(payload)

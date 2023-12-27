@@ -17,7 +17,7 @@ class SQLDataService:
 
         return data
 
-    def load_payload_files(self, domain_name: str, rows: int):
+    def load_payload_files(self, domain_name: str):
         payloads: List[str] = []
 
         lines = self.__read_lines('../../SQLiV3.csv')
@@ -30,8 +30,9 @@ class SQLDataService:
         except FileNotFoundError:
             print('sqlmap log not found. Skipping...')
 
-        payloads = list(map(lambda payload: payload.upper(), payloads))
-        return payloads if rows is None else payloads[:rows]
+        # To uppercase all payloads and replace double quotes with singles.
+        # This reduces unnecessary complexity for the DDPGfD action space.
+        return list(map(lambda payload: payload.upper().replace('"', '\''), payloads))
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')
@@ -45,8 +46,7 @@ class SQLDataService:
     def load_sql_blacklist(self):
         return self.__read_lines('../../sql_blacklist.txt')
 
-    def load_wikisql_queries(self, rows: int):
+    def load_wikisql_queries(self):
         queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
 
-        queries = list(map(lambda query: query.upper(), queries))
-        return queries if rows is None else queries[:rows]
+        return list(map(lambda query: query.upper(), queries))

@@ -8,6 +8,7 @@ from sql_parser.sql_data_service import SQLDataService
 from model.token_embedder import TokenEmbedder 
 from model.ddpg import DDPG
 from model.environment import Environment
+from model.payload_builder import PayloadBuilder
 
 # TODO: Use argparse instead.
 args = sys.argv[1:]
@@ -73,8 +74,8 @@ tables = data_service.load_tables()
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
-queries = data_service.load_wikisql_queries(embedding_data_rows)
-payloads = data_service.load_payload_files(sqlmap.domain_name, rows=embedding_data_rows)
+queries = data_service.load_wikisql_queries()
+payloads = data_service.load_payload_files(sqlmap.domain_name)
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
 
@@ -86,26 +87,31 @@ dictionary.sort(reverse=True)
 
 token_parser = TokenParser(dictionary, token_blacklist)
 
-print('Encoding queries...')
-encoded_queries = token_parser.parse(queries)
-print(f'{len(encoded_queries)} queries encoded.')
+# Prioritise payloads over queries if the full dataset is not used for embeddings.
+embedding_training_data = payloads + queries
+embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]
 
-print('Encoding payloads...')
-encoded_payloads = token_parser.parse(payloads)
-print(f'{len(encoded_payloads)} payload(s) encoded.')
+print('Encoding SQL fragment(s) for embeddings...')
+embedding_training_data = token_parser.parse(embedding_training_data)
+print(f'{len(embedding_training_data)} fragment(s) encoded.')
 
 # TODO: Retrieve cached embeddings (if already generated) if dictionary and
 # embedding examples are unchanged.
 print('Running token embedder...')
-embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
-    encoded_queries + encoded_payloads, len(dictionary))
+embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
 print('Embeddings learned.')
 
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 
+payload_builder = PayloadBuilder(dictionary, '\'', '')
+
+print('Filtering unformatted payloads...')
+encoded_payloads = token_parser.parse(payloads, required_prefix=payload_builder.prefix, required_suffix=payload_builder.suffix)
+print('Payloads filtered.')
+
 environment = Environment(
-    dictionary,
+    payload_builder=payload_builder,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
     batch_size=BATCH_SIZE,

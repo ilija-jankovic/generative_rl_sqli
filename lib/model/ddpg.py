@@ -40,7 +40,7 @@ class DDPG:
     __delta_threshold: float = 0.6
     __alpha_scalar: float = 1.01
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.0, actor_lstm_units: int = 256):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.99, actor_lstm_units: int = 256):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -110,14 +110,18 @@ class DDPG:
         dictionary_length = len(self.env.dictionary)
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
+        DROPOUT = 0.2
+        RECURRENT_DROPOUT = 0.4
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=0.2, recurrent_dropout=0.4)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(input_lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -125,9 +129,9 @@ class DDPG:
         state_c = lstm[2]
 
         dense = layers.Dense(1024, activation='relu')(state_h)
-        dropout = layers.Dropout(0.2)(dense)
+        dropout = layers.Dropout(DROPOUT)(dense)
         dense = layers.Dense(1024, activation='relu')(dropout)
-        dropout = layers.Dropout(0.2)(dense)
+        dropout = layers.Dropout(DROPOUT)(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dropout)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
@@ -138,19 +142,21 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
+        LSTM_UNITS = 128
+
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_state_out = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
+        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_state_out = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_action_out = layers.LSTM(128, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
+        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
+        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
+        lstm_action_out = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
@@ -306,12 +312,12 @@ class DDPG:
 
         total_episodes = 500
         # Discount factor for future rewards
-        gamma = 0.99
+        gamma = 0.999
         # Used to update target networks
         tau = 0.005
 
         buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
-                              buffer_capacity=50000, batch_size=batch_size,
+                              buffer_capacity=1000000, batch_size=batch_size,
                               actor_model=actor_model,
                               policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
                               target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),

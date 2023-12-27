@@ -37,7 +37,7 @@ class DDPG:
     # the adaptive parameter space threshold thus results in effective action space noise that has the same
     # standard deviation as regular Gaussian action space noise."
     __adaptive_sigma: float = 0.6
-    __delta_threshold: float = 0.6
+    __adaptive_delta_threshold: float = 0.6
     __alpha_scalar: float = 1.01
     
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.99, actor_lstm_units: int = 256):
@@ -110,16 +110,12 @@ class DDPG:
         dictionary_length = len(self.env.dictionary)
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
-        DROPOUT = 0.2
-        RECURRENT_DROPOUT = 0.4
+        DROPOUT = 0.1
+        RECURRENT_DROPOUT = 0.2
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
 
@@ -275,10 +271,16 @@ class DDPG:
 
         distance = np.sqrt(np.mean(np.square(actions_normalized-perturbed_actions_normalized)))
 
-        if distance <= self.__delta_threshold:
+        if distance <= self.__adaptive_delta_threshold:
             self.__adaptive_sigma *= self.__alpha_scalar
         else:
             self.__adaptive_sigma /= self.__alpha_scalar
+
+        # Page 15:
+        # "Setting δ := σ as
+        # the adaptive parameter space threshold thus results in effective action space noise that has the same
+        # standard deviation as regular Gaussian action space noise."
+        self.__adaptive_delta_threshold = self.__adaptive_sigma
 
         return perturbed_actions
     

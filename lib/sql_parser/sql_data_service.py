@@ -30,9 +30,9 @@ class SQLDataService:
         except FileNotFoundError:
             print('sqlmap log not found. Skipping...')
 
-        # To uppercase all payloads and replace double quotes with singles.
-        # This reduces unnecessary complexity for the DDPGfD action space.
-        return list(map(lambda payload: payload.upper().replace('"', '\''), payloads))
+        # Reduces unnecessary complexity for the DDPGfD action space by reducing
+        # same-meaning syntax.
+        return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
 
     def load_columns(self):
         return self.__read_lines('../../columns.txt')

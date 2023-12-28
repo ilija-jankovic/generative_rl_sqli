@@ -77,6 +77,9 @@ class Environment():
         self.__inject_payload('')
         self.__inject_payload('random string')
 
+        # Simulate empty action.
+        self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
+
     def __reset_token_cache(self):
         self.__found_tokens.clear()
 
@@ -199,11 +202,14 @@ class Environment():
         #reward = static_reward + dynamic_reward
         response, new_tokens = self.__inject_payload(payload)
 
-        reward = len(new_tokens)
+        new_tokens_count = len(new_tokens)
         
-        if reward > 0:
+        if new_tokens_count > 0:
+            reward = new_tokens_count
             print(f'Successful payload (reward: {reward}):')
             print(payload)
+        else:
+            reward = -1.0/self.batch_size
         
         state = self.__create_state(action, response.text, new_tokens)
 

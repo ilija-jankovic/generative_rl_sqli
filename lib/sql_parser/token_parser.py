@@ -74,18 +74,12 @@ class TokenParser:
         return indexed_data
     
     def __filter_unformatted_data(self, data: List[str], prefix: str, suffix: str):
-        data = list(filter(lambda datum: datum.startswith(prefix) and datum.endswith(suffix), data))
+        data = list(filter(lambda datum: prefix in datum and suffix in datum and datum.index(prefix) < datum.rindex(suffix), data))
 
-        prefix_length = len(prefix)
-        suffix_length = len(suffix)
-
-        if prefix_length > 0:
-            data = list(map(lambda datum: datum[prefix_length:], data))
-
-        if suffix_length > 0:
-            data = list(map(lambda datum: datum[:-suffix_length], data))
-
-        return data
+        # Take out prefix and suffix, and everything before and after respectively.
+        data = [datum[datum.index(prefix)+1:datum.rindex(suffix)] for datum in data]
+        
+        return list(filter(lambda datum: len(datum) > 0, data))
     
     def parse(self, data: List[str], required_prefix: str = '', required_suffix: str = ''):
         '''

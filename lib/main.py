@@ -138,7 +138,7 @@ def main():
         encoded_payloads=encoded_payloads)
 
     print('Running DDPG...')
-    ddpg.run(total_demonstration_steps=environment.batch_size * 10 if record_demonstrations else None)
+    ddpg.run(total_demonstration_steps=100 * BATCH_SIZE if record_demonstrations else None)
 
 if __name__ == '__main__':
     main()

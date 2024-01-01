@@ -3,6 +3,8 @@ import json
 import os
 from typing import Dict, List
 
+import tensorflow as tf
+
 class SQLDataService:
     __dirname: str
 
@@ -73,7 +75,9 @@ class SQLDataService:
         return self.__read_lines('../../wikisql/queries.txt')
     
     def load_embeddings(self):
-        return self.__load_json('../../embeddings.json')
+        embeddings = self.__load_json('../../embeddings.json')
+
+        return tf.convert_to_tensor(embeddings)
     
     def save_parsed_wikisql_queries(self, queries: List[str]):
         self.__save_lines('../../wikisql/parsed_queries.txt', queries)

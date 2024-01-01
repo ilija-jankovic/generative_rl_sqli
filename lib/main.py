@@ -18,6 +18,7 @@ args = sys.argv[1:]
 
 run_sqlmap = '--no-run-sqlmap' not in args
 record_demonstrations = '--no-demonstrations' not in args
+use_cache = '--from-cache' in args
 
 embedding_data_rows = None
 
@@ -98,21 +99,25 @@ dictionary.sort(reverse=True)
 
 token_parser = TokenParser(dictionary, token_blacklist)
 
-# Prioritise payloads over queries if the full dataset is not used for embeddings.
-embedding_training_data = payloads + queries
-embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]
+if use_cache:
+    print('Using cached embeddings...')
+    embeddings = data_service.load_embeddings()
+else:
+    # Prioritise payloads over queries if the full dataset is not used for embeddings.
+    embedding_training_data = payloads + queries
+    embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]
 
-print('Encoding SQL fragment(s) for embeddings...')
-embedding_training_data = token_parser.parse(embedding_training_data)
-print(f'{len(embedding_training_data)} fragment(s) encoded.')
+    print('Encoding SQL fragment(s) for embeddings...')
+    embedding_training_data = token_parser.parse(embedding_training_data)
+    print(f'{len(embedding_training_data)} fragment(s) encoded.')
 
-# TODO: Retrieve cached embeddings (if already generated) if dictionary and
-# embedding examples are unchanged.
-print('Running token embedder...')
-embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
-print('Embeddings learned.')
+    # TODO: Retrieve cached embeddings (if already generated) if dictionary and
+    # embedding examples are unchanged.
+    print('Running token embedder...')
+    embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
+    print('Embeddings learned.')
 
-data_service.save_embeddings(embeddings.numpy().tolist())
+    data_service.save_embeddings(embeddings.numpy().tolist())
 
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})

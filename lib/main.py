@@ -112,6 +112,8 @@ print('Running token embedder...')
 embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
 print('Embeddings learned.')
 
+data_service.save_embeddings(embeddings.numpy().tolist())
+
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 

@@ -3,3 +3,4 @@
 __pycache__
 **/sqlmap-log
 wikisql/parsed_queries.txt
+embeddings.json

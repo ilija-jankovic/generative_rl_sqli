@@ -24,15 +24,27 @@ class SQLDataService:
         with open(path, 'w') as f:
             f.write('\n'.join(lines))
         f.close()
-    
-    def load_schema(self) -> Dict[str, str]:
-        path = os.path.join(self.__dirname, '../../schema.json')
+
+    def __load_json(self, relative_path: str):
+        path = os.path.join(self.__dirname, relative_path)
 
         with open(path, 'r') as f:
             data = json.load(f)
         f.close()
 
         return data
+    
+    def __save_json(self, relative_path: str, data: dict):
+        path = os.path.join(self.__dirname, relative_path)
+
+        with open(path, 'w') as f:
+            json.dump(data, f)
+        f.close()
+
+        return data
+    
+    def load_schema(self) -> Dict[str, str]:
+        return self.__load_json('../../schema.json')
 
     def load_payload_files(self, domain_name: str):
         payloads: List[str] = []
@@ -60,6 +72,11 @@ class SQLDataService:
     def load_wikisql_queries(self):
         return self.__read_lines('../../wikisql/queries.txt')
     
+    def load_embeddings(self):
+        return self.__load_json('../../embeddings.json')
+    
     def save_parsed_wikisql_queries(self, queries: List[str]):
         self.__save_lines('../../wikisql/parsed_queries.txt', queries)
 
+    def save_embeddings(self, embeddings: List[List[float]]):
+        self.__save_json('../../embeddings.json', embeddings)

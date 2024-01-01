@@ -1,6 +1,7 @@
 import csv
+import json
 import os
-from typing import List
+from typing import Dict, List
 
 class SQLDataService:
     __dirname: str
@@ -8,11 +9,27 @@ class SQLDataService:
     def __init__(self):
         self.__dirname = os.path.dirname(__file__)
     
-    def __read_lines(self, relative_path: str, encoding: str = None):
+    def __read_lines(self, relative_path: str):
         path = os.path.join(self.__dirname, relative_path)
 
-        with open(path, 'r', encoding=encoding) as f:
+        with open(path, 'r') as f:
             data = f.read().splitlines()
+        f.close()
+
+        return data
+    
+    def __save_lines(self, relative_path: str, lines: str):
+        path = os.path.join(self.__dirname, relative_path)
+
+        with open(path, 'w') as f:
+            f.write('\n'.join(lines))
+        f.close()
+    
+    def load_schema(self) -> Dict[str, str]:
+        path = os.path.join(self.__dirname, '../../schema.json')
+
+        with open(path, 'r') as f:
+            data = json.load(f)
         f.close()
 
         return data
@@ -33,12 +50,6 @@ class SQLDataService:
         # Reduces unnecessary complexity for the DDPGfD action space by reducing
         # same-meaning syntax.
         return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
-
-    def load_columns(self):
-        return self.__read_lines('../../columns.txt')
-    
-    def load_tables(self):
-        return self.__read_lines('../../tables.txt')
     
     def load_sql_tokens(self):
         return self.__read_lines('../../sql_tokenizable.txt')
@@ -47,6 +58,8 @@ class SQLDataService:
         return self.__read_lines('../../sql_blacklist.txt')
 
     def load_wikisql_queries(self):
-        queries = self.__read_lines('../../wikisql_queries.txt', encoding='utf8')
+        return self.__read_lines('../../wikisql/queries.txt')
+    
+    def save_parsed_wikisql_queries(self, queries: List[str]):
+        self.__save_lines('../../wikisql/parsed_queries.txt', queries)
 
-        return list(map(lambda query: query.upper(), queries))

@@ -1,0 +1,30 @@
+{
+    "admin": [
+        "id",
+        "username",
+        "password"
+    ],
+    "commentsnew": [
+        "name",
+        "comment"
+    ],
+    "image": [
+        "images"
+    ],
+    "products": [
+        "id",
+        "type",
+        "name",
+        "price"
+    ],
+    "types": [
+        "id",
+        "name",
+        "description"
+    ],
+    "users": [
+        "id",
+        "username",
+        "password"
+    ]
+}

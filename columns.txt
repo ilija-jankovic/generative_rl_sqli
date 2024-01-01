@@ -1,9 +1,0 @@
-id 
-username 
-password 
-name 
-comment 
-images 
-type 
-price 
-description 

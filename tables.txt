@@ -1,8 +1,0 @@
-admin 
-commentsnew 
-image 
-products 
-types 
-users 
-information_schema.tables 
-information_schema.columns 

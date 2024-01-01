@@ -2,6 +2,7 @@
 import sys
 import numpy as np
 import requests
+from sql_parser.wikisql_parser import WikiSQLParser
 from sqlmap_runner import SqlmapRunner
 from sql_parser.token_parser import TokenParser
 from sql_parser.sql_data_service import SQLDataService
@@ -9,6 +10,8 @@ from model.token_embedder import TokenEmbedder
 from model.ddpg import DDPG
 from model.environment import Environment
 from model.payload_builder import PayloadBuilder
+
+import sql_parser.schema_parser as schema_parser
 
 # TODO: Use argparse instead.
 args = sys.argv[1:]
@@ -68,13 +71,21 @@ else:
 
 data_service = SQLDataService()
 
-columns = data_service.load_columns()
-tables = data_service.load_tables()
+schema = data_service.load_schema()
+
+columns = schema_parser.get_column_tokens_from_schema(schema)
+tables = schema_parser.get_table_tokens_from_schema(schema)
 
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
 queries = data_service.load_wikisql_queries()
+
+parser = WikiSQLParser(schema)
+queries = parser.generate_randomised_examples(queries)
+
+data_service.save_parsed_wikisql_queries(queries)
+
 payloads = data_service.load_payload_files(sqlmap.domain_name)
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']

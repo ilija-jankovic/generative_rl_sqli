@@ -18,7 +18,7 @@ class WikiSQLParser:
         
         while '[COLUMN_NAME]' in query:
             column = random.choice(columns)
-            query = query.replace('[COLUMN_NAME]', column)
+            query = query.replace('[COLUMN_NAME]', column, 1)
 
         while '[COMPARISON_VALUE]' in query:
             if random.randint(0, 1) == 0:
@@ -26,7 +26,7 @@ class WikiSQLParser:
             else:
                 random_str = ''.join(random.choices(string.digits, k=random.randint(1, 6)))
             
-            query = query.replace('[COMPARISON_VALUE]', random_str)
+            query = query.replace('[COMPARISON_VALUE]', random_str, 1)
 
         return query
 

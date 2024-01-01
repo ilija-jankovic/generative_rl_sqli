@@ -22,7 +22,7 @@ class WikiSQLParser:
 
         while '[COMPARISON_VALUE]' in query:
             if random.randint(0, 1) == 0:
-                random_str = ''.join(random.choices(self.__COLUMN_STRING_ALPHABET, k=random.randint(1, 20)))
+                random_str = ''.join(random.choices(self.__COLUMN_STRING_ALPHABET, k=random.randint(1, 6)))
             else:
                 random_str = ''.join(random.choices(string.digits, k=random.randint(1, 6)))
             

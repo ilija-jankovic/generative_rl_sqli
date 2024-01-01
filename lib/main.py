@@ -80,13 +80,6 @@ tables = schema_parser.get_table_tokens_from_schema(schema)
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
-queries = data_service.load_wikisql_queries()
-
-parser = WikiSQLParser(schema)
-queries = parser.generate_randomised_examples(queries)
-
-data_service.save_parsed_wikisql_queries(queries)
-
 payloads = data_service.load_payload_files(sqlmap.domain_name)
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
@@ -103,6 +96,13 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = data_service.load_embeddings()
 else:
+    queries = data_service.load_wikisql_queries()
+
+    parser = WikiSQLParser(schema)
+    queries = parser.generate_randomised_examples(queries)
+
+    data_service.save_parsed_wikisql_queries(queries)
+
     # Prioritise payloads over queries if the full dataset is not used for embeddings.
     embedding_training_data = payloads + queries
     embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]

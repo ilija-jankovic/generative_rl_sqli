@@ -87,7 +87,7 @@ class TokenEmbedder:
       dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=True)
 
       print('Learning embeddings...')
-      word2vec.fit(dataset, epochs=20)
+      word2vec.fit(dataset, epochs=5)
 
       # TODO: Save the weights if training data is not based on table/column names.
       # Better solution is to add table/column names to training data.

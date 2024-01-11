@@ -266,10 +266,10 @@ class DDPG:
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        actions_normalized = tf.linalg.normalize(tf.cast(actions, dtype=tf.float32), axis=-1)[0]
-        perturbed_actions_normalized = tf.linalg.normalize(tf.cast(perturbed_actions, dtype=tf.float32), axis=-1)[0]
+        embeddings = tf.convert_to_tensor([[self.env.embeddings[token] for token in action] for action in actions])
+        perturbed_embeddings = tf.convert_to_tensor([[self.env.embeddings[token] for token in action] for action in perturbed_actions])
 
-        distance = np.sqrt(np.mean(np.square(actions_normalized-perturbed_actions_normalized)))
+        distance = np.sqrt(np.mean(np.square(embeddings-perturbed_embeddings)))
 
         if distance <= self.__adaptive_delta_threshold:
             self.__adaptive_sigma *= self.__alpha_scalar

@@ -2,6 +2,7 @@
 # https://keras.io/examples/rl/ddpg_pendulum/
 
 import datetime
+import math
 import random
 from typing import List
 import tensorflow as tf
@@ -40,7 +41,7 @@ class DDPG:
     __adaptive_delta_threshold: float = 0.6
     __alpha_scalar: float = 1.01
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.99, actor_lstm_units: int = 256):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.9, actor_lstm_units: int = 256):
         assert(psi >= 0.0 and psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -110,14 +111,12 @@ class DDPG:
         dictionary_length = len(self.env.dictionary)
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
-        DROPOUT = 0.1
-        RECURRENT_DROPOUT = 0.2
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
 
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, dropout=DROPOUT, recurrent_dropout=RECURRENT_DROPOUT)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(input_lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(lstm)
+        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -125,10 +124,8 @@ class DDPG:
         state_c = lstm[2]
 
         dense = layers.Dense(1024, activation='relu')(state_h)
-        dropout = layers.Dropout(DROPOUT)(dense)
-        dense = layers.Dense(1024, activation='relu')(dropout)
-        dropout = layers.Dropout(DROPOUT)(dense)
-        dense_output = layers.Dense(dictionary_length, activation='softmax')(dropout)
+        dense = layers.Dense(1024, activation='relu')(dense)
+        dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
@@ -285,7 +282,7 @@ class DDPG:
         return perturbed_actions
     
 
-    def run(self, total_demonstration_steps: int):
+    def run(self, run_demonstrations: bool):
         batch_size = self.env.batch_size
 
         actor_model = self.get_actor()
@@ -314,7 +311,7 @@ class DDPG:
 
         total_episodes = 500
         # Discount factor for future rewards
-        gamma = 0.999
+        gamma = 0.9
         # Used to update target networks
         tau = 0.005
 
@@ -335,7 +332,9 @@ class DDPG:
 
         frame = 0
 
-        run_demonstrations = total_demonstration_steps is not None and self.encoded_payloads is not None
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.env.batch_size) * self.env.batch_size * 2
+
+        run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
         if run_demonstrations:
             print('Gathering demonstrations...')

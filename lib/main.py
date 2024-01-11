@@ -38,11 +38,11 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 50
+ACTION_SIZE = 10
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -55,7 +55,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=5b999c1e6844c21bc0cdeab6a6ef5b70; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=15a67de10633e2b218221c20921c9ccc; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -156,7 +156,8 @@ def main():
         encoded_payloads=encoded_payloads)
 
     print('Running DDPG...')
-    ddpg.run(total_demonstration_steps=100 * BATCH_SIZE if record_demonstrations else None)
+
+    ddpg.run(run_demonstrations=record_demonstrations)
 
 if __name__ == '__main__':
     main()

@@ -263,10 +263,21 @@ class DDPG:
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        embeddings = tf.convert_to_tensor([[self.env.embeddings[token] for token in action] for action in actions])
-        perturbed_embeddings = tf.convert_to_tensor([[self.env.embeddings[token] for token in action] for action in perturbed_actions])
+        embeddings = np.array([[self.env.embeddings[token] for token in action] for action in actions])
+        perturbed_embeddings = np.array([[self.env.embeddings[token] for token in action] for action in perturbed_actions])
 
-        distance = np.sqrt(np.mean(np.square(embeddings-perturbed_embeddings)))
+        print(embeddings.shape)
+        print(perturbed_embeddings.shape)
+        
+        # Embeddings are already normalised, so cosine similarity is the dot product.
+        cosine_distances = np.array([[[embeddings[i][j] @ perturbed_embeddings[i][j]] for j in range(actions.shape[1])] for i in range(actions.shape[0])])
+        print(cosine_distances.shape)
+
+        # Calculate cosine distance by subtracting similarity from unity.
+        distance = 1.0 - np.mean(cosine_distances)
+
+        print(f'Sigma: {self.__adaptive_sigma}')
+        print(f'Distance: {distance}')
 
         if distance <= self.__adaptive_delta_threshold:
             self.__adaptive_sigma *= self.__alpha_scalar

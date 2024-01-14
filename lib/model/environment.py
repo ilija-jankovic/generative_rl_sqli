@@ -77,8 +77,9 @@ class Environment():
         self.__inject_payload('')
         self.__inject_payload('random string')
 
-        # Simulate empty action.
-        self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
+        if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
+            # Simulate empty action.
+            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()

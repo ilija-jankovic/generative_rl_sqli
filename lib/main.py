@@ -39,7 +39,7 @@ except:
 #
 #
 
-BATCH_SIZE = 1
+BATCH_SIZE = 32
 
 EMBEDDING_DIM = 128
 
@@ -163,7 +163,7 @@ def main():
         embedding_size=EMBEDDING_DIM,
         buffer_size=1000000,
         batch_size=BATCH_SIZE,
-        alpha_scalar=1.0001,
+        alpha_scalar=1.01,
         starting_adaptive_sigma=0.6,
         starting_adaptive_delta=0.6,
         psi=1.0,

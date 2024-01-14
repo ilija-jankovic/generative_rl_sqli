@@ -123,8 +123,6 @@ class DDPG:
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(input_lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(lstm)
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -265,8 +263,13 @@ class DDPG:
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
         for layer in self.actor_perturbed.trainable_weights:
-            noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
-            layer.assign_add(noise)
+            
+            # Noise applied only to LSTMs we are interested in noising their hidden state.
+            # Based on the paper "Noisy Recurrent Neural Networks":
+            # https://arxiv.org/pdf/2102.04877.pdf
+            if 'lstm' in layer.name:
+                noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
+                layer.assign_add(noise)
 
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)

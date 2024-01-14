@@ -77,6 +77,7 @@ class DDPG:
     @tf.function
     def get_mask(self, payload):
         dictionary_length = len(self.env.dictionary)
+        suffix_length = len(self.params.suffix)
 
         mask = []
         
@@ -84,7 +85,7 @@ class DDPG:
             token = self.env.dictionary[i]
 
             try:
-                sqltree(f'SELECT * FROM products WHERE id= \'{payload + token}\'')
+                sqltree(f'SELECT * FROM products WHERE id= \'{payload[:-suffix_length] + token + self.params.suffix}\'')
                 mask.append(1.0)
             except:
                 mask.append(1.0 - self.params.psi)

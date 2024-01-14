@@ -361,7 +361,7 @@ class DDPG:
                 prev_delta = self.__adaptive_delta_threshold
 
                 if demonstrate:
-                    actions, perturbation_distance = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0
+                    actions, perturbation_distance = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
                     demonstrations_completed += self.params.batch_size
                     
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')

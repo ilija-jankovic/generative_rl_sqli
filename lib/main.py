@@ -156,17 +156,17 @@ def print_decoded_injections():
 
 def main():
     params = DDPGHyperparameters(
-        gamma=0.9,
+        gamma=0.98,
         tau=0.005,
         actor_learning_rate=0.0025,
         critic_learning_rate=0.005,
         embedding_size=EMBEDDING_DIM,
         buffer_size=1000000,
         batch_size=BATCH_SIZE,
-        alpha_scalar=1.01,
+        alpha_scalar=1.0001,
         starting_adaptive_sigma=0.6,
         starting_adaptive_delta=0.6,
-        psi=0.9,
+        psi=1.0,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         prefix=payload_builder.prefix,

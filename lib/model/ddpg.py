@@ -11,6 +11,11 @@ from keras import layers
 import numpy as np
 from sqltree import sqltree
 
+from .ddpg_hyperparameters import DDPGHyperparameters
+from .ddpg_running_statistic import DDPGRunningStatistic
+from .ddpg_payload_statistic import DDPGPayloadStatistic
+from .reporter import Reporter
+
 from .enums.policy_type import PolicyType
 from .environment import Environment
 from .replay_buffer import ReplayBuffer
@@ -18,7 +23,7 @@ from .replay_buffer import ReplayBuffer
 class DDPG:
     env: Environment
     encoded_payloads: List[List[int]]
-    psi: float
+    params: DDPGHyperparameters
     actor_lstm_units: int
     
     actor_perturbed: keras.Model
@@ -37,19 +42,21 @@ class DDPG:
     # "Setting δ := σ as
     # the adaptive parameter space threshold thus results in effective action space noise that has the same
     # standard deviation as regular Gaussian action space noise."
-    __adaptive_sigma: float = 0.6
-    __adaptive_delta_threshold: float = 0.6
-    __alpha_scalar: float = 1.01
+    __adaptive_sigma: float
+    __adaptive_delta_threshold: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], psi: float = 0.9, actor_lstm_units: int = 256):
-        assert(psi >= 0.0 and psi <= 1.0)
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 64):
+        assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
         assert(len(env.dictionary) > 0 and env.dictionary[-1] == '')
 
         self.env = env
-        self.psi = psi
+        self.params = params
         self.actor_lstm_units = actor_lstm_units
+
+        self.__adaptive_sigma = params.starting_adaptive_sigma
+        self.__adaptive_delta_threshold = params.starting_adaptive_delta
 
         # Take out empty tokens.
         encoded_payloads = [[token for token in payload if token != len(env.dictionary) - 1] for payload in encoded_payloads]
@@ -80,7 +87,7 @@ class DDPG:
                 sqltree(f'SELECT * FROM products WHERE id= \'{payload + token}\'')
                 mask.append(1.0)
             except:
-                mask.append(1.0 - self.psi)
+                mask.append(1.0 - self.params.psi)
 
         # Account for termination token.
         mask += [1.0]
@@ -93,13 +100,13 @@ class DDPG:
 
         # Avoid unnecessary mask construction if psi is zero, as the mask will always
         # be ones in this case.
-        return tf.cond(tf.less_equal(self.psi, 0.0),
+        return tf.cond(tf.less_equal(self.params.psi, 0.0),
             true_fn=lambda: single_one_hot_encoding,
             false_fn=lambda: single_one_hot_encoding * self.get_mask(payload))
     
     @tf.function
     def get_embeddings(self, one_hot_encoding, actions):        
-        one_hot_encoding = [self.mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.env.batch_size)]
+        one_hot_encoding = [self.mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.params.batch_size)]
         one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
 
         indices = tf.argmax(one_hot_encoding, axis=1, output_type=tf.int32)
@@ -112,7 +119,7 @@ class DDPG:
 
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
 
-        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.env.batch_size)
+        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(input_lstm)
         lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(lstm)
@@ -129,23 +136,23 @@ class DDPG:
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
-        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.env.batch_size, dtype=tf.int32)
+        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
         indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 128
+        LSTM_UNITS = 64
 
         # State as input
-        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.env.batch_size)
+        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
         lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
         lstm_state_out = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
 
         # Action as input
-        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.env.batch_size)
+        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
         lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
         lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
@@ -167,11 +174,11 @@ class DDPG:
     def get_embedded_lstm_input(self, embeddings, lstm_states):
         input = tf.concat([embeddings, lstm_states], axis=1)
 
-        return tf.reshape(input, [self.env.batch_size, -1, self.env.embedding_size])
+        return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])
 
     @tf.function
     def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
-        batch_size = self.env.batch_size
+        batch_size = self.params.batch_size
 
         input = tf.cond(
             pred=tf.equal(action_index, 0),
@@ -215,7 +222,7 @@ class DDPG:
 
         This enum cannot be passed directly due to `@tf.function` limitations.
         '''
-        batch_size = self.env.batch_size
+        batch_size = self.params.batch_size
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
 
@@ -265,24 +272,17 @@ class DDPG:
 
         embeddings = np.array([[self.env.embeddings[token] for token in action] for action in actions])
         perturbed_embeddings = np.array([[self.env.embeddings[token] for token in action] for action in perturbed_actions])
-
-        print(embeddings.shape)
-        print(perturbed_embeddings.shape)
         
         # Embeddings are already normalised, so cosine similarity is the dot product.
         cosine_distances = np.array([[[embeddings[i][j] @ perturbed_embeddings[i][j]] for j in range(actions.shape[1])] for i in range(actions.shape[0])])
-        print(cosine_distances.shape)
 
         # Calculate cosine distance by subtracting similarity from unity.
         distance = 1.0 - np.mean(cosine_distances)
 
-        print(f'Sigma: {self.__adaptive_sigma}')
-        print(f'Distance: {distance}')
-
         if distance <= self.__adaptive_delta_threshold:
-            self.__adaptive_sigma *= self.__alpha_scalar
+            self.__adaptive_sigma *= self.params.alpha_scalar
         else:
-            self.__adaptive_sigma /= self.__alpha_scalar
+            self.__adaptive_sigma /= self.params.alpha_scalar
 
         # Page 15:
         # "Setting δ := σ as
@@ -294,8 +294,6 @@ class DDPG:
     
 
     def run(self, run_demonstrations: bool):
-        batch_size = self.env.batch_size
-
         actor_model = self.get_actor()
         actor_perturbed = self.get_actor()
         critic_model = self.get_critic()
@@ -311,56 +309,57 @@ class DDPG:
         target_actor.set_weights(actor_model.get_weights())
         target_critic.set_weights(critic_model.get_weights())
 
-        # Learning rate for actor-critic models
-        critic_lr = 0.0005
-        actor_lr = 0.0025
-
         # Nadam for RNNs recommended by OverLordGoldDragon:
         # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-        critic_optimizer = tf.keras.optimizers.Nadam(critic_lr)
-        actor_optimizer = tf.keras.optimizers.Nadam(actor_lr)
+        critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate)
+        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate)
 
         total_episodes = 500
-        # Discount factor for future rewards
-        gamma = 0.9
-        # Used to update target networks
-        tau = 0.005
 
-        buffer = ReplayBuffer(state_size=self.env.state_size, embedding_size=self.env.embedding_size, action_size=self.env.action_size,
-                              buffer_capacity=1000000, batch_size=batch_size,
-                              actor_model=actor_model,
-                              policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
-                              target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),
-                              target_critic=target_critic, critic_model=critic_model, actor_optimizer=actor_optimizer,
-                              critic_optimizer=critic_optimizer, gamma=gamma)
+        buffer = ReplayBuffer(
+            state_size=self.env.state_size,
+            embedding_size=self.env.embedding_size,
+            action_size=self.env.action_size,
+            buffer_capacity=self.params.buffer_size,
+            batch_size=self.params.batch_size,
+            actor_model=actor_model,
+            policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
+            target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),
+            target_critic=target_critic,
+            critic_model=critic_model,
+            actor_optimizer=actor_optimizer,
+            critic_optimizer=critic_optimizer,
+            gamma=self.params.gamma
+        )
+
+        avg_batch_rewards = []
         
         demonstrations_completed = 0
-
-        # To store reward history of each episode
-        ep_reward_list = []
-        # To store average reward history of last few episodes
-        avg_reward_list = []
-
         frame = 0
 
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.env.batch_size) * self.env.batch_size * 2
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
+
+        reporter = Reporter()
+
+        print('Starting reporter...')
+        reporter.start(self.params)
 
         if run_demonstrations:
             print('Gathering demonstrations...')
 
-        for ep in range(total_episodes):
-            prev_states = [self.env.create_empty_state() for _ in range(self.env.batch_size)]
+        for ep in range(1, total_episodes + 1):
+            prev_states = [self.env.create_empty_state() for _ in range(self.params.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
 
-            episodic_reward = 0
-
             while True:
-                if run_demonstrations and demonstrations_completed < total_demonstration_steps:
-                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.env.batch_size)])
-                    demonstrations_completed += self.env.batch_size
+                demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
+                if demonstrate:
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
+                    demonstrations_completed += self.params.batch_size
+                    
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
 
                     if demonstrations_completed >= total_demonstration_steps:
@@ -372,14 +371,42 @@ class DDPG:
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
 
-                episodic_reward += sum([env_tuple[1] for env_tuple in env_tuples])
+                avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
+                avg_batch_rewards.append(avg_batch_reward)
+                
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
 
-                frame += self.env.batch_size
+                frame += self.params.batch_size
+
+                avg_reward = np.mean(avg_batch_rewards)
+
+                running_stat = DDPGRunningStatistic(
+                    epsiode=ep,
+                    frame=frame,
+                    avg_reward=avg_reward,
+                    is_demonstration=demonstrate,
+                    adpative_sigma=self.__adaptive_sigma,
+                    adpative_delta=self.__adaptive_delta_threshold
+                )
+                
+                reporter.record_running_statistic(running_stat)
+
+                payload_stats = [
+                    DDPGPayloadStatistic(
+                        epsiode=ep,
+                        frame=frame,
+                        payload=self.env.get_payload(actions[i]),
+                        reward=env_tuples[i][1],
+                        is_demonstration=demonstrate
+                    ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
+                ]
+                
+                for stat in payload_stats:
+                    reporter.record_payload_statistic(stat)
 
                 buffer.learn()
-                self.update_target(target_actor.variables, actor_model.variables, tau)
-                self.update_target(target_critic.variables, critic_model.variables, tau)
+                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
+                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
                 # End this episode when `done` is True
                 if done:
@@ -387,8 +414,4 @@ class DDPG:
 
                 prev_states = states
 
-            ep_reward_list.append(episodic_reward)
-
-            avg_reward = np.mean(ep_reward_list)
-            print("[{}] Episode: {}, Avg Reward: {}, Episode Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep + 1, avg_reward, episodic_reward, frame))
-            avg_reward_list.append(avg_reward)
+            print("[{}] Episode: {}, Avg Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep, avg_reward, frame))

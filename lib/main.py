@@ -10,6 +10,7 @@ from model.token_embedder import TokenEmbedder
 from model.ddpg import DDPG
 from model.environment import Environment
 from model.payload_builder import PayloadBuilder
+from model.ddpg_hyperparameters import DDPGHyperparameters
 
 import sql_parser.schema_parser as schema_parser
 
@@ -38,7 +39,7 @@ except:
 #
 #
 
-BATCH_SIZE = 64
+BATCH_SIZE = 1
 
 EMBEDDING_DIM = 128
 
@@ -55,7 +56,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=15a67de10633e2b218221c20921c9ccc; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=03e357607a8c75fa099da71f72d3e333; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -124,9 +125,12 @@ headers.update({'cookie': COOKIE})
 
 payload_builder = PayloadBuilder(dictionary, '\'', '--')
 
-print('Filtering unformatted payloads...')
-encoded_payloads = token_parser.parse(payloads, required_prefix=payload_builder.prefix, required_suffix=payload_builder.suffix)
-print('Payloads filtered.')
+if record_demonstrations:
+    print('Filtering unformatted payloads...')
+    encoded_payloads = token_parser.parse(payloads, required_prefix=payload_builder.prefix, required_suffix=payload_builder.suffix)
+    print('Payloads filtered.')
+else:
+    encoded_payloads = []
 
 environment = Environment(
     payload_builder=payload_builder,
@@ -151,9 +155,27 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
+    params = DDPGHyperparameters(
+        gamma=0.9,
+        tau=0.005,
+        actor_learning_rate=0.0025,
+        critic_learning_rate=0.005,
+        embedding_size=EMBEDDING_DIM,
+        buffer_size=1000000,
+        batch_size=BATCH_SIZE,
+        alpha_scalar=1.01,
+        starting_adaptive_sigma=0.6,
+        starting_adaptive_delta=0.6,
+        psi=0.9,
+        action_size=ACTION_SIZE,
+        state_size=STATE_SIZE
+    )
+
     ddpg = DDPG(
         environment,
-        encoded_payloads=encoded_payloads)
+        encoded_payloads=encoded_payloads,
+        params=params
+    )
 
     print('Running DDPG...')
 

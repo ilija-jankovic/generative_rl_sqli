@@ -168,7 +168,9 @@ def main():
         starting_adaptive_delta=0.6,
         psi=0.9,
         action_size=ACTION_SIZE,
-        state_size=STATE_SIZE
+        state_size=STATE_SIZE,
+        prefix=payload_builder.prefix,
+        suffix=payload_builder.suffix,
     )
 
     ddpg = DDPG(

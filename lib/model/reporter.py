@@ -18,7 +18,7 @@ class Reporter:
         dirname = os.path.dirname(__file__)
 
         # Replacement removes invalid token in filename.
-        now = str(datetime.now()).replace(':', '-')
+        now = str(datetime.now().isoformat(sep=' ', timespec='seconds')).replace(':', '-')
 
         directory = f'{dirname}/../../reports/{now}'
 
@@ -31,7 +31,7 @@ class Reporter:
             f.write(f'Report started at {now}\n')
             f.write('\n')
             f.write('Constants\n')
-            f.write('γ,τ,Actor η,Critic η,Embedding Size,Buffer Size,Batch Size,α,Starting σ,Starting δ,ψ,Action Size,State Size\n')
+            f.write('γ,τ,Actor η,Critic η,Embedding Size,Buffer Size,Batch Size,α,Starting σ,Starting δ,ψ,Action Size,State Size,Prefix,Suffix\n')
             f.write(f'{params.gamma},')
             f.write(f'{params.tau},')
             f.write(f'{params.actor_learning_rate},')
@@ -44,8 +44,10 @@ class Reporter:
             f.write(f'{params.starting_adaptive_delta},')
             f.write(f'{params.psi},')
             f.write(f'{params.action_size},')
-            f.write(f'{params.state_size}\n\n')
-            f.write('Time,Episode,Frame,Average Reward,Is Demonstration,σ,δ\n')
+            f.write(f'{params.state_size},')
+            f.write(f'{params.prefix},')
+            f.write(f'{params.suffix}\n\n')
+            f.write('Time,Episode,Frame,Total Average Reward,Is Demonstration,σ,δ,Average Perturbation Distance\n')
         f.close()
 
         with open(self.__payloads_filename, 'w', encoding='utf-8') as f:
@@ -62,10 +64,11 @@ class Reporter:
             f.write(f'{datetime.now()},')
             f.write(f'{stat.epsiode},')
             f.write(f'{stat.frame},')
-            f.write(f'{stat.avg_reward},')
+            f.write(f'{stat.total_avg_reward},')
             f.write(f'{stat.is_demonstration},')
             f.write(f'{stat.adpative_sigma},')
-            f.write(f'{stat.adpative_delta}\n')
+            f.write(f'{stat.adpative_delta},')
+            f.write(f'{stat.avg_perturbation_distance}\n')
         f.close()
 
     def record_payload_statistic(self, stat: DDPGPayloadStatistic):

@@ -16,6 +16,8 @@ class DDPGHyperparameters:
     psi: float
     action_size: int
     state_size: int
+    prefix: str
+    suffix: str
 
     def __init__(
             self,
@@ -32,6 +34,8 @@ class DDPGHyperparameters:
             psi: float,
             action_size: int,
             state_size: int,
+            prefix: str,
+            suffix: str,
         ) -> None:
         self.gamma = gamma
         self.tau = tau
@@ -46,3 +50,5 @@ class DDPGHyperparameters:
         self.psi = psi
         self.action_size = action_size
         self.state_size = state_size
+        self.prefix = prefix
+        self.suffix = suffix

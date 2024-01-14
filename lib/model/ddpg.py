@@ -290,7 +290,7 @@ class DDPG:
         # standard deviation as regular Gaussian action space noise."
         self.__adaptive_delta_threshold = self.__adaptive_sigma
 
-        return perturbed_actions
+        return perturbed_actions, distance
     
 
     def run(self, run_demonstrations: bool):
@@ -357,7 +357,7 @@ class DDPG:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
                 if demonstrate:
-                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
+                    actions, perturbation_distance = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0
                     demonstrations_completed += self.params.batch_size
                     
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
@@ -365,7 +365,7 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions = self.__get_perturbed_actions(prev_states)
+                   actions, perturbation_distance = self.__get_perturbed_actions(prev_states)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 
@@ -383,10 +383,11 @@ class DDPG:
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    avg_reward=avg_reward,
+                    total_avg_reward=avg_reward,
                     is_demonstration=demonstrate,
                     adpative_sigma=self.__adaptive_sigma,
-                    adpative_delta=self.__adaptive_delta_threshold
+                    adpative_delta=self.__adaptive_delta_threshold,
+                    avg_perturbation_distance=perturbation_distance,
                 )
                 
                 reporter.record_running_statistic(running_stat)

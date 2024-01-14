@@ -357,6 +357,9 @@ class DDPG:
             while True:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
+                prev_sigma = self.__adaptive_sigma
+                prev_delta = self.__adaptive_delta_threshold
+
                 if demonstrate:
                     actions, perturbation_distance = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0
                     demonstrations_completed += self.params.batch_size
@@ -386,8 +389,8 @@ class DDPG:
                     frame=frame,
                     total_avg_reward=avg_reward,
                     is_demonstration=demonstrate,
-                    adpative_sigma=self.__adaptive_sigma,
-                    adpative_delta=self.__adaptive_delta_threshold,
+                    adpative_sigma=prev_sigma,
+                    adpative_delta=prev_delta,
                     avg_perturbation_distance=perturbation_distance,
                 )
                 

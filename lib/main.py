@@ -39,7 +39,7 @@ except:
 #
 #
 
-BATCH_SIZE = 64
+BATCH_SIZE = 1
 
 EMBEDDING_DIM = 128
 
@@ -163,10 +163,10 @@ def main():
         embedding_size=EMBEDDING_DIM,
         buffer_size=1000000,
         batch_size=BATCH_SIZE,
-        alpha_scalar=1.01,
-        starting_adaptive_sigma=0.6,
-        starting_adaptive_delta=0.6,
-        psi=1.0,
+        alpha_scalar=0.999,
+        starting_adaptive_sigma=1.0,
+        starting_adaptive_delta=1.0,
+        psi=0.3,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         prefix=payload_builder.prefix,

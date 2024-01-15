@@ -72,12 +72,12 @@ class Environment():
         self.__inject_random_payloads()
 
     def __inject_random_payloads(self):
-        self.__inject_payload('', record_tokens=True)
-        self.__inject_payload('random string', record_tokens=True)
+        self.__inject_payload('')
+        self.__inject_payload('random string')
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
-            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix, record_tokens=True)
+            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
@@ -93,11 +93,9 @@ class Environment():
 
     def create_empty_state(self, index: float):
         '''
-        Creates a state filled with a normal distribution with a mean of zero 
-        and a standard deviation of 1.
+        Creates a state filled with index.
 
-        Useful for variability in the agent's starting actions, which leads to
-        unique branches for every item in a batch.
+        Used to start off each branch of a batch in different directions.
         '''
         return tf.fill((self.state_size, self.embedding_size), index)
 
@@ -121,7 +119,7 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __inject_payload(self, payload: str, record_tokens: bool):
+    def __inject_payload(self, payload: str, record_tokens: bool = True):
         '''
         Returns new tokens found after filtering responses.
         '''
@@ -144,8 +142,8 @@ class Environment():
         Returns whether the episode has ended.
         '''
 
-        #if extend:
-        #    self.__episode.extend_episode()
+        if extend:
+            self.__episode.extend_episode()
 
         self.__episode.next_frame()
 
@@ -196,7 +194,7 @@ class Environment():
 
         self.__record_payload(payload)
 
-        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
+        response, new_tokens = self.__inject_payload(payload)
 
         new_tokens_count = len(new_tokens)
         

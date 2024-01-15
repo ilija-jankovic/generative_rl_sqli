@@ -267,33 +267,12 @@ class DDPG:
             layer.assign_add(noise)
             
     
-    # Adapted solution by Sören Kirchner:
-    # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
-    #
-    # Changed distance and sigma definitions based on the
-    # PARAMETER SPACE NOISE FOR EXPLORATION paper:
-    # https://openreview.net/pdf?id=ByBAl2eAZ
     def __get_perturbed_actions(self, states: tf.Tensor):
-        actions = self.policy(states, PolicyType.NORMAL.value, training=False)
-        perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
+        actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        embeddings = np.mean([[self.env.embeddings[i] for i in action] for action in actions], axis=0)
-        perturbed_embeddings = np.mean([[self.env.embeddings[i] for i in action] for action in perturbed_actions], axis=0)
+        self.__adaptive_sigma = max(self.__adaptive_sigma * self.params.alpha_scalar, 0.3)
 
-        distance = np.sqrt(np.mean(np.square(embeddings-perturbed_embeddings)))
-
-        if distance <= self.__adaptive_delta_threshold:
-            self.__adaptive_sigma *= self.params.alpha_scalar
-        else:
-            self.__adaptive_sigma /= self.params.alpha_scalar
-
-        # Page 15:
-        # "Setting δ := σ as
-        # the adaptive parameter space threshold thus results in effective action space noise that has the same
-        # standard deviation as regular Gaussian action space noise."
-        self.__adaptive_delta_threshold = self.__adaptive_sigma
-
-        return perturbed_actions, distance
+        return actions, -1
     
 
     def run(self, run_demonstrations: bool):

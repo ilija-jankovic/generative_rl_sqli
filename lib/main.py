@@ -39,7 +39,7 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 1
 
 EMBEDDING_DIM = 128
 
@@ -123,7 +123,7 @@ else:
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 
-payload_builder = PayloadBuilder(dictionary, '\'', '--')
+payload_builder = PayloadBuilder(dictionary, '', '')
 
 if record_demonstrations:
     print('Filtering unformatted payloads...')

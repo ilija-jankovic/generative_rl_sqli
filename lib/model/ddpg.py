@@ -45,7 +45,7 @@ class DDPG:
     __adaptive_sigma: float
     __adaptive_delta_threshold: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 64):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 256):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -122,7 +122,9 @@ class DDPG:
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.LSTM(self.actor_lstm_units, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True)(input_lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(input_lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -141,21 +143,21 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 64
+        LSTM_UNITS = 256
 
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_state_out = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
+        lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
-        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(state_input)
-        lstm = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), return_state=True, return_sequences=True, unroll=True)(lstm)
-        lstm_action_out = layers.LSTM(LSTM_UNITS, kernel_initializer=tf.keras.initializers.Orthogonal(), activation='relu', unroll=True)(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
+        lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
@@ -225,7 +227,7 @@ class DDPG:
 
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
 
-        actions = tf.fill([batch_size, action_size], tf.int32.min)
+        actions = tf.fill([batch_size, action_size], len(self.env.dictionary) - 1)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
         lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)], dtype=tf.float32)
@@ -263,7 +265,7 @@ class DDPG:
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
         for layer in self.actor_perturbed.trainable_weights:
-            
+
             # Noise applied only to LSTMs we are interested in noising their hidden state.
             # Based on the paper "Noisy Recurrent Neural Networks":
             # https://arxiv.org/pdf/2102.04877.pdf

@@ -1,3 +1,4 @@
+import math
 from typing import List
 
 import tensorflow as tf
@@ -14,7 +15,7 @@ class PayloadBuilder:
         self.suffix = suffix
 
     def convert_action_to_payload(self, action: tf.Tensor):
-        tokens = [self.dictionary[int(i)] if i >= 0 and i < len(self.dictionary) else '' for i in action]
+        tokens = [self.dictionary[i] for i in action.numpy()]
 
         try:
             empty_token_index = tokens.index('')

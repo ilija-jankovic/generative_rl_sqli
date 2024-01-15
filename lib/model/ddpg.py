@@ -131,8 +131,11 @@ class DDPG:
         state_h = lstm[1]
         state_c = lstm[2]
 
+        # Add normalisation layers between perturbed layers (pg. 3).
         dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.BatchNormalization()(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
@@ -253,6 +256,17 @@ class DDPG:
 
         return state, reward, done
     
+    
+    def __update_perturbed_actor(self):
+        self.actor_perturbed.set_weights(self.actor_model.get_weights()) 
+
+        # Adding noise to model weights algorithm by Daan Klijn:
+        # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
+        for layer in self.actor_perturbed.trainable_weights:
+            noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
+            layer.assign_add(noise)
+            
+    
     # Adapted solution by Sören Kirchner:
     # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
     #
@@ -260,30 +274,13 @@ class DDPG:
     # PARAMETER SPACE NOISE FOR EXPLORATION paper:
     # https://openreview.net/pdf?id=ByBAl2eAZ
     def __get_perturbed_actions(self, states: tf.Tensor):
-        self.actor_perturbed.set_weights(self.actor_model.get_weights()) 
-
-        # Adding noise to model weights algorithm by Daan Klijn:
-        # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
-        for layer in self.actor_perturbed.trainable_weights:
-
-            # Noise applied only to LSTMs we are interested in noising their hidden state.
-            # Based on the paper "Noisy Recurrent Neural Networks":
-            # https://arxiv.org/pdf/2102.04877.pdf
-            if 'lstm' in layer.name:
-                noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
-                layer.assign_add(noise)
-
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        embeddings = np.array([[self.env.embeddings[token] for token in action] for action in actions])
-        perturbed_embeddings = np.array([[self.env.embeddings[token] for token in action] for action in perturbed_actions])
-        
-        # Embeddings are already normalised, so cosine similarity is the dot product.
-        cosine_distances = np.array([[[embeddings[i][j] @ perturbed_embeddings[i][j]] for j in range(actions.shape[1])] for i in range(actions.shape[0])])
+        embeddings = np.array([[self.env.embeddings[i] for i in action] for action in actions])
+        perturbed_embeddings = np.array([[self.env.embeddings[i] for i in action] for action in perturbed_actions])
 
-        # Calculate cosine distance by subtracting similarity from unity.
-        distance = 1.0 - np.mean(cosine_distances)
+        distance = np.sqrt(np.mean(np.square(embeddings-perturbed_embeddings)))
 
         if distance <= self.__adaptive_delta_threshold:
             self.__adaptive_sigma *= self.params.alpha_scalar
@@ -356,8 +353,11 @@ class DDPG:
             print('Gathering demonstrations...')
 
         for ep in range(1, total_episodes + 1):
-            prev_states = [self.env.create_empty_state() for _ in range(self.params.batch_size)]
+            prev_states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
+
+            # Update perturbed actor at beginning of episode for stability (pg. 3).
+            self.__update_perturbed_actor()
 
             while True:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps

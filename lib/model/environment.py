@@ -72,12 +72,12 @@ class Environment():
         self.__inject_random_payloads()
 
     def __inject_random_payloads(self):
-        self.__inject_payload('')
-        self.__inject_payload('random string')
+        self.__inject_payload('', record_tokens=True)
+        self.__inject_payload('random string', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
-            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
+            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix, record_tokens=True)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
@@ -91,7 +91,7 @@ class Environment():
     def __payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads
 
-    def create_empty_state(self):
+    def create_empty_state(self, index: float):
         '''
         Creates a state filled with a normal distribution with a mean of zero 
         and a standard deviation of 1.
@@ -99,7 +99,7 @@ class Environment():
         Useful for variability in the agent's starting actions, which leads to
         unique branches for every item in a batch.
         '''
-        return tf.random.normal((self.state_size, self.embedding_size))
+        return tf.fill((self.state_size, self.embedding_size), index)
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -121,7 +121,7 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __inject_payload(self, payload: str):
+    def __inject_payload(self, payload: str, record_tokens: bool):
         '''
         Returns new tokens found after filtering responses.
         '''
@@ -134,7 +134,8 @@ class Environment():
         unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
         new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
 
-        self.__found_tokens += new_tokens
+        if record_tokens:
+            self.__found_tokens += new_tokens
 
         return res2, new_tokens
     
@@ -143,8 +144,8 @@ class Environment():
         Returns whether the episode has ended.
         '''
 
-        if extend:
-            self.__episode.extend_episode()
+        #if extend:
+        #    self.__episode.extend_episode()
 
         self.__episode.next_frame()
 
@@ -195,11 +196,7 @@ class Environment():
 
         self.__record_payload(payload)
 
-        #static_reward = self.__get_static_reward(action)
-        #dynamic_reward = self.__attempt_injection(payload)
-
-        #reward = static_reward + dynamic_reward
-        response, new_tokens = self.__inject_payload(payload)
+        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
 
         new_tokens_count = len(new_tokens)
         

@@ -15,7 +15,9 @@ class PayloadBuilder:
         self.suffix = suffix
 
     def convert_action_to_payload(self, action: tf.Tensor):
-        tokens = [self.dictionary[i] for i in action.numpy()]
+        dictionary_length = len(self.dictionary)
+
+        tokens = [self.dictionary[int(i)] if i >= 0.0 and i < dictionary_length else '' for i in action.numpy()]
 
         try:
             empty_token_index = tokens.index('')

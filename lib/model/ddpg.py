@@ -277,8 +277,8 @@ class DDPG:
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         perturbed_actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        embeddings = np.array([[self.env.embeddings[i] for i in action] for action in actions])
-        perturbed_embeddings = np.array([[self.env.embeddings[i] for i in action] for action in perturbed_actions])
+        embeddings = np.mean([[self.env.embeddings[i] for i in action] for action in actions], axis=0)
+        perturbed_embeddings = np.mean([[self.env.embeddings[i] for i in action] for action in perturbed_actions], axis=0)
 
         distance = np.sqrt(np.mean(np.square(embeddings-perturbed_embeddings)))
 

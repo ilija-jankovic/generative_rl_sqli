@@ -1,6 +1,7 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import math
 import random
@@ -256,6 +257,15 @@ class DDPG:
 
         return state, reward, done
     
+
+    async def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer):
+        tasks = [(lambda: self.__run_action(actions[i], prev_states[i], buffer)) for i in range(self.params.batch_size)]
+
+        with ThreadPoolExecutor() as executor:
+            running_tasks = [executor.submit(task) for task in tasks]
+            for running_task in running_tasks:
+                yield running_task.result()
+    
     
     def __update_perturbed_actor(self):
         self.actor_perturbed.set_weights(self.actor_model.get_weights()) 
@@ -275,7 +285,7 @@ class DDPG:
         return actions, -1
     
 
-    def run(self, run_demonstrations: bool):
+    async def run(self, run_demonstrations: bool):
         actor_model = self.get_actor()
         actor_perturbed = self.get_actor()
         critic_model = self.get_critic()
@@ -355,7 +365,9 @@ class DDPG:
                 else:
                    actions, perturbation_distance = self.__get_perturbed_actions(prev_states)
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
+                env_tuples = [] 
+                async for env_tuple in self.__run_actions(actions, prev_states, buffer):
+                    env_tuples.append(env_tuple)
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
 

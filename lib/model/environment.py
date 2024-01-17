@@ -72,15 +72,18 @@ class Environment():
         self.__inject_random_payloads()
 
     def __inject_random_payloads(self):
-        self.__inject_payload('')
-        self.__inject_payload('random string')
+        self.__inject_payload('', record_tokens=True)
+        self.__inject_payload('random string', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
-            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix)
+            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix, record_tokens=True)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
+
+    def __reset_payload_cache(self):
+        self.__attempted_payloads.clear()
 
     def get_payload(self, action: tf.Tensor):
         return self.payload_builder.convert_action_to_payload(action)
@@ -123,6 +126,8 @@ class Environment():
         '''
         Returns new tokens found after filtering responses.
         '''
+        self.__record_payload(payload)
+
         res1 = self.send_request_callback(payload)
         res2 = self.send_request_callback(payload)
 
@@ -142,9 +147,6 @@ class Environment():
         Returns whether the episode has ended.
         '''
 
-        if extend:
-            self.__episode.extend_episode()
-
         self.__episode.next_frame()
 
         episode_ended = self.__episode.has_episode_ended()
@@ -154,6 +156,7 @@ class Environment():
             # Remove found tokens to allow DDPG to learn
             # with more reward opportunity.
             self.__reset_token_cache()
+            self.__reset_payload_cache()
 
             # Ensures data from non-useful injections is not rewarded.
             self.__inject_random_payloads()
@@ -192,13 +195,11 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        self.__record_payload(payload)
-
-        response, new_tokens = self.__inject_payload(payload)
+        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
 
         new_tokens_count = len(new_tokens)
         
-        if new_tokens_count > 0:
+        if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
             print(f'Successful payload (reward: {reward}):')
             print(payload)

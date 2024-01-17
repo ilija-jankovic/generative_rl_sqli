@@ -164,10 +164,10 @@ class Environment():
         return episode_ended
     
     # TODO: Add table and column names from response to state definition.
-    def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
+    def __create_state(self, action: tf.Tensor, data: str, new_tokens: List[str]):
         res_size = self.state_size - self.action_size
 
-        embeddings = [self.embeddings[i.numpy()] if i.numpy() > 0.0 and i.numpy() < len(self.dictionary) else [0.0] * self.embedding_size for i in action]
+        embeddings = [self.embeddings[i] for i in action]
 
         res_section_size = res_size // 2
 
@@ -179,7 +179,7 @@ class Environment():
 
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
     
-    def perform_action(self, action: np.ndarray):
+    def perform_action(self, action: tf.Tensor):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.

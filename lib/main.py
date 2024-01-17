@@ -1,5 +1,4 @@
 #!/usr/local/bin/python
-import asyncio
 import sys
 import numpy as np
 import requests
@@ -182,7 +181,7 @@ def main():
 
     print('Running DDPG...')
 
-    asyncio.run(ddpg.run(run_demonstrations=record_demonstrations))
+    ddpg.run(run_demonstrations=record_demonstrations)
 
 if __name__ == '__main__':
     main()

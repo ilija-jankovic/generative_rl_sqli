@@ -1,5 +1,4 @@
 #!/usr/local/bin/python
-import asyncio
 import sys
 import numpy as np
 import requests
@@ -40,7 +39,7 @@ except:
 #
 #
 
-BATCH_SIZE = 64
+BATCH_SIZE = 1
 
 EMBEDDING_DIM = 128
 
@@ -124,7 +123,7 @@ else:
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 
-payload_builder = PayloadBuilder(dictionary, '\'', '--')
+payload_builder = PayloadBuilder(dictionary, '', '')
 
 if record_demonstrations:
     print('Filtering unformatted payloads...')
@@ -157,7 +156,7 @@ def print_decoded_injections():
 
 def main():
     params = DDPGHyperparameters(
-        gamma=0.999,
+        gamma=0.98,
         tau=0.005,
         actor_learning_rate=0.0025,
         critic_learning_rate=0.005,
@@ -182,7 +181,7 @@ def main():
 
     print('Running DDPG...')
 
-    asyncio.run(ddpg.run(run_demonstrations=record_demonstrations))
+    ddpg.run(run_demonstrations=record_demonstrations)
 
 if __name__ == '__main__':
     main()

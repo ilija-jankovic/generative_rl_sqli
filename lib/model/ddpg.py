@@ -1,7 +1,6 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import datetime
 import math
@@ -250,7 +249,7 @@ class DDPG:
         return actions
 
 
-    def __run_action(self, action: np.ndarray, prev_state: np.ndarray, buffer: ReplayBuffer):
+    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer):
         # Recieve state and reward from environment.
         state, reward, done = self.env.perform_action(action)
 
@@ -259,10 +258,13 @@ class DDPG:
         return state, reward, done
     
 
-    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer):
-        args = [(actions[i], prev_states[i], buffer) for i in range(self.params.batch_size)]
+    async def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer):
+        tasks = [(lambda: self.__run_action(actions[i], prev_states[i], buffer)) for i in range(self.params.batch_size)]
 
-        return ThreadPoolExecutor().map(lambda args: self.__run_action(*args), args)
+        with ThreadPoolExecutor() as executor:
+            running_tasks = [executor.submit(task) for task in tasks]
+            for running_task in running_tasks:
+                yield running_task.result()
     
     
     def __update_perturbed_actor(self):
@@ -283,7 +285,7 @@ class DDPG:
         return actions, -1
     
 
-    def run(self, run_demonstrations: bool):
+    async def run(self, run_demonstrations: bool):
         actor_model = self.get_actor()
         actor_perturbed = self.get_actor()
         critic_model = self.get_critic()
@@ -363,7 +365,9 @@ class DDPG:
                 else:
                    actions, perturbation_distance = self.__get_perturbed_actions(prev_states)
 
-                env_tuples = list(self.__run_actions(actions, prev_states, buffer))
+                env_tuples = [] 
+                async for env_tuple in self.__run_actions(actions, prev_states, buffer):
+                    env_tuples.append(env_tuple)
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
 

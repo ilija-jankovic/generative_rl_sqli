@@ -44,7 +44,7 @@ BATCH_SIZE = 64
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 10
+ACTION_SIZE = 30
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -57,7 +57,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=d0b56d5c5f09b3d929e643614aef17c8; {flag}=b137fdd1f79d56c7edf3365fea7520f2'
+COOKIE = 'pma_lang=en; PHPSESSID=e5c06f3519d5aa42b74da0807065f270; {flag}=7f100b7b36092fb9b06dfb4fac360931'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -166,9 +166,9 @@ def main():
         buffer_size=1000000,
         batch_size=BATCH_SIZE,
         alpha_scalar=0.999,
-        starting_adaptive_sigma=5.0,
+        starting_adaptive_sigma=1.0,
         starting_adaptive_delta=1.0,
-        psi=0.3,
+        psi=1.0,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         prefix=payload_builder.prefix,

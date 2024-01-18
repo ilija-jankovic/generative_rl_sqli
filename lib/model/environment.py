@@ -139,12 +139,13 @@ class Environment():
             resText2 = self.__filter_payload_from_text(res2.text, payload)
 
             unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
-            new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
         else:
             res2 = self.send_request_callback(payload)
             resText = self.__filter_payload_from_text(res2.text, payload)
 
-            new_tokens = list(set(resText) - set(self.__found_tokens))
+            unique_tokens = self.__tokenize_text(resText)
+
+        new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
 
         if record_tokens:
             self.__found_tokens += new_tokens

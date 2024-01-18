@@ -20,6 +20,7 @@ args = sys.argv[1:]
 run_sqlmap = '--no-run-sqlmap' not in args
 record_demonstrations = '--no-demonstrations' not in args
 use_cache = '--from-cache' in args
+double_requests = '--no-double-requests' not in args
 
 embedding_data_rows = None
 
@@ -39,7 +40,7 @@ except:
 #
 #
 
-BATCH_SIZE = 1
+BATCH_SIZE = 64
 
 EMBEDDING_DIM = 128
 
@@ -56,7 +57,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=03e357607a8c75fa099da71f72d3e333; {flag}=795c7a7a5ec6b460ec00c5841019b9e9'
+COOKIE = 'pma_lang=en; PHPSESSID=d0b56d5c5f09b3d929e643614aef17c8; {flag}=b137fdd1f79d56c7edf3365fea7520f2'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -140,6 +141,7 @@ environment = Environment(
     embeddings=embeddings,
     columns=columns,
     tables=tables,
+    double_requests=double_requests,
     send_request_callback= lambda payload:
         requests.get(OPEN_URL + payload, headers=headers))
                                          
@@ -164,7 +166,7 @@ def main():
         buffer_size=1000000,
         batch_size=BATCH_SIZE,
         alpha_scalar=0.999,
-        starting_adaptive_sigma=1.0,
+        starting_adaptive_sigma=5.0,
         starting_adaptive_delta=1.0,
         psi=0.3,
         action_size=ACTION_SIZE,

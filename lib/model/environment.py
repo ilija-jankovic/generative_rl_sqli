@@ -25,6 +25,8 @@ class Environment():
 
     # Calculated dynamically from embeddings.
     embedding_size : int
+
+    double_requests: bool
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
@@ -39,6 +41,7 @@ class Environment():
             batch_size: int,
             columns: List[str],
             tables: List[str],
+            double_requests: bool,
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
@@ -65,6 +68,8 @@ class Environment():
 
         self.columns = columns
         self.tables = tables
+
+        self.double_requests = double_requests
         
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(batch_size * 5)
@@ -126,23 +131,27 @@ class Environment():
         '''
         Returns new tokens found after filtering responses.
         '''
-        self.__record_payload(payload)
+        if self.double_requests:
+            res1 = self.send_request_callback(payload)
+            res2 = self.send_request_callback(payload)
 
-        res1 = self.send_request_callback(payload)
-        res2 = self.send_request_callback(payload)
+            resText1 = self.__filter_payload_from_text(res1.text, payload)
+            resText2 = self.__filter_payload_from_text(res2.text, payload)
 
-        resText1 = self.__filter_payload_from_text(res1.text, payload)
-        resText2 = self.__filter_payload_from_text(res2.text, payload)
+            unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
+            new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
+        else:
+            res2 = self.send_request_callback(payload)
+            resText = self.__filter_payload_from_text(res2.text, payload)
 
-        unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
-        new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
+            new_tokens = list(set(resText) - set(self.__found_tokens))
 
         if record_tokens:
             self.__found_tokens += new_tokens
 
         return res2, new_tokens
     
-    def __update_episode(self, extend: bool):
+    def __update_episode(self):
         '''
         Returns whether the episode has ended.
         '''
@@ -206,8 +215,10 @@ class Environment():
         else:
             reward = -1.0
         
+        self.__record_payload(payload)
+
         state = self.__create_state(action, response.text, new_tokens)
 
-        episode_ended = self.__update_episode(extend=reward >= 1.0)
+        episode_ended = self.__update_episode()
 
         return state, reward, episode_ended

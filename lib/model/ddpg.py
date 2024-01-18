@@ -45,7 +45,7 @@ class DDPG:
     __adaptive_sigma: float
     __adaptive_delta_threshold: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 256):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 1024):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         # Ensure last token in dictionary is the empty token.
@@ -124,6 +124,8 @@ class DDPG:
 
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(input_lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -146,12 +148,14 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 256
+        LSTM_UNITS = 512
 
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
@@ -159,6 +163,8 @@ class DDPG:
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 

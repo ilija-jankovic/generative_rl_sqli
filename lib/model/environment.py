@@ -27,6 +27,8 @@ class Environment():
     embedding_size : int
 
     double_requests: bool
+
+    reward_unique_tokens_only: bool
     
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
@@ -42,6 +44,7 @@ class Environment():
             columns: List[str],
             tables: List[str],
             double_requests: bool,
+            reward_unique_tokens_only: bool,
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
@@ -70,6 +73,7 @@ class Environment():
         self.tables = tables
 
         self.double_requests = double_requests
+        self.reward_unique_tokens_only = reward_unique_tokens_only
         
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(batch_size * 5)
@@ -205,7 +209,7 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
+        response, new_tokens = self.__inject_payload(payload, record_tokens=self.reward_unique_tokens_only)
 
         new_tokens_count = len(new_tokens)
         

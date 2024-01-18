@@ -31,7 +31,7 @@ class Reporter:
             f.write(f'Report started at {now}\n')
             f.write('\n')
             f.write('Constants\n')
-            f.write('γ,τ,Actor η,Critic η,Embedding Size,Buffer Size,Batch Size,Starting ε,ε Decay,Min ε,ψ,Action Size,State Size,Prefix,Suffix\n')
+            f.write('γ,τ,Actor η,Critic η,Embedding Size,Buffer Size,Batch Size,Starting ε,ε Decay,Min ε,ψ,Action Size,State Size,Prefix,Suffix,Reward Unique Tokens Only Per Epsiode\n')
             f.write(f'{params.gamma},')
             f.write(f'{params.tau},')
             f.write(f'{params.actor_learning_rate},')
@@ -46,7 +46,8 @@ class Reporter:
             f.write(f'{params.action_size},')
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')
-            f.write(f'{params.suffix}\n\n')
+            f.write(f'{params.suffix},')
+            f.write(f'{params.reward_unique_tokens_only}\n\n')
             f.write('Time,Episode,Frame,Is Demonstration,ε,Total Average Reward\n')
         f.close()
 

@@ -28,22 +28,7 @@ class DDPG:
     
     actor_perturbed: keras.Model
 
-    # Definitions can be found on Page 3 of
-    # PARAMETER SPACE NOISE FOR EXPLORATION:
-    # https://openreview.net/pdf?id=ByBAl2eAZ
-    #
-    # Page 12:
-    # "Sparse environments use an action space noise with σ = 0.6"
-    #
-    # Page 14:
-    # "In our experiments, we always use α = 1.01."
-    #
-    # Page 15:
-    # "Setting δ := σ as
-    # the adaptive parameter space threshold thus results in effective action space noise that has the same
-    # standard deviation as regular Gaussian action space noise."
-    __adaptive_sigma: float
-    __adaptive_delta_threshold: float
+    __epsilon: float
     
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 1024):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
@@ -55,8 +40,7 @@ class DDPG:
         self.params = params
         self.actor_lstm_units = actor_lstm_units
 
-        self.__adaptive_sigma = params.starting_adaptive_sigma
-        self.__adaptive_delta_threshold = params.starting_adaptive_delta
+        self.__epsilon = params.epsilon_start
 
         # Take out empty tokens.
         encoded_payloads = [[token for token in payload if token != len(env.dictionary) - 1] for payload in encoded_payloads]
@@ -269,16 +253,16 @@ class DDPG:
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
         for layer in self.actor_perturbed.trainable_weights:
-            noise = np.random.normal(loc=0.0, scale=self.__adaptive_sigma, size=layer.shape)
+            noise = np.random.normal(loc=0.0, scale=self.__epsilon, size=layer.shape)
             layer.assign_add(noise)
             
     
     def __get_perturbed_actions(self, states: tf.Tensor):
         actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
-        self.__adaptive_sigma = max(self.__adaptive_sigma * self.params.alpha_scalar, 0.3)
+        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
 
-        return actions, -1
+        return actions
     
 
     def run(self, run_demonstrations: bool):
@@ -341,17 +325,17 @@ class DDPG:
             prev_states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
 
-            # Update perturbed actor at beginning of episode for stability (pg. 3).
+            # Update perturbed actor at beginning of episode for stability.
+            # (Pg. 3 of Adapative Parameter Space Noise paper).
             self.__update_perturbed_actor()
 
             while True:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
-                prev_sigma = self.__adaptive_sigma
-                prev_delta = self.__adaptive_delta_threshold
+                prev_epsilon = self.__epsilon
 
                 if demonstrate:
-                    actions, perturbation_distance = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
                     demonstrations_completed += self.params.batch_size
                     
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
@@ -359,7 +343,7 @@ class DDPG:
                     if demonstrations_completed >= total_demonstration_steps:
                         print('Transitions gathered.')
                 else:
-                   actions, perturbation_distance = self.__get_perturbed_actions(prev_states)
+                   actions = self.__get_perturbed_actions(prev_states)
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
 
@@ -379,9 +363,7 @@ class DDPG:
                     frame=frame,
                     total_avg_reward=avg_reward,
                     is_demonstration=demonstrate,
-                    adpative_sigma=prev_sigma,
-                    adpative_delta=prev_delta,
-                    avg_perturbation_distance=perturbation_distance,
+                    epsilon=prev_epsilon
                 )
                 
                 reporter.record_running_statistic(running_stat)

@@ -10,9 +10,9 @@ class DDPGHyperparameters:
     embedding_size: int
     buffer_size: int
     batch_size: int
-    alpha_scalar: float
-    starting_adaptive_sigma: float
-    starting_adaptive_delta: float
+    epsilon_start: float
+    epsilon_decay: float
+    epsilon_min: float
     psi: float
     action_size: int
     state_size: int
@@ -28,9 +28,9 @@ class DDPGHyperparameters:
             embedding_size: int,
             buffer_size: int,
             batch_size: int,
-            alpha_scalar: float,
-            starting_adaptive_sigma: float,
-            starting_adaptive_delta: float,
+            epsilon_start: float,
+            epsilon_decay: float,
+            epsilon_min: float,
             psi: float,
             action_size: int,
             state_size: int,
@@ -44,9 +44,9 @@ class DDPGHyperparameters:
         self.embedding_size = embedding_size
         self.buffer_size = buffer_size
         self.batch_size = batch_size
-        self.alpha_scalar = alpha_scalar
-        self.starting_adaptive_sigma = starting_adaptive_sigma
-        self.starting_adaptive_delta = starting_adaptive_delta
+        self.epsilon_start = epsilon_start
+        self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
         self.psi = psi
         self.action_size = action_size
         self.state_size = state_size

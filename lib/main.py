@@ -40,7 +40,7 @@ except:
 #
 #
 
-BATCH_SIZE = 64
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 128
 
@@ -149,7 +149,8 @@ params = DDPGHyperparameters(
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,
     suffix=payload_builder.suffix,
-    reward_unique_tokens_only=True
+    reward_unique_tokens_only=False
+    # TODO: Add extend epsiode parameter.
 )
 
 environment = Environment(

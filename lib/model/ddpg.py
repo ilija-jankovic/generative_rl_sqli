@@ -100,16 +100,15 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
-        DROPOUT = 0.1
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
 
         dictionary_length = len(self.env.dictionary)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(input_lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2'))(input_lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2'))(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, kernel_regularizer='L2'))(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -117,13 +116,10 @@ class DDPG:
         state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.Dropout(DROPOUT)(state_h)
+        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dropout(DROPOUT)(dense)
-        dense = layers.Dense(1024, activation='relu')(dense)
-        dense = layers.BatchNormalization()(dense)
-        dense = layers.Dropout(DROPOUT)(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
@@ -139,16 +135,16 @@ class DDPG:
         # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(state_input)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
+        lstm_state_out = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
 
         # Action as input
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(action_input)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(action_input)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
+        lstm_action_out = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])

@@ -215,7 +215,7 @@ class Environment():
         
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
-            print(f'Successful payload (reward: {reward}):')
+            print(f'Successful payload (unscaled reward: {reward}):')
             print(payload)
         else:
             reward = -1.0

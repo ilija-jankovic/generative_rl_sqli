@@ -219,6 +219,8 @@ class Environment():
             print(payload)
         else:
             reward = -1.0
+
+        # Add extend episode condition based on parameter.
         
         self.__record_payload(payload)
 

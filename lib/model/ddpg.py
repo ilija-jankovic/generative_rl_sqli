@@ -132,19 +132,21 @@ class DDPG:
     def get_critic(self):
         LSTM_UNITS = 512
 
-        # State as input
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
-        # Action as input
-        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
+        action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
 
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(action_input)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
+        # Get embedding inputs from action indices.
+        embedding_input = layers.Lambda(lambda action_input: tf.gather(self.env.embeddings, action_input))(action_input)
+
+        # Bidirectional suited for NLP sequences.
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(embedding_input)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
+        lstm_action_out = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])

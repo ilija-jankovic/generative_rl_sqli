@@ -33,8 +33,10 @@ class DDPG:
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 1024):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
+        dictionary_length = len(env.dictionary)
+
         # Ensure last token in dictionary is the empty token.
-        assert(len(env.dictionary) > 0 and env.dictionary[-1] == '')
+        assert(dictionary_length > 0 and env.dictionary[-1] == '')
 
         self.env = env
         self.params = params
@@ -49,7 +51,7 @@ class DDPG:
         encoded_payloads = list(filter(lambda payload: len(payload) <= self.env.action_size, encoded_payloads))
 
         # Pad with min int.
-        self.encoded_payloads = [[payload[i] if i < len(payload) else tf.int32.min for i in range(self.env.action_size)] for payload in encoded_payloads]
+        self.encoded_payloads = [[payload[i] if i < len(payload) else dictionary_length - 1 for i in range(self.env.action_size)] for payload in encoded_payloads]
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
@@ -234,9 +236,9 @@ class DDPG:
         return actions
 
 
-    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer):
+    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool):
         # Recieve state and reward from environment.
-        state, reward, done = self.env.perform_action(action)
+        state, reward, done = self.env.perform_action(action, ignore_episode=ignore_episode)
 
         buffer.record((prev_state, action, reward, state))
 
@@ -331,7 +333,7 @@ class DDPG:
                 prev_epsilon = self.__epsilon
 
                 if demonstrate:
-                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
                     demonstrations_completed += self.params.batch_size
                     
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
@@ -341,7 +343,7 @@ class DDPG:
                 else:
                    actions = self.__get_perturbed_actions(prev_states)
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer) for i in range(len(actions))]
+                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=demonstrate) for i in range(len(actions))]
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
 

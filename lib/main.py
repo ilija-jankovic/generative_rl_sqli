@@ -139,17 +139,16 @@ params = DDPGHyperparameters(
     actor_learning_rate=0.0025,
     critic_learning_rate=0.005,
     embedding_size=EMBEDDING_DIM,
-    buffer_size=1000000,
+    buffer_size=500000,
     batch_size=BATCH_SIZE,
     epsilon_decay=0.999,
     epsilon_start=1.0,
     epsilon_min=0.2,
-    psi=1.0,
+    psi=0.3,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,
     suffix=payload_builder.suffix,
-    reward_unique_tokens_only=False
     # TODO: Add extend epsiode parameter.
 )
 
@@ -162,7 +161,6 @@ environment = Environment(
     columns=columns,
     tables=tables,
     double_requests=double_requests,
-    reward_unique_tokens_only=params.reward_unique_tokens_only,
     send_request_callback= lambda payload:
         requests.get(OPEN_URL + payload, headers=headers))
                                          

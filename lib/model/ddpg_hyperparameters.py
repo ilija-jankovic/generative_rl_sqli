@@ -18,7 +18,6 @@ class DDPGHyperparameters:
     state_size: int
     prefix: str
     suffix: str
-    reward_unique_tokens_only: bool
 
     def __init__(
             self,
@@ -37,7 +36,6 @@ class DDPGHyperparameters:
             state_size: int,
             prefix: str,
             suffix: str,
-            reward_unique_tokens_only: bool,
         ) -> None:
         self.gamma = gamma
         self.tau = tau
@@ -54,4 +52,3 @@ class DDPGHyperparameters:
         self.state_size = state_size
         self.prefix = prefix
         self.suffix = suffix
-        self.reward_unique_tokens_only = reward_unique_tokens_only

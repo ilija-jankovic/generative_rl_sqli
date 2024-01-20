@@ -28,8 +28,6 @@ class Environment():
 
     double_requests: bool
 
-    reward_unique_tokens_only: bool
-    
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
     __episode: EpisodeState
@@ -44,7 +42,6 @@ class Environment():
             columns: List[str],
             tables: List[str],
             double_requests: bool,
-            reward_unique_tokens_only: bool,
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
@@ -73,7 +70,6 @@ class Environment():
         self.tables = tables
 
         self.double_requests = double_requests
-        self.reward_unique_tokens_only = reward_unique_tokens_only
         
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(batch_size * 5)
@@ -131,7 +127,7 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __inject_payload(self, payload: str, record_tokens: bool = True):
+    def __inject_payload(self, payload: str, record_tokens: bool):
         '''
         Returns new tokens found after filtering responses.
         '''
@@ -193,7 +189,7 @@ class Environment():
 
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
     
-    def perform_action(self, action: np.ndarray):
+    def perform_action(self, action: np.ndarray, ignore_episode: bool):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -209,7 +205,7 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        response, new_tokens = self.__inject_payload(payload, record_tokens=self.reward_unique_tokens_only)
+        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
 
         new_tokens_count = len(new_tokens)
         
@@ -220,12 +216,14 @@ class Environment():
         else:
             reward = -1.0
 
-        # Add extend episode condition based on parameter.
+        # TODO: Add extend episode condition based on parameter.
         
-        self.__record_payload(payload)
+        if ignore_episode:
+            episode_ended = False
+        else:
+            self.__record_payload(payload)
+            episode_ended = self.__update_episode()
 
         state = self.__create_state(action, response.text, new_tokens)
-
-        episode_ended = self.__update_episode()
 
         return state, reward, episode_ended

@@ -30,7 +30,7 @@ class DDPG:
 
     __epsilon: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 1024):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 64):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         dictionary_length = len(env.dictionary)
@@ -110,7 +110,10 @@ class DDPG:
 
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(input_lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -118,9 +121,9 @@ class DDPG:
         state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.Dense(256, activation='relu')(state_h)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.Dense(256, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -132,7 +135,7 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 512
+        LSTM_UNITS = 1024
 
         state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
 
@@ -146,15 +149,21 @@ class DDPG:
         embedding_input = layers.Lambda(lambda action_input: tf.gather(self.env.embeddings, action_input))(action_input)
 
         # Bidirectional suited for NLP sequences.
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(embedding_input)
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
-        lstm_action_out = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(embedding_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
+        lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
 
         out = layers.Dense(1024, activation="relu")(concat)
         out = layers.Dense(1024, activation="relu")(out)
+        out = layers.Dense(512, activation="relu")(out)
+        out = layers.Dense(256, activation="relu")(out)
+        out = layers.Dense(128, activation="relu")(out)
+        out = layers.Dense(64, activation="relu")(out)
+        out = layers.Dense(32, activation="relu")(out)
+        out = layers.Dense(16, activation="relu")(out)
         outputs = layers.Dense(1)(out)
 
         # Outputs single value for give state-action

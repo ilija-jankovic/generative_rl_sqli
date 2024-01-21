@@ -20,9 +20,12 @@ class TokenParser:
         # For example, for tokens 'foo' and 'foo bar', we want 'foo
         # bar' to get tokenized first, else only 'foo' of 'foo bar'
         # will get tokenized.
-        self.tokens = sorted(tokens, reverse=True)
+        self.tokens = sorted(tokens, key=len, reverse=True)
         if self.tokens != tokens:
             raise Exception('Tokens must be sorted in descending order.')
+        
+        if self.tokens[-1] != '':
+            raise Exception('Sorted tokens list must contain empty token at the end.')
 
         self.token_blacklist = token_blacklist
 
@@ -46,30 +49,51 @@ class TokenParser:
         '''
         Assumes `data` does not contain any blacklisted tokens.
         '''
-        tokens_per_row = len(max(data, key=len))
-
         indexed_data: List[List[int]] = []
 
         for datum in tqdm.tqdm(data):
+            datum_replaced = datum
+
             index_map_list: List[Tuple[int, int]] = []
 
-            for token in self.tokens:
-                indices = [i for i,
-                           item in enumerate(datum) if item == token]
+            # Disregard empty token at the end of the token list.
+            for token_index, token in enumerate(self.tokens[:-1]):
+                token_length = len(token)
+                filler = '\0' * token_length
 
-                token_index = self.tokens.index(token)
-                for index in indices:
+                index = datum_replaced.find(token)
+
+                # Looping .find solution by AkiRoss from:
+                # https://stackoverflow.com/questions/4664850/how-to-find-all-occurrences-of-a-substring
+                while index != -1:
+                    token_end = index + token_length
+
+                    datum_replaced = datum_replaced[0:index] + filler + datum_replaced[token_end:]
+
                     index_map_list.append((index, token_index))
+
+                    index = datum_replaced.find(token)
+
+                parsed = True
+                for chr in datum_replaced:
+                    if chr != '\0':
+                        parsed = False
+                        break
+                
+                if parsed:
+                    break
 
             index_map_list.sort(key = lambda map: map[0])
 
             indexed_datum = [map[1] for map in index_map_list]
-
-            # Pad with padding token (which is expected to be at the bottom of the tokens list
-            # due to it being an empty string after sorting).
-            indexed_datum += [len(self.tokens) - 1] * (tokens_per_row - len(indexed_datum))
-
             indexed_data.append(indexed_datum)
+
+        tokens_per_row = len(max(indexed_data, key=len))
+        
+        # Pad with padding token (which is expected to be at the bottom of the tokens list
+        # due to it being an empty string after sorting).
+        for indexed_datum in indexed_data:
+            indexed_datum += [len(self.tokens) - 1] * (tokens_per_row - len(indexed_datum))
 
         return indexed_data
     

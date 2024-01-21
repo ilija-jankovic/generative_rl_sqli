@@ -44,7 +44,7 @@ BATCH_SIZE = 64
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 10
+ACTION_SIZE = 20
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -57,7 +57,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=e5c06f3519d5aa42b74da0807065f270; {flag}=7f100b7b36092fb9b06dfb4fac360931'
+COOKIE = 'pma_lang=en; PHPSESSID=749ac0029fa8de01e089ec24d1ee8deb; {flag}=e00da03b685a0dd18fb6a08af0923de0'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -82,15 +82,17 @@ tables = schema_parser.get_table_tokens_from_schema(schema)
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
-payloads = data_service.load_payload_files(sqlmap.domain_name)
+payloads = data_service.load_manual_payloads()
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
+
+dictionary = [token.upper() for token in dictionary]
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.
 dictionary = list(set(dictionary))
 
-dictionary.sort(reverse=True)
+dictionary.sort(key=len, reverse=True)
 
 token_parser = TokenParser(dictionary, token_blacklist)
 
@@ -176,8 +178,6 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
-
-
     ddpg = DDPG(
         environment,
         encoded_payloads=encoded_payloads,

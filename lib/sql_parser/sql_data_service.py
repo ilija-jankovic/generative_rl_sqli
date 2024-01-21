@@ -64,6 +64,11 @@ class SQLDataService:
         # Reduces unnecessary complexity for the DDPGfD action space by reducing
         # same-meaning syntax.
         return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
+
+    def load_manual_payloads(self):
+        payloads = self.__read_lines('../../manual_payloads.txt')
+    
+        return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
     
     def load_sql_tokens(self):
         return self.__read_lines('../../sql_tokenizable.txt')

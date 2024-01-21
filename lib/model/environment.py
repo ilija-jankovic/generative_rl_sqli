@@ -79,6 +79,11 @@ class Environment():
     def __inject_random_payloads(self):
         self.__inject_payload('', record_tokens=True)
         self.__inject_payload('random string', record_tokens=True)
+        self.__inject_payload('1', record_tokens=True)
+        self.__inject_payload('2', record_tokens=True)
+        self.__inject_payload('3', record_tokens=True)
+        self.__inject_payload('4', record_tokens=True)
+        self.__inject_payload('5', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.

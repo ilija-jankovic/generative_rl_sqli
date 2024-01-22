@@ -46,7 +46,11 @@ class SQLDataService:
         return data
     
     def load_schema(self) -> Dict[str, str]:
-        return self.__load_json('../../schema.json')
+        schema = self.__load_json('../../schema.json')
+
+        # Modification of JSON case solution by bumblebee:
+        # https://stackoverflow.com/questions/62014675/how-to-lowercase-all-keys-in-json-dict-with-python
+        return {key.upper():value for key, value in schema.items()}
 
     def load_payload_files(self, domain_name: str):
         payloads: List[str] = []
@@ -64,9 +68,9 @@ class SQLDataService:
         # Reduces unnecessary complexity for the DDPGfD action space by reducing
         # same-meaning syntax.
         return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
-
-    def load_manual_payloads(self):
-        payloads = self.__read_lines('../../manual_payloads.txt')
+    
+    def load_contextual_payload_templates(self):
+        payloads = self.__read_lines('../../contextual_payload_templates.txt')
     
         return list(map(lambda payload: payload.upper().replace('"', '\'').replace('#', '--'), payloads))
     
@@ -86,6 +90,9 @@ class SQLDataService:
     
     def save_parsed_wikisql_queries(self, queries: List[str]):
         self.__save_lines('../../wikisql/parsed_queries.txt', queries)
+
+    def save_contextual_payloads(self, payloads):
+        self.__save_lines('../../contextual_payloads.txt', payloads)
 
     def save_embeddings(self, embeddings: List[List[float]]):
         self.__save_json('../../embeddings.json', embeddings)

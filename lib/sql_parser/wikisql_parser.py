@@ -5,7 +5,7 @@ import string
 class WikiSQLParser:
     __COLUMN_STRING_ALPHABET = string.digits + string.ascii_letters + '%-_@$./'
 
-    schema: Dict[str, str]
+    schema: Dict[str, List[str]]
 
     def __init__(self, schema: Dict[str, str]):
         self.schema = schema

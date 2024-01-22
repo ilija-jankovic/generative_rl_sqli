@@ -30,7 +30,7 @@ class DDPG:
 
     __epsilon: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 64):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 512):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         dictionary_length = len(env.dictionary)
@@ -113,7 +113,6 @@ class DDPG:
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -121,9 +120,9 @@ class DDPG:
         state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.Dense(256, activation='relu')(state_h)
+        dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(256, activation='relu')(dense)
+        dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -344,11 +343,6 @@ class DDPG:
                 if demonstrate:
                     actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
                     demonstrations_completed += self.params.batch_size
-                    
-                    print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
-
-                    if demonstrations_completed >= total_demonstration_steps:
-                        print('Transitions gathered.')
                 else:
                    actions = self.__get_perturbed_actions(prev_states)
 
@@ -361,36 +355,42 @@ class DDPG:
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
 
-                frame += self.params.batch_size
-
-                avg_reward = np.mean(avg_batch_rewards)
-
-                running_stat = DDPGRunningStatistic(
-                    epsiode=ep,
-                    frame=frame,
-                    total_avg_reward=avg_reward,
-                    is_demonstration=demonstrate,
-                    epsilon=prev_epsilon
-                )
-                
-                reporter.record_running_statistic(running_stat)
-
-                payload_stats = [
-                    DDPGPayloadStatistic(
-                        epsiode=ep,
-                        frame=frame,
-                        payload=self.env.get_payload(actions[i]),
-                        reward=env_tuples[i][1],
-                        is_demonstration=demonstrate
-                    ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
-                ]
-                
-                for stat in payload_stats:
-                    reporter.record_payload_statistic(stat)
-
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
                 self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
+
+                if demonstrate:
+                    print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
+
+                    if demonstrations_completed >= total_demonstration_steps:
+                        print('Transitions gathered.')
+                else:
+                    frame += self.params.batch_size
+
+                    avg_reward = np.mean(avg_batch_rewards)
+
+                    running_stat = DDPGRunningStatistic(
+                        epsiode=ep,
+                        frame=frame,
+                        total_avg_reward=avg_reward,
+                        is_demonstration=demonstrate,
+                        epsilon=prev_epsilon
+                    )
+                    
+                    reporter.record_running_statistic(running_stat)
+
+                    payload_stats = [
+                        DDPGPayloadStatistic(
+                            epsiode=ep,
+                            frame=frame,
+                            payload=self.env.get_payload(actions[i]),
+                            reward=env_tuples[i][1],
+                            is_demonstration=demonstrate
+                        ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
+                    ]
+                
+                    for stat in payload_stats:
+                        reporter.record_payload_statistic(stat)
 
                 # End this episode when `done` is True
                 if done:

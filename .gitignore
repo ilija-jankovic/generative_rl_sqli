@@ -5,3 +5,4 @@ __pycache__
 wikisql/parsed_queries.txt
 embeddings.json
 reports/
+contextual_payloads.txt

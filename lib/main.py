@@ -2,6 +2,7 @@
 import sys
 import numpy as np
 import requests
+from sql_parser.contextual_template_populator import ContextualTemplatePopulator
 from sql_parser.wikisql_parser import WikiSQLParser
 from sqlmap_runner import SqlmapRunner
 from sql_parser.token_parser import TokenParser
@@ -44,7 +45,7 @@ BATCH_SIZE = 64
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 20
+ACTION_SIZE = 30
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -57,7 +58,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=749ac0029fa8de01e089ec24d1ee8deb; {flag}=e00da03b685a0dd18fb6a08af0923de0'
+COOKIE = 'pma_lang=en; PHPSESSID=c2f397acd1524974897d573916c46f50; {flag}=08b255a5d42b89b0585260b6f2360bdd'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -82,7 +83,12 @@ tables = schema_parser.get_table_tokens_from_schema(schema)
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()
 
-payloads = data_service.load_manual_payloads()
+payload_templates = data_service.load_contextual_payload_templates()
+
+payloads = ContextualTemplatePopulator(schema).generate_randomised_examples(templates=payload_templates)
+data_service.save_contextual_payloads(payloads)
+
+payloads += data_service.load_payload_files(domain_name='localhost')
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
 
@@ -141,7 +147,7 @@ params = DDPGHyperparameters(
     actor_learning_rate=0.0025,
     critic_learning_rate=0.005,
     embedding_size=EMBEDDING_DIM,
-    buffer_size=500000,
+    buffer_size=1000000,
     batch_size=BATCH_SIZE,
     epsilon_decay=0.999,
     epsilon_start=1.0,

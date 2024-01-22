@@ -34,6 +34,7 @@ class TokenParser:
             if token in datum:
                 return True
         
+        # Blacklist data with sequences not contained in tokens.
         for token in self.tokens:
             datum = datum.replace(token, '')
 

@@ -349,15 +349,8 @@ class DDPG:
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=demonstrate) for i in range(len(actions))]
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
-
-                avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
-                avg_batch_rewards.append(avg_batch_reward)
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
-
-                buffer.learn()
-                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
-                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
                 if demonstrate:
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
@@ -366,6 +359,9 @@ class DDPG:
                         print('Transitions gathered.')
                 else:
                     frame += self.params.batch_size
+
+                    avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
+                    avg_batch_rewards.append(avg_batch_reward)
 
                     avg_reward = np.mean(avg_batch_rewards)
 
@@ -391,6 +387,10 @@ class DDPG:
                 
                     for stat in payload_stats:
                         reporter.record_payload_statistic(stat)
+
+                buffer.learn()
+                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
+                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
                 # End this episode when `done` is True
                 if done:

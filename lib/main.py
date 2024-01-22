@@ -41,7 +41,7 @@ except:
 #
 #
 
-BATCH_SIZE = 64
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 128
 
@@ -85,6 +85,7 @@ token_blacklist = data_service.load_sql_blacklist()
 
 payload_templates = data_service.load_contextual_payload_templates()
 
+# Get from cache for consistent tests.
 payloads = ContextualTemplatePopulator(schema).generate_randomised_examples(templates=payload_templates)
 data_service.save_contextual_payloads(payloads)
 

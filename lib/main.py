@@ -45,7 +45,7 @@ BATCH_SIZE = 512
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 30
+ACTION_SIZE = 20
 
 # TODO: Ensure states does not need to be larger than action size.
 #

@@ -327,6 +327,8 @@ class DDPG:
         if run_demonstrations:
             print('Gathering demonstrations...')
 
+        ep = 1
+
         for ep in range(1, total_episodes + 1):
             prev_states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
@@ -346,13 +348,15 @@ class DDPG:
                 else:
                    actions = self.__get_perturbed_actions(prev_states)
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=demonstrate) for i in range(len(actions))]
+                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
 
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
 
                 if demonstrate:
+                    avg_reward = None
+
                     print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
 
                     if demonstrations_completed >= total_demonstration_steps:
@@ -398,4 +402,4 @@ class DDPG:
 
                 prev_states = states
 
-            print("[{}] Episode: {}, Avg Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep, avg_reward, frame))
+            print("[{}] Episode: {}, Avg Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep, 'N/A' if avg_reward == None else avg_reward, frame))

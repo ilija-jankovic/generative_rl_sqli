@@ -58,7 +58,7 @@ STATE_SIZE = ACTION_SIZE * 2
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=c2f397acd1524974897d573916c46f50; {flag}=08b255a5d42b89b0585260b6f2360bdd'
+COOKIE = 'pma_lang=en; PHPSESSID=8b09c768b3ec5b133d121208a32d6801; {flag}=22ac3c5a5bf0b520d281c122d1490650'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \

@@ -309,9 +309,11 @@ class DDPG:
 
         divergence = tf.reduce_mean(divergence)
 
-        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
-
         return actions_perturbed, divergence
+
+    
+    def __decay_sigma(self):
+        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
     
 
     def run(self, run_demonstrations: bool):
@@ -383,8 +385,6 @@ class DDPG:
             while True:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
-                prev_epsilon = self.__epsilon
-
                 if demonstrate:
                     interactions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
                     demonstrations_completed += self.params.batch_size
@@ -421,7 +421,7 @@ class DDPG:
                         frame=frame,
                         total_avg_reward=avg_reward,
                         is_demonstration=demonstrate,
-                        epsilon=prev_epsilon,
+                        epsilon=self.__epsilon,
                         avg_kl_divergence=divergence
                     )
                     
@@ -439,6 +439,8 @@ class DDPG:
                 
                     for stat in payload_stats:
                         reporter.record_payload_statistic(stat)
+
+                    self.__decay_sigma()
 
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, self.params.tau)

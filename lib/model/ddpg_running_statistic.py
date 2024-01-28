@@ -5,6 +5,7 @@ class DDPGRunningStatistic:
     total_avg_reward: float
     is_demonstration: bool
     epsilon: float
+    avg_kl_divergence: float
 
     def __init__(
             self,
@@ -13,9 +14,11 @@ class DDPGRunningStatistic:
             total_avg_reward: float,
             is_demonstration: bool,
             epsilon: float,
+            avg_kl_divergence: float
         ) -> None:
         self.epsiode = epsiode
         self.frame = frame
         self.total_avg_reward = total_avg_reward
         self.is_demonstration = is_demonstration
         self.epsilon = epsilon
+        self.avg_kl_divergence = avg_kl_divergence

@@ -94,7 +94,6 @@ class ReplayBuffer:
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
         reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
 
         self.update(state_batch, action_batch, reward_batch, next_state_batch)

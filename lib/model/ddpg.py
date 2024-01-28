@@ -261,14 +261,57 @@ class DDPG:
         for layer in self.actor_perturbed.trainable_weights:
             noise = np.random.normal(loc=0.0, scale=self.__epsilon, size=layer.shape)
             layer.assign_add(noise)
+
+
+    @tf.function
+    def normalize_0_1(self, tensor: tf.Tensor):
+        '''
+        Expects only non-negative values in `tensor`.
+        '''
+        tf.debugging.assert_non_negative(tensor, '[0,1] normalization ' +
+            'tensor must not contain negative values.')
+        
+        sums = tf.reduce_sum(tensor, axis=-1, keepdims=True)
+        
+        return tensor / sums
+
+
+    @tf.function
+    def get_kl_divergence(self, t1: tf.Tensor, t2: tf.Tensor):
+        '''
+        `t1` and `t2` are normalized between `[0,1]` for divergence calculation,
+        but must only contain non-negative values.
+        '''
+        tf.debugging.assert_non_negative(t1,'Tensor for divergence ' +
+            'calculation must not contain negative values.')
+        tf.debugging.assert_non_negative(t2,'Tensor for divergence ' +
+            'calculation must not contain negative values.')
+
+        t1 = tf.cast(t1, dtype=tf.float32)
+        t2 = tf.cast(t2, dtype=tf.float32)
+
+        # Ensure values are scaled to sum to one to meet KL divergence
+        # requirement of probability distribution inputs.
+        t1 = self.normalize_0_1(t1)
+        t2 = self.normalize_0_1(t2)
+
+        return tf.keras.metrics.kl_divergence(t1, t2)
             
     
-    def __get_perturbed_actions(self, states: tf.Tensor):
-        actions = self.policy(states, PolicyType.PERTURBED.value, training=False)
+    @tf.function
+    def get_perturbed_actions(self, states: tf.Tensor):
+        actions = self.policy(states, PolicyType.NORMAL.value, training=False)
+        actions_perturbed = self.policy(states, PolicyType.PERTURBED.value, training=False)
+
+        # Actions are comprised of indices which are never negative, meeting
+        # the conditions of the KL divergence method.
+        divergence = self.get_kl_divergence(actions, actions_perturbed)
+
+        divergence = tf.reduce_mean(divergence)
 
         self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
 
-        return actions
+        return actions_perturbed, divergence
     
 
     def run(self, run_demonstrations: bool):
@@ -343,10 +386,12 @@ class DDPG:
                 prev_epsilon = self.__epsilon
 
                 if demonstrate:
-                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
+                    interactions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
                     demonstrations_completed += self.params.batch_size
                 else:
-                   actions = self.__get_perturbed_actions(prev_states)
+                   interactions = self.get_perturbed_actions(prev_states)
+
+                actions = interactions[0]
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
 
@@ -369,12 +414,15 @@ class DDPG:
 
                     avg_reward = np.mean(avg_batch_rewards)
 
+                    divergence = interactions[1]
+
                     running_stat = DDPGRunningStatistic(
                         epsiode=ep,
                         frame=frame,
                         total_avg_reward=avg_reward,
                         is_demonstration=demonstrate,
-                        epsilon=prev_epsilon
+                        epsilon=prev_epsilon,
+                        avg_kl_divergence=divergence
                     )
                     
                     reporter.record_running_statistic(running_stat)

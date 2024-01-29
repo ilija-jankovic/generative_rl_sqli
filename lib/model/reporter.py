@@ -49,7 +49,7 @@ class Reporter:
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')
             f.write(f'{params.suffix}\n\n')
-            f.write('Time,Episode,Frame,Is Demonstration,Standard Deviation,ε,Average KL Divergence,Distance Threshold,Total Average Reward\n')
+            f.write('Time,Episode,Frame,Is Demonstration,Standard Deviation,ε,Total Average KL Divergence,Distance Threshold,Total Average Reward\n')
         f.close()
 
         with open(self.__payloads_filename, 'w', encoding='utf-8') as f:
@@ -68,7 +68,7 @@ class Reporter:
             f.write(f'{stat.is_demonstration},')
             f.write(f'{stat.stddev},')
             f.write(f'{stat.epsilon},')
-            f.write(f'{stat.avg_kl_divergence},')
+            f.write(f'{stat.total_avg_kl_divergence},')
             f.write(f'{stat.distance_threshold},')
             f.write(f'{stat.total_avg_reward}\n')
         f.close()

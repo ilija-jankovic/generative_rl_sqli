@@ -387,6 +387,7 @@ class DDPG:
         )
 
         avg_batch_rewards = []
+        avg_divergences = []
         
         demonstrations_completed = 0
         frame = 0
@@ -446,6 +447,10 @@ class DDPG:
                     avg_reward = np.mean(avg_batch_rewards)
 
                     divergence = interactions[1]
+
+                    avg_divergences.append(divergence)
+                    avg_divergence = np.mean(avg_divergences)
+
                     distance_threshold = interactions[2]
 
                     running_stat = DDPGRunningStatistic(
@@ -455,7 +460,7 @@ class DDPG:
                         is_demonstration=demonstrate,
                         stddev=prev_stddev,
                         epsilon=self.__epsilon,
-                        avg_kl_divergence=divergence,
+                        total_avg_kl_divergence=avg_divergence,
                         distance_threshold=distance_threshold
                     )
                     

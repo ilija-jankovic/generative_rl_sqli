@@ -304,7 +304,7 @@ class DDPG:
 
     # Page 15 of Adaptive Noise Paper for epsilon-based KL divergence threshold.
     def __calculate_distance_threshold(self):
-        return -np.log(1-self.__epsilon+(self.__epsilon/self.params.batch_size))
+        return -np.log(1.0 - self.__epsilon + (self.__epsilon / self.params.batch_size))
             
     
     def __get_perturbed_actions(self, states: tf.Tensor):
@@ -314,6 +314,8 @@ class DDPG:
         # Actions are comprised of indices which are never negative, meeting
         # the conditions of the KL divergence method.
         divergence = self.get_kl_divergence(actions, actions_perturbed)
+
+        distance_threshold = self.__calculate_distance_threshold()
 
         # Adapted solution by Sören Kirchner:
         # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
@@ -326,12 +328,13 @@ class DDPG:
         # "Setting δ := σ as
         # the adaptive parameter space threshold thus results in effective action space noise that has the same
         # standard deviation as regular Gaussian action space noise."
-        if divergence <= self.__calculate_distance_threshold():
+        if divergence <= distance_threshold:
             self.__adaptive_stddev *= self.params.alpha_scalar
         else:
             self.__adaptive_stddev /= self.params.alpha_scalar
 
-        return actions_perturbed, divergence
+        return actions_perturbed, divergence, distance_threshold
+    
     def __decay_epsilon(self):
         self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)    
 
@@ -443,6 +446,7 @@ class DDPG:
                     avg_reward = np.mean(avg_batch_rewards)
 
                     divergence = interactions[1]
+                    distance_threshold = interactions[2]
 
                     running_stat = DDPGRunningStatistic(
                         epsiode=ep,
@@ -451,7 +455,8 @@ class DDPG:
                         is_demonstration=demonstrate,
                         stddev=prev_stddev,
                         epsilon=self.__epsilon,
-                        avg_kl_divergence=divergence
+                        avg_kl_divergence=divergence,
+                        distance_threshold=distance_threshold
                     )
                     
                     reporter.record_running_statistic(running_stat)

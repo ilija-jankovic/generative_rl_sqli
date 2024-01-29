@@ -7,6 +7,7 @@ class DDPGRunningStatistic:
     stddev: float
     epsilon: float
     avg_kl_divergence: float
+    distance_threshold: float
 
     def __init__(
             self,
@@ -16,7 +17,8 @@ class DDPGRunningStatistic:
             is_demonstration: bool,
             stddev: float,
             epsilon: float,
-            avg_kl_divergence: float
+            avg_kl_divergence: float,
+            distance_threshold: float
         ) -> None:
         self.epsiode = epsiode
         self.frame = frame
@@ -25,3 +27,4 @@ class DDPGRunningStatistic:
         self.stddev = stddev
         self.epsilon = epsilon
         self.avg_kl_divergence = avg_kl_divergence
+        self.distance_threshold = distance_threshold

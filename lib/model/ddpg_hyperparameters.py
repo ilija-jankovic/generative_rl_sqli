@@ -26,7 +26,6 @@ class DDPGHyperparameters:
             actor_learning_rate: float,
             critic_learning_rate: float,
             embedding_size: int,
-            buffer_size: int,
             batch_size: int,
             epsilon_start: float,
             epsilon_decay: float,
@@ -42,7 +41,6 @@ class DDPGHyperparameters:
         self.actor_learning_rate = actor_learning_rate
         self.critic_learning_rate = critic_learning_rate
         self.embedding_size = embedding_size
-        self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.epsilon_start = epsilon_start
         self.epsilon_decay = epsilon_decay

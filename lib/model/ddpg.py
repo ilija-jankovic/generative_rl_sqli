@@ -339,11 +339,20 @@ class DDPG:
 
         total_episodes = 500
 
+        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+
+        run_demonstrations = run_demonstrations and self.encoded_payloads is not None
+
+        buffer_size = total_exploration_steps + total_demonstration_steps if run_demonstrations else total_exploration_steps
+
+        self.params.buffer_size = buffer_size
+
         buffer = ReplayBuffer(
             state_size=self.env.state_size,
             embedding_size=self.env.embedding_size,
             action_size=self.env.action_size,
-            buffer_capacity=self.params.buffer_size,
+            buffer_capacity=buffer_size,
             batch_size=self.params.batch_size,
             actor_model=actor_model,
             policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
@@ -360,10 +369,6 @@ class DDPG:
         demonstrations_completed = 0
         frame = 0
 
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
-
-        run_demonstrations = run_demonstrations and self.encoded_payloads is not None
-
         reporter = Reporter()
 
         print('Starting reporter...')
@@ -374,6 +379,8 @@ class DDPG:
 
         ep = 1
 
+        end_ddpg = False
+
         for ep in range(1, total_episodes + 1):
             prev_states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
             prev_states = tf.convert_to_tensor(prev_states)
@@ -382,7 +389,7 @@ class DDPG:
             # (Pg. 3 of Adapative Parameter Space Noise paper).
             self.__update_perturbed_actor()
 
-            while True:
+            while not end_ddpg:
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
                 if demonstrate:
@@ -442,6 +449,10 @@ class DDPG:
 
                     self.__decay_sigma()
 
+                    if frame > total_exploration_steps:
+                        done = True
+                        end_ddpg = True
+                
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
                 self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
@@ -451,5 +462,8 @@ class DDPG:
                     break
 
                 prev_states = states
+
+            if end_ddpg:
+                break
 
             print("[{}] Episode: {}, Avg Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep, 'N/A' if avg_reward == None else avg_reward, frame))

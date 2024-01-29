@@ -28,6 +28,7 @@ class DDPG:
     
     actor_perturbed: keras.Model
 
+    __adaptive_stddev: float
     __epsilon: float
     
     def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 512):
@@ -42,6 +43,7 @@ class DDPG:
         self.params = params
         self.actor_lstm_units = actor_lstm_units
 
+        self.__adaptive_stddev = params.starting_stddev
         self.__epsilon = params.epsilon_start
 
         # Take out empty tokens.
@@ -259,7 +261,7 @@ class DDPG:
         # Adding noise to model weights algorithm by Daan Klijn:
         # https://medium.com/adding-noise-to-network-weights-in-tensorflow/adding-noise-to-network-weights-in-tensorflow-fddc82e851cb
         for layer in self.actor_perturbed.trainable_weights:
-            noise = np.random.normal(loc=0.0, scale=self.__epsilon, size=layer.shape)
+            noise = np.random.normal(loc=0.0, scale=self.__adaptive_stddev, size=layer.shape)
             layer.assign_add(noise)
 
 
@@ -295,11 +297,17 @@ class DDPG:
         t1 = self.normalize_0_1(t1)
         t2 = self.normalize_0_1(t2)
 
-        return tf.keras.metrics.kl_divergence(t1, t2)
+        divergences = tf.keras.metrics.kl_divergence(t1, t2)
+
+        return tf.reduce_mean(divergences)
+
+
+    # Page 15 of Adaptive Noise Paper for epsilon-based KL divergence threshold.
+    def __calculate_distance_threshold(self):
+        return -np.log(1-self.__epsilon+(self.__epsilon/self.params.batch_size))
             
     
-    @tf.function
-    def get_perturbed_actions(self, states: tf.Tensor):
+    def __get_perturbed_actions(self, states: tf.Tensor):
         actions = self.policy(states, PolicyType.NORMAL.value, training=False)
         actions_perturbed = self.policy(states, PolicyType.PERTURBED.value, training=False)
 
@@ -307,14 +315,25 @@ class DDPG:
         # the conditions of the KL divergence method.
         divergence = self.get_kl_divergence(actions, actions_perturbed)
 
-        divergence = tf.reduce_mean(divergence)
+        # Adapted solution by Sören Kirchner:
+        # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
+        #
+        # Changed distance and sigma definitions based on the
+        # PARAMETER SPACE NOISE FOR EXPLORATION paper:
+        # https://openreview.net/pdf?id=ByBAl2eAZ
+        #
+        # Page 15:
+        # "Setting δ := σ as
+        # the adaptive parameter space threshold thus results in effective action space noise that has the same
+        # standard deviation as regular Gaussian action space noise."
+        if divergence <= self.__calculate_distance_threshold():
+            self.__adaptive_stddev *= self.params.alpha_scalar
+        else:
+            self.__adaptive_stddev /= self.params.alpha_scalar
 
         return actions_perturbed, divergence
-
-    
-    def __decay_sigma(self):
-        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
-    
+    def __decay_epsilon(self):
+        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)    
 
     def run(self, run_demonstrations: bool):
         actor_model = self.get_actor()
@@ -390,13 +409,15 @@ class DDPG:
             self.__update_perturbed_actor()
 
             while not end_ddpg:
+                prev_stddev = self.__adaptive_stddev
+
                 demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
 
                 if demonstrate:
                     interactions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
                     demonstrations_completed += self.params.batch_size
                 else:
-                   interactions = self.get_perturbed_actions(prev_states)
+                   interactions = self.__get_perturbed_actions(prev_states)
 
                 actions = interactions[0]
 
@@ -428,6 +449,7 @@ class DDPG:
                         frame=frame,
                         total_avg_reward=avg_reward,
                         is_demonstration=demonstrate,
+                        stddev=prev_stddev,
                         epsilon=self.__epsilon,
                         avg_kl_divergence=divergence
                     )
@@ -447,7 +469,7 @@ class DDPG:
                     for stat in payload_stats:
                         reporter.record_payload_statistic(stat)
 
-                    self.__decay_sigma()
+                    self.__decay_epsilon()
 
                     if frame > total_exploration_steps:
                         done = True

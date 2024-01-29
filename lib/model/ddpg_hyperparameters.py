@@ -10,6 +10,8 @@ class DDPGHyperparameters:
     embedding_size: int
     buffer_size: int
     batch_size: int
+    starting_stddev: float
+    alpha_scalar: float
     epsilon_start: float
     epsilon_decay: float
     epsilon_min: float
@@ -27,6 +29,8 @@ class DDPGHyperparameters:
             critic_learning_rate: float,
             embedding_size: int,
             batch_size: int,
+            starting_stddev: float,
+            alpha_scalar: float,
             epsilon_start: float,
             epsilon_decay: float,
             epsilon_min: float,
@@ -42,6 +46,8 @@ class DDPGHyperparameters:
         self.critic_learning_rate = critic_learning_rate
         self.embedding_size = embedding_size
         self.batch_size = batch_size
+        self.starting_stddev = starting_stddev
+        self.alpha_scalar = alpha_scalar
         self.epsilon_start = epsilon_start
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min

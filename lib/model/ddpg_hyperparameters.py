@@ -31,16 +31,16 @@ class DDPGHyperparameters:
             embedding_size: int,
             batch_size: int,
             starting_stddev: float,
-            alpha_scalar: float,
-            epsilon_start: float,
-            epsilon_decay: float,
-            epsilon_min: float,
             psi: float,
             action_size: int,
             state_size: int,
             prefix: str,
             suffix: str,
-            constant_stddev: bool
+            constant_stddev: bool,
+            alpha_scalar: float = None,
+            epsilon_start: float = None,
+            epsilon_decay: float = None,
+            epsilon_min: float = None
         ) -> None:
         '''
         If `constant_stddev` is true, the standard deviation of noise perturbation
@@ -48,6 +48,9 @@ class DDPGHyperparameters:
         
         Otherwise, the standard deviation begins at `starting_stddev`, and decays
         logarithmically based on the epsilon parameters.
+
+        `alpha_scalar`, `epsilon_start`, `epsilon_decay`, and `epsilon_min` must
+        all be set if `constant_stddev` is `False`.
         '''
         self.gamma = gamma
         self.tau = tau
@@ -56,13 +59,13 @@ class DDPGHyperparameters:
         self.embedding_size = embedding_size
         self.batch_size = batch_size
         self.starting_stddev = starting_stddev
-        self.alpha_scalar = alpha_scalar
-        self.epsilon_start = epsilon_start
-        self.epsilon_decay = epsilon_decay
-        self.epsilon_min = epsilon_min
         self.psi = psi
         self.action_size = action_size
         self.state_size = state_size
         self.prefix = prefix
         self.suffix = suffix
         self.constant_stddev = constant_stddev
+        self.alpha_scalar = alpha_scalar
+        self.epsilon_start = epsilon_start
+        self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min

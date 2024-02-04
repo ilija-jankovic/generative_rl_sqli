@@ -12,8 +12,11 @@ class Reporter:
     __statistics_filename: str
     __payloads_filename: str
 
+    __params: DDPGHyperparameters
+
     def start(self, params: DDPGHyperparameters):
         self.__started = True
+        self.__params = params
         
         dirname = os.path.dirname(__file__)
 
@@ -26,12 +29,41 @@ class Reporter:
         self.__payloads_filename = f'{directory}/{now} Successful Payloads Report.csv'
         
         os.makedirs(os.path.dirname(self.__statistics_filename), exist_ok=True)
+
+        constant_stddev = params.constant_stddev
+
+        column_names = [
+            'γ',
+            'τ',
+            'Actor η',
+            'Critic η',
+            'Embedding Size',
+            'Buffer Size',
+            'Batch Size',
+            'Standard Deviation' if constant_stddev else 'Starting Standard Deviation',
+            'Constant Standard Deviation',
+            'Alpha Scalar',
+            'Starting ε',
+            'ε Decay',
+            'Min ε',
+            'ψ',
+            'Action Size',
+            'State Size',
+            'Prefix',
+            'Suffix',
+        ]
+
+        if constant_stddev:
+            column_names.remove('Alpha Scalar')
+            column_names.remove('Starting ε')
+            column_names.remove('ε Decay')
+            column_names.remove('Min ε')
         
         with open(self.__statistics_filename, 'w', encoding='utf-8') as f:
             f.write(f'Report started at {now}\n')
             f.write('\n')
             f.write('Constants\n')
-            f.write('γ,τ,Actor η,Critic η,Embedding Size,Buffer Size,Batch Size,Starting Standard Deviation,Alpha Scalar,Starting ε,ε Decay,Min ε,ψ,Action Size,State Size,Prefix,Suffix\n')
+            f.write(','.join(column_names) + '\n')
             f.write(f'{params.gamma},')
             f.write(f'{params.tau},')
             f.write(f'{params.actor_learning_rate},')
@@ -40,16 +72,38 @@ class Reporter:
             f.write(f'{params.buffer_size},')
             f.write(f'{params.batch_size},')
             f.write(f'{params.starting_stddev},')
-            f.write(f'{params.alpha_scalar},')
-            f.write(f'{params.epsilon_start},')
-            f.write(f'{params.epsilon_decay},')
-            f.write(f'{params.epsilon_min},')
+            f.write(f'{params.constant_stddev},')
+
+            if not constant_stddev:
+                f.write(f'{params.alpha_scalar},')
+                f.write(f'{params.epsilon_start},')
+                f.write(f'{params.epsilon_decay},')
+                f.write(f'{params.epsilon_min},')
+
             f.write(f'{params.psi},')
             f.write(f'{params.action_size},')
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')
             f.write(f'{params.suffix}\n\n')
-            f.write('Time,Episode,Frame,Is Demonstration,Standard Deviation,ε,Total Average KL Divergence,Distance Threshold,Total Average Reward\n')
+
+            column_names = [
+                'Time',
+                'Episode',
+                'Frame',
+                'Is Demonstration',
+                'Standard Deviation',
+                'ε',
+                'Total Average KL Divergence',
+                'Distance Threshold',
+                'Total Average Reward',
+            ]
+
+            if constant_stddev:
+                column_names.remove('Standard Deviation')
+                column_names.remove('ε')
+                column_names.remove('Distance Threshold')
+
+            f.write(','.join(column_names) + '\n')
         f.close()
 
         with open(self.__payloads_filename, 'w', encoding='utf-8') as f:
@@ -61,15 +115,23 @@ class Reporter:
         if not self.__started:
             raise Exception('Must call start() before recording a statistic.')
         
+        constant_stddev = self.__params.constant_stddev
+        
         with open(self.__statistics_filename, 'a', encoding='utf-8') as f:
             f.write(f'{datetime.now()},')
             f.write(f'{stat.epsiode},')
             f.write(f'{stat.frame},')
             f.write(f'{stat.is_demonstration},')
-            f.write(f'{stat.stddev},')
-            f.write(f'{stat.epsilon},')
+
+            if not constant_stddev:
+                f.write(f'{stat.stddev},')
+                f.write(f'{stat.epsilon},')
+
             f.write(f'{stat.total_avg_kl_divergence},')
-            f.write(f'{stat.distance_threshold},')
+
+            if not constant_stddev:
+                f.write(f'{stat.distance_threshold},')
+                
             f.write(f'{stat.total_avg_reward}\n')
         f.close()
 

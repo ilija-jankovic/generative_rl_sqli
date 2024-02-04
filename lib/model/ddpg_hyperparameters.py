@@ -20,6 +20,7 @@ class DDPGHyperparameters:
     state_size: int
     prefix: str
     suffix: str
+    constant_stddev: bool
 
     def __init__(
             self,
@@ -39,7 +40,15 @@ class DDPGHyperparameters:
             state_size: int,
             prefix: str,
             suffix: str,
+            constant_stddev: bool
         ) -> None:
+        '''
+        If `constant_stddev` is true, the standard deviation of noise perturbation
+        is always `starting_stddev`.
+        
+        Otherwise, the standard deviation begins at `starting_stddev`, and decays
+        logarithmically based on the epsilon parameters.
+        '''
         self.gamma = gamma
         self.tau = tau
         self.actor_learning_rate = actor_learning_rate
@@ -56,3 +65,4 @@ class DDPGHyperparameters:
         self.state_size = state_size
         self.prefix = prefix
         self.suffix = suffix
+        self.constant_stddev = constant_stddev

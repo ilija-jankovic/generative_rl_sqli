@@ -41,7 +41,7 @@ except:
 #
 #
 
-BATCH_SIZE = 512
+BATCH_SIZE = 4
 
 EMBEDDING_DIM = 128
 
@@ -143,13 +143,13 @@ else:
     encoded_payloads = []
 
 params = DDPGHyperparameters(
-    gamma=0.98,
+    gamma=0.999,
     tau=0.005,
-    actor_learning_rate=0.0025,
-    critic_learning_rate=0.005,
+    actor_learning_rate=0.00005,
+    critic_learning_rate=0.0001,
     embedding_size=EMBEDDING_DIM,
     batch_size=BATCH_SIZE,
-    starting_stddev=0.6,
+    starting_stddev=0.1,
     alpha_scalar=1.01,
     epsilon_decay=0.992,
     epsilon_start=1.0,
@@ -159,6 +159,7 @@ params = DDPGHyperparameters(
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,
     suffix=payload_builder.suffix,
+    constant_stddev=True
     # TODO: Add extend epsiode parameter.
 )
 

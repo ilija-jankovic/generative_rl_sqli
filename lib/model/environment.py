@@ -74,11 +74,16 @@ class Environment():
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(batch_size * 5)
 
-        self.__inject_random_payloads()
+        self.__inject_initial_payloads()
 
-    def __inject_random_payloads(self):
+    def __inject_initial_payloads(self):
         self.__inject_payload('', record_tokens=True)
         self.__inject_payload('random string', record_tokens=True)
+        self.__inject_payload('1', record_tokens=True)
+        self.__inject_payload('2', record_tokens=True)
+        self.__inject_payload('3', record_tokens=True)
+        self.__inject_payload('4', record_tokens=True)
+        self.__inject_payload('5', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
@@ -169,7 +174,7 @@ class Environment():
             self.__reset_payload_cache()
 
             # Ensures data from non-useful injections is not rewarded.
-            self.__inject_random_payloads()
+            self.__inject_initial_payloads()
 
         return episode_ended
     

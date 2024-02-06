@@ -112,11 +112,11 @@ class DDPG:
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(input_lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_regularizer='L2')(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(input_lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -345,7 +345,13 @@ class DDPG:
         return actions_perturbed, divergence, distance_threshold
     
     def __decay_epsilon(self):
-        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)    
+        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
+
+
+    def __create_empty_states(self):
+        states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
+        return tf.convert_to_tensor(states)
+
 
     def run(self, run_demonstrations: bool):
         actor_model = self.get_actor()
@@ -366,7 +372,7 @@ class DDPG:
         # Nadam for RNNs recommended by OverLordGoldDragon:
         # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
         critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate)
-        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate)
+        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipnorm=0.5)
 
         total_episodes = 500
 
@@ -385,6 +391,7 @@ class DDPG:
             action_size=self.env.action_size,
             buffer_capacity=buffer_size,
             batch_size=self.params.batch_size,
+            demonstrations_count=total_exploration_steps,
             actor_model=actor_model,
             policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
             target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),
@@ -398,7 +405,6 @@ class DDPG:
         avg_batch_rewards = []
         avg_divergences = []
         
-        demonstrations_completed = 0
         frame = 0
 
         reporter = Reporter()
@@ -413,9 +419,26 @@ class DDPG:
 
         end_ddpg = False
 
+        if run_demonstrations:
+            prev_states = self.__create_empty_states()
+
+            for i in range(0, total_demonstration_steps, self.params.batch_size):
+                actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
+
+                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
+                prev_states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
+                
+                done = True in [env_tuple[2] for env_tuple in env_tuples]
+
+                if done:
+                    prev_states = self.__create_empty_states()
+
+                print(f'{i + self.params.batch_size}/{total_demonstration_steps} demonstration observations gathered.')
+
+            print('Transitions gathered.')
+
         for ep in range(1, total_episodes + 1):
-            prev_states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
-            prev_states = tf.convert_to_tensor(prev_states)
+            prev_states = self.__create_empty_states()
 
             # Update perturbed actor at beginning of episode for stability.
             # (Pg. 3 of Adapative Parameter Space Noise paper).
@@ -424,76 +447,60 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                demonstrate = run_demonstrations and demonstrations_completed < total_demonstration_steps
-
-                if demonstrate:
-                    interactions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)]), 0.0
-                    demonstrations_completed += self.params.batch_size
-                else:
-                   interactions = self.__get_perturbed_actions(prev_states)
-
+                interactions = self.__get_perturbed_actions(prev_states)
                 actions = interactions[0]
 
                 env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
-
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
 
-                if demonstrate:
-                    avg_reward = None
+                frame += self.params.batch_size
 
-                    print(f'{demonstrations_completed}/{total_demonstration_steps} demonstration observations gathered.')
+                avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
+                avg_batch_rewards.append(avg_batch_reward)
 
-                    if demonstrations_completed >= total_demonstration_steps:
-                        print('Transitions gathered.')
-                else:
-                    frame += self.params.batch_size
+                avg_reward = np.mean(avg_batch_rewards)
 
-                    avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
-                    avg_batch_rewards.append(avg_batch_reward)
+                divergence = interactions[1]
 
-                    avg_reward = np.mean(avg_batch_rewards)
+                avg_divergences.append(divergence)
+                avg_divergence = np.mean(avg_divergences)
 
-                    divergence = interactions[1]
+                distance_threshold = interactions[2]
 
-                    avg_divergences.append(divergence)
-                    avg_divergence = np.mean(avg_divergences)
+                running_stat = DDPGRunningStatistic(
+                    epsiode=ep,
+                    frame=frame,
+                    total_avg_reward=avg_reward,
+                    is_demonstration=False,
+                    stddev=prev_stddev,
+                    epsilon=self.__epsilon,
+                    total_avg_kl_divergence=avg_divergence,
+                    distance_threshold=distance_threshold
+                )
+                
+                reporter.record_running_statistic(running_stat)
 
-                    distance_threshold = interactions[2]
-
-                    running_stat = DDPGRunningStatistic(
+                payload_stats = [
+                    DDPGPayloadStatistic(
                         epsiode=ep,
                         frame=frame,
-                        total_avg_reward=avg_reward,
-                        is_demonstration=demonstrate,
-                        stddev=prev_stddev,
-                        epsilon=self.__epsilon,
-                        total_avg_kl_divergence=avg_divergence,
-                        distance_threshold=distance_threshold
-                    )
-                    
-                    reporter.record_running_statistic(running_stat)
+                        payload=self.env.get_payload(actions[i]),
+                        reward=env_tuples[i][1],
+                        is_demonstration=False
+                    ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
+                ]
+            
+                for stat in payload_stats:
+                    reporter.record_payload_statistic(stat)
 
-                    payload_stats = [
-                        DDPGPayloadStatistic(
-                            epsiode=ep,
-                            frame=frame,
-                            payload=self.env.get_payload(actions[i]),
-                            reward=env_tuples[i][1],
-                            is_demonstration=demonstrate
-                        ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
-                    ]
-                
-                    for stat in payload_stats:
-                        reporter.record_payload_statistic(stat)
+                if not self.params.constant_stddev:
+                    self.__decay_epsilon()
 
-                    if not self.params.constant_stddev:
-                        self.__decay_epsilon()
-
-                    if frame > total_exploration_steps:
-                        done = True
-                        end_ddpg = True
+                if frame > total_exploration_steps:
+                    done = True
+                    end_ddpg = True
                 
                 buffer.learn()
                 self.update_target(target_actor.variables, actor_model.variables, self.params.tau)

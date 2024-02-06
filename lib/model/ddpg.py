@@ -377,7 +377,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = 100 #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -502,9 +502,10 @@ class DDPG:
                     done = True
                     end_ddpg = True
                 
-                buffer.learn()
-                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
-                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
+                for _ in range(40):
+                    buffer.learn()
+                    self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
+                    self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
                 # End this episode when `done` is True
                 if done:

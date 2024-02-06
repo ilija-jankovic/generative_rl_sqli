@@ -8,7 +8,7 @@ import numpy as np
 
 class ReplayBuffer:
     alpha_priority = 0.3
-    epsilon_priority = 0.001
+    epsilon_priority = 0.0001
     epsilon_priority_demonstration = 0.001
 
     def __init__(
@@ -75,7 +75,7 @@ class ReplayBuffer:
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
-    @tf.function
+    tf.function
     def update(
         self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
     ):
@@ -105,7 +105,7 @@ class ReplayBuffer:
             actor_loss = -tf.math.reduce_mean(critic_value)
 
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
-        priority_weighting = tf.math.reduce_mean(1.0 / (self.buffer_counter * replay_probabilities))
+        priority_weighting = 1.0 / (self.buffer_counter * tf.math.reduce_mean(replay_probabilities))
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
         for layer in actor_grad:
@@ -115,16 +115,17 @@ class ReplayBuffer:
             zip(actor_grad, self.actor_model.trainable_variables), 
         )
 
-        priorities = tf.squeeze(tf.square(td_error)) + actor_loss + epsilon_constants
+        priorities = tf.squeeze(tf.square(td_error)) + tf.math.square(actor_loss) + epsilon_constants
 
         return priorities
     
 
     def __get_replay_probabilities(self, record_range: int):
         priorities = self.priorities_buffer[:record_range]
-        priorities = np.power(priorities, self.alpha_priority)
 
-        return priorities / sum(priorities)
+        priorities = np.float_power(priorities, self.alpha_priority)
+
+        return priorities / np.sum(priorities)
         
 
     # We compute the loss and update parameters

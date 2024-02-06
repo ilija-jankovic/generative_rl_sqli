@@ -124,9 +124,9 @@ class DDPG:
         state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.Dense(1024, activation='LeakyReLU')(state_h)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.Dense(1024, activation='LeakyReLU')(dense)
         dense = layers.BatchNormalization()(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -159,14 +159,14 @@ class DDPG:
         # Both are passed through seperate layer before concatenating
         concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
 
-        out = layers.Dense(1024, activation="relu")(concat)
-        out = layers.Dense(1024, activation="relu")(out)
-        out = layers.Dense(512, activation="relu")(out)
-        out = layers.Dense(256, activation="relu")(out)
-        out = layers.Dense(128, activation="relu")(out)
-        out = layers.Dense(64, activation="relu")(out)
-        out = layers.Dense(32, activation="relu")(out)
-        out = layers.Dense(16, activation="relu")(out)
+        out = layers.Dense(1024, activation="LeakyReLU")(concat)
+        out = layers.Dense(1024, activation="LeakyReLU")(out)
+        out = layers.Dense(512, activation="LeakyReLU")(out)
+        out = layers.Dense(256, activation="LeakyReLU")(out)
+        out = layers.Dense(128, activation="LeakyReLU")(out)
+        out = layers.Dense(64, activation="LeakyReLU")(out)
+        out = layers.Dense(32, activation="LeakyReLU")(out)
+        out = layers.Dense(16, activation="LeakyReLU")(out)
         outputs = layers.Dense(1)(out)
 
         # Outputs single value for give state-action

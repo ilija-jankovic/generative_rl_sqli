@@ -77,7 +77,7 @@ class ReplayBuffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-        self, state_batch, action_batch, reward_batch, next_state_batch, epsilon_constants
+        self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -104,7 +104,13 @@ class ReplayBuffer:
             # by the critic for our actions
             actor_loss = -tf.math.reduce_mean(critic_value)
 
+        replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
+        priority_weighting = tf.math.reduce_mean(1.0 / (self.buffer_counter * replay_probabilities))
+
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
+        for layer in actor_grad:
+            layer *= priority_weighting
+
         self.actor_optimizer.apply_gradients(
             zip(actor_grad, self.actor_model.trainable_variables), 
         )
@@ -131,6 +137,8 @@ class ReplayBuffer:
         # Randomly sample indices
         batch_indices = np.random.choice(record_range, self.batch_size, p=probs)
 
+        chosen_probabilities = [probs[i] for i in batch_indices]
+
         # Convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
@@ -146,7 +154,7 @@ class ReplayBuffer:
         
         epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
 
-        priorities = self.update(state_batch, action_batch, reward_batch, next_state_batch, epsilon_constants)
+        priorities = self.update(state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities=chosen_probabilities, epsilon_constants=epsilon_constants)
 
         for i in range(self.batch_size):
             buffer_index = self.buffer_counter - self.batch_size - 1 + i

@@ -504,10 +504,10 @@ class DDPG:
                     done = True
                     end_ddpg = True
                 
-                #for _ in range(20):
-                buffer.learn()
-                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
-                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
+                for _ in range(20):
+                    buffer.learn()
+                    self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
+                    self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
                 # End this episode when `done` is True
                 if done:

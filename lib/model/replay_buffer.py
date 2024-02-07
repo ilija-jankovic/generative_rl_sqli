@@ -90,11 +90,12 @@ class ReplayBuffer:
 
         actions = self.policy(state_batch, training=False)
         critic_value = self.critic_model([state_batch, actions], training=False)
+        actor_loss = -tf.math.reduce_mean(critic_value)
 
         epsilon_constants = [self.epsilon_priority + self.epsilon_priority_demonstration if is_demonstration else self.epsilon_priority] * self.batch_size
         epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
         
-        priorities = tf.squeeze(tf.square(td_error)) + tf.squeeze(tf.math.square(critic_value)) + epsilon_constants
+        priorities = tf.squeeze(tf.square(td_error)) + tf.math.square(actor_loss) + epsilon_constants
 
         self.priorities_buffer[self.buffer_counter : self.buffer_counter + self.batch_size] = priorities
 
@@ -146,7 +147,7 @@ class ReplayBuffer:
             zip(actor_grad, self.actor_model.trainable_variables), 
         )
 
-        priorities = tf.squeeze(tf.square(td_error)) + tf.squeeze(tf.math.square(critic_value)) + epsilon_constants
+        priorities = tf.squeeze(tf.square(td_error)) + tf.math.square(actor_loss) + epsilon_constants
 
         return priorities
     

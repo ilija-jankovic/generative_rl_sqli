@@ -55,7 +55,9 @@ class ReplayBuffer:
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
 
         self.priorities_buffer = np.full([self.buffer_capacity], self.epsilon_priority)
-        self.priorities_buffer[:self.demonstrations_count] = self.epsilon_priority_demonstration
+        demonstration_priorities = np.full([self.demonstrations_count], self.epsilon_priority + self.epsilon_priority_demonstration)
+
+        self.priorities_buffer[:self.demonstrations_count] = demonstration_priorities
 
         self.gamma = gamma
 
@@ -104,6 +106,7 @@ class ReplayBuffer:
             # by the critic for our actions
             actor_loss = -tf.math.reduce_mean(critic_value)
 
+        # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
         priority_weighting = 1.0 / (self.buffer_counter * tf.math.reduce_mean(replay_probabilities))
 
@@ -115,14 +118,15 @@ class ReplayBuffer:
             zip(actor_grad, self.actor_model.trainable_variables), 
         )
 
-        priorities = tf.squeeze(tf.square(td_error)) + tf.math.square(actor_loss) + epsilon_constants
+        priorities = tf.squeeze(tf.square(td_error)) + tf.squeeze(tf.math.square(critic_value)) + epsilon_constants
 
         return priorities
     
 
     def __get_replay_probabilities(self, record_range: int):
         priorities = self.priorities_buffer[:record_range]
-
+        
+        # TODO: Explain calculations.
         priorities = np.float_power(priorities, self.alpha_priority)
 
         return priorities / np.sum(priorities)
@@ -157,6 +161,5 @@ class ReplayBuffer:
 
         priorities = self.update(state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities=chosen_probabilities, epsilon_constants=epsilon_constants)
 
-        for i in range(self.batch_size):
-            buffer_index = self.buffer_counter - self.batch_size - 1 + i
-            self.priorities_buffer[buffer_index] = priorities[i]
+        for i in range(len(batch_indices)):
+            self.priorities_buffer[batch_indices[i]] = priorities[i]

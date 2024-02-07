@@ -53,26 +53,54 @@ class ReplayBuffer:
         self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-
-        self.priorities_buffer = np.full([self.buffer_capacity], self.epsilon_priority)
-        demonstration_priorities = np.full([self.demonstrations_count], self.epsilon_priority + self.epsilon_priority_demonstration)
-
-        self.priorities_buffer[:self.demonstrations_count] = demonstration_priorities
+        self.priorities_buffer = np.zeros([self.buffer_capacity])
 
         self.gamma = gamma
 
     # Takes (s,a,r,s') obervation tuple as input
-    def record(self, obs_tuple):
+    def record(self, obs_tuple_batch, is_demonstration: bool):
         # Set index to zero if buffer_capacity is exceeded,
         # replacing old records
         index = self.buffer_counter % self.buffer_capacity
 
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
+        state_batch = np.array([obs_tuple[0] for obs_tuple in obs_tuple_batch])
+        action_batch = np.array([obs_tuple[1] for obs_tuple in obs_tuple_batch])
+        reward_batch = np.array([obs_tuple[2] for obs_tuple in obs_tuple_batch])
+        reward_batch = np.expand_dims(reward_batch, -1)
+        next_state_batch = np.array([obs_tuple[3] for obs_tuple in obs_tuple_batch])
 
-        self.buffer_counter += 1
+        self.state_buffer[index : index + self.batch_size] = state_batch
+        self.action_buffer[index : index + self.batch_size] = action_batch
+        self.reward_buffer[index : index + self.batch_size] = reward_batch
+        self.next_state_buffer[index : index + self.batch_size] = next_state_batch
+
+        # Calculate priorities without training.
+        state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+        action_batch = tf.convert_to_tensor(action_batch, dtype=tf.float32)
+        reward_batch = tf.convert_to_tensor(reward_batch, dtype=tf.float32)
+        next_state_batch = tf.convert_to_tensor(next_state_batch, dtype=tf.float32)
+
+        target_actions = self.target_policy(next_state_batch, training=False)
+        y = reward_batch + self.gamma * self.target_critic(
+            [next_state_batch, target_actions], training=False
+        )
+        critic_value = self.critic_model([state_batch, action_batch], training=False)
+
+        td_error = y - critic_value
+
+        actions = self.policy(state_batch, training=False)
+        critic_value = self.critic_model([state_batch, actions], training=False)
+
+        epsilon_constants = [self.epsilon_priority + self.epsilon_priority_demonstration if is_demonstration else self.epsilon_priority] * self.batch_size
+        epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
+        
+        priorities = tf.squeeze(tf.square(td_error)) + tf.squeeze(tf.math.square(critic_value)) + epsilon_constants
+
+        self.priorities_buffer[self.buffer_counter : self.buffer_counter + self.batch_size] = priorities
+
+
+        self.buffer_counter += self.batch_size
+
 
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
@@ -84,7 +112,7 @@ class ReplayBuffer:
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
-            target_actions = self.target_policy(next_state_batch)
+            target_actions = self.target_policy(next_state_batch, training=True)
             y = reward_batch + self.gamma * self.target_critic(
                 [next_state_batch, target_actions], training=True
             )
@@ -100,7 +128,7 @@ class ReplayBuffer:
         )
 
         with tf.GradientTape() as tape:
-            actions = self.policy(state_batch)
+            actions = self.policy(state_batch, training=True)
             critic_value = self.critic_model([state_batch, actions], training=True)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
@@ -125,7 +153,7 @@ class ReplayBuffer:
 
     def __get_replay_probabilities(self, record_range: int):
         priorities = self.priorities_buffer[:record_range]
-        
+
         # TODO: Explain calculations.
         priorities = np.float_power(priorities, self.alpha_priority)
 

@@ -248,13 +248,15 @@ class DDPG:
         return actions
 
 
-    def __run_action(self, action: tf.Tensor, prev_state: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool):
+    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool, is_demonstration: bool):
         # Recieve state and reward from environment.
-        state, reward, done = self.env.perform_action(action, ignore_episode=ignore_episode)
+        env_tuples = [self.env.perform_action(action, ignore_episode=ignore_episode) for action in actions]
 
-        buffer.record((prev_state, action, reward, state))
+        obs_tuples = [(prev_states[i], actions[i], env_tuples[i][1], env_tuples[i][0]) for i in range(self.params.batch_size)]
 
-        return state, reward, done
+        buffer.record(obs_tuples, is_demonstration=is_demonstration)
+
+        return env_tuples
     
     
     def __update_perturbed_actor(self):
@@ -393,8 +395,8 @@ class DDPG:
             batch_size=self.params.batch_size,
             demonstrations_count=total_exploration_steps,
             actor_model=actor_model,
-            policy=lambda state: self.policy(state, PolicyType.NORMAL.value, training=True),
-            target_policy=lambda state: self.policy(state, PolicyType.TARGET.value, training=True),
+            policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
+            target_policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
             target_critic=target_critic,
             critic_model=critic_model,
             actor_optimizer=actor_optimizer,
@@ -425,7 +427,7 @@ class DDPG:
             for i in range(0, total_demonstration_steps, self.params.batch_size):
                 actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
+                env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=True)
                 prev_states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]
@@ -450,7 +452,7 @@ class DDPG:
                 interactions = self.__get_perturbed_actions(prev_states)
                 actions = interactions[0]
 
-                env_tuples = [self.__run_action(actions[i], prev_states[i], buffer, ignore_episode=False) for i in range(len(actions))]
+                env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=False)
                 states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
                 
                 done = True in [env_tuple[2] for env_tuple in env_tuples]

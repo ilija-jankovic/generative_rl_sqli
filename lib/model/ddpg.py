@@ -146,13 +146,10 @@ class DDPG:
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
-        action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
-
-        # Get embedding inputs from action indices.
-        embedding_input = layers.Lambda(lambda action_input: tf.gather(self.env.embeddings, action_input))(action_input)
+        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
         # Bidirectional suited for NLP sequences.
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(embedding_input)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(action_input)
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
         lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 

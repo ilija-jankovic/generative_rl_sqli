@@ -137,7 +137,7 @@ class ReplayBuffer:
 
         # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
-        priority_weighting = 1.0 / (self.buffer_counter * tf.math.reduce_mean(replay_probabilities))
+        priority_weighting = 1.0 / (self.batch_size * tf.math.reduce_mean(replay_probabilities))
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
         for layer in actor_grad:

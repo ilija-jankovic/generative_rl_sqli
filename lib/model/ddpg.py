@@ -367,7 +367,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = 100 #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -391,9 +391,6 @@ class DDPG:
             critic_optimizer=critic_optimizer,
             gamma=self.params.gamma
         )
-
-        avg_batch_rewards = []
-        avg_divergences = []
         
         frame = 0
 
@@ -413,6 +410,9 @@ class DDPG:
             prev_states = self.__create_empty_states()
 
             for i in range(0, total_demonstration_steps, self.params.batch_size):
+                if i != 0:
+                    print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
+
                 actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
                 env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=True)
@@ -422,8 +422,6 @@ class DDPG:
 
                 if done:
                     prev_states = self.__create_empty_states()
-
-                print(f'{i + self.params.batch_size}/{total_demonstration_steps} demonstration observations gathered.')
 
             print('Transitions gathered.')
 
@@ -448,25 +446,18 @@ class DDPG:
                 frame += self.params.batch_size
 
                 avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
-                avg_batch_rewards.append(avg_batch_reward)
 
-                avg_reward = np.mean(avg_batch_rewards)
-
-                divergence = interactions[1]
-
-                avg_divergences.append(divergence)
-                avg_divergence = np.mean(avg_divergences)
-
+                avg_batch_divergence = interactions[1]
                 distance_threshold = interactions[2]
 
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    total_avg_reward=avg_reward,
+                    avg_batch_reward=avg_batch_reward,
                     is_demonstration=False,
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
-                    total_avg_kl_divergence=avg_divergence,
+                    avg_batch_kl_divergence=avg_batch_divergence,
                     distance_threshold=distance_threshold
                 )
                 
@@ -496,6 +487,9 @@ class DDPG:
                 self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
                 self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
 
+
+                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_batch_reward))
+
                 # End this episode when `done` is True
                 if done:
                     break
@@ -504,5 +498,3 @@ class DDPG:
 
             if end_ddpg:
                 break
-
-            print("[{}] Episode: {}, Avg Reward: {}, Total Frame Count: {}".format(datetime.datetime.now(), ep, 'N/A' if avg_reward == None else avg_reward, frame))

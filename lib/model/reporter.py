@@ -93,9 +93,9 @@ class Reporter:
                 'Is Demonstration',
                 'Standard Deviation',
                 'ε',
-                'Total Average KL Divergence',
+                'Average Batch KL Divergence',
                 'Distance Threshold',
-                'Total Average Reward',
+                'Average Batch Reward',
             ]
 
             if constant_stddev:
@@ -127,12 +127,12 @@ class Reporter:
                 f.write(f'{stat.stddev},')
                 f.write(f'{stat.epsilon},')
 
-            f.write(f'{stat.total_avg_kl_divergence},')
+            f.write(f'{stat.avg_batch_kl_divergence},')
 
             if not constant_stddev:
                 f.write(f'{stat.distance_threshold},')
                 
-            f.write(f'{stat.total_avg_reward}\n')
+            f.write(f'{stat.avg_batch_reward}\n')
         f.close()
 
     def record_payload_statistic(self, stat: DDPGPayloadStatistic):

@@ -53,7 +53,7 @@ class ReplayBuffer:
         self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-        self.priorities_buffer = np.zeros([self.buffer_capacity])
+        self.priorities_buffer = np.zeros([self.buffer_capacity + self.batch_size])
 
         self.gamma = gamma
 
@@ -82,14 +82,14 @@ class ReplayBuffer:
 
         target_actions = self.target_policy(next_state_batch, training=False)
         y = reward_batch + self.gamma * self.target_critic(
-            [next_state_batch, target_actions], training=False
+            [target_actions], training=False
         )
-        critic_value = self.critic_model([state_batch, action_batch], training=False)
+        critic_value = self.critic_model([action_batch], training=False)
 
         td_error = y - critic_value
 
         actions = self.policy(state_batch, training=False)
-        critic_value = self.critic_model([state_batch, actions], training=False)
+        critic_value = self.critic_model([actions], training=False)
         actor_loss = -tf.math.reduce_mean(critic_value)
 
         epsilon_constants = [self.epsilon_priority + self.epsilon_priority_demonstration if is_demonstration else self.epsilon_priority] * self.batch_size
@@ -115,9 +115,9 @@ class ReplayBuffer:
         with tf.GradientTape() as tape:
             target_actions = self.target_policy(next_state_batch, training=True)
             y = reward_batch + self.gamma * self.target_critic(
-                [next_state_batch, target_actions], training=True
+                [target_actions], training=True
             )
-            critic_value = self.critic_model([state_batch, action_batch], training=True)
+            critic_value = self.critic_model([action_batch], training=True)
 
             td_error = y - critic_value
 
@@ -130,7 +130,7 @@ class ReplayBuffer:
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
-            critic_value = self.critic_model([state_batch, actions], training=True)
+            critic_value = self.critic_model([actions], training=True)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
             actor_loss = -tf.math.reduce_mean(critic_value)

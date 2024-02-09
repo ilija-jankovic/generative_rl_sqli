@@ -140,23 +140,14 @@ class DDPG:
     def get_critic(self):
         LSTM_UNITS = 1024
 
-        state_input = layers.Input(shape=(self.env.state_size, self.env.embedding_size), batch_size=self.params.batch_size)
-
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(state_input)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm_state_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
-
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
-        # Bidirectional suited for NLP sequences.
+        # TODO: Bidirectional suited for NLP sequences.
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(action_input)
         lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm_action_out = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
+        lstm = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
 
-        # Both are passed through seperate layer before concatenating
-        concat = layers.Concatenate()([lstm_state_out, lstm_action_out])
-
-        out = layers.Dense(1024, activation="relu")(concat)
+        out = layers.Dense(1024, activation="relu")(lstm)
         out = layers.Dense(1024, activation="relu")(out)
         out = layers.Dense(512, activation="relu")(out)
         out = layers.Dense(256, activation="relu")(out)
@@ -167,7 +158,7 @@ class DDPG:
         outputs = layers.Dense(1)(out)
 
         # Outputs single value for give state-action
-        model = tf.keras.Model([state_input, action_input], outputs)
+        model = tf.keras.Model([action_input], outputs)
 
         return model
 
@@ -371,12 +362,12 @@ class DDPG:
         # Nadam for RNNs recommended by OverLordGoldDragon:
         # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
         critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0)
-        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0)
+        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, decay=0.001)
 
         total_episodes = 500
 
         total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = 100 #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 

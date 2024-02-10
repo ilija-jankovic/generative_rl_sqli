@@ -395,7 +395,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = self.params.batch_size #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 

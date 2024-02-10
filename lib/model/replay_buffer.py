@@ -108,21 +108,34 @@ class ReplayBuffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     tf.function
     def update(
-        self, state_batch, action_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_action_batch: tf.Tensor
+        self, state_batch, action_batch, reward_batch, next_state_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_action_batch: tf.Tensor
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
+            # 1-step.
+            target_actions = self.target_policy(next_state_batch, training=True)
+            y = reward_batch + self.gamma * self.target_critic(
+                [target_actions], training=True
+            )
+            critic_value_1 = self.critic_model([action_batch], training=True)
+
+            td_error_1 = y - critic_value_1
+
+            # n-step.
             discounted_gamma = tf.pow(self.gamma, n_step_rollout)
             y = discounted_reward_batch + discounted_gamma * self.target_critic(
                 [last_action_batch], training=True
             )
 
-            critic_value = self.critic_model([action_batch], training=True)
+            critic_value_n = self.critic_model([action_batch], training=True)
 
-            td_error = y - critic_value
+            td_error_n = y - critic_value_n
 
-            critic_loss = 0.5 * tf.math.reduce_mean(tf.math.square(td_error))
+            l2_1_step = tf.math.reduce_mean(tf.math.square(td_error_1))
+            l2_n_step = tf.math.reduce_mean(tf.math.square(td_error_n))
+
+            critic_loss = 0.5 * (l2_1_step + l2_n_step)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -148,7 +161,7 @@ class ReplayBuffer:
             zip(actor_grad, self.actor_model.trainable_variables), 
         )
 
-        priorities = tf.squeeze(tf.square(td_error)) + tf.math.square(actor_loss) + epsilon_constants
+        priorities = tf.squeeze(tf.square(td_error_1)) + tf.math.square(actor_loss) + epsilon_constants
 
         return priorities
     
@@ -188,6 +201,8 @@ class ReplayBuffer:
         # Convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
+        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
+        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
         discounted_reward_batch = tf.convert_to_tensor(discounted_reward_batch, dtype=tf.float32)
         discounted_reward_batch = tf.expand_dims(discounted_reward_batch, -1)
 
@@ -203,6 +218,8 @@ class ReplayBuffer:
         priorities = self.update(
             state_batch=state_batch,
             action_batch=action_batch,
+            reward_batch=reward_batch,
+            next_state_batch=next_state_batch,
             discounted_reward_batch=discounted_reward_batch,
             replay_probabilities=chosen_probabilities,
             epsilon_constants=epsilon_constants,

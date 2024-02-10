@@ -344,29 +344,31 @@ class DDPG:
 
 
     def __learn(self, buffer: ReplayBuffer):
-        n_step_rollout = 5
+        n_step_rollout = 10
+        learning_iterations = 20
 
-        batch_indices, chosen_probabilities = buffer.sample_indices()
+        for _ in range(learning_iterations):
+            batch_indices, chosen_probabilities = buffer.sample_indices()
 
-        state_batch = buffer.state_buffer[batch_indices]
-        state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+            state_batch = buffer.state_buffer[batch_indices]
+            state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
-        reward_batches, last_action_batch = self.env.perform_n_step_rollout(
-            policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
-            state_batch=state_batch,
-            n=n_step_rollout
-        )
+            reward_batches, last_action_batch = self.env.perform_n_step_rollout(
+                policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
+                state_batch=state_batch,
+                n=n_step_rollout
+            )
 
-        buffer.learn(
-            batch_indices=batch_indices,
-            chosen_probabilities=chosen_probabilities,
-            n_step_rollout=n_step_rollout,
-            reward_batches=reward_batches,
-            last_action_batch=last_action_batch
-        )
+            buffer.learn(
+                batch_indices=batch_indices,
+                chosen_probabilities=chosen_probabilities,
+                n_step_rollout=n_step_rollout,
+                reward_batches=reward_batches,
+                last_action_batch=last_action_batch
+            )
 
-        self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
-        self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
+            self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
+            self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
 
     def run(self, run_demonstrations: bool):

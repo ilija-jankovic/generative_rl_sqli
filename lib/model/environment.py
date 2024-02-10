@@ -223,10 +223,11 @@ class Environment():
 
         # TODO: Add extend episode condition based on parameter.
         
+        self.__record_payload(payload)
+
         if ignore_episode:
             episode_ended = False
         else:
-            self.__record_payload(payload)
             episode_ended = self.__update_episode()
 
         state = self.__create_state(action, response.text, new_tokens)
@@ -235,6 +236,12 @@ class Environment():
 
     def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int):
         assert(n > 0)
+
+        # Keep track of payloads attempted in rollout to remove them from the cache
+        # after rollout completed.
+        #
+        # This ensures the environment acts as close as possible to normal action execution.
+        attempted_payloads = self.__attempted_payloads.copy()
 
         rewards = []
 
@@ -249,6 +256,8 @@ class Environment():
             reward_batch = [env_tuple[1] for env_tuple in env_tuples]
             
             rewards.append(reward_batch)
+
+        self.__attempted_payloads = list(set(self.__attempted_payloads) - set(attempted_payloads))
 
         return np.array(rewards), action_batch
 

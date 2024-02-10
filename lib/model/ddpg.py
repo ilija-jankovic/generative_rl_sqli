@@ -344,8 +344,8 @@ class DDPG:
 
 
     def __learn(self, buffer: ReplayBuffer):
-        n_step_rollout = 10
-        learning_iterations = 20
+        n_step_rollout = 5
+        learning_iterations = 1
 
         for _ in range(learning_iterations):
             batch_indices, chosen_probabilities = buffer.sample_indices()
@@ -440,9 +440,6 @@ class DDPG:
             prev_states = self.__create_empty_states()
 
             for i in range(0, total_demonstration_steps, self.params.batch_size):
-                if i != 0:
-                    print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
-
                 actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
                 env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=True)
@@ -452,6 +449,8 @@ class DDPG:
 
                 if done:
                     prev_states = self.__create_empty_states()
+
+                print(f'{i + self.params.batch_size}/{total_demonstration_steps} demonstration observations gathered.')
 
             print('Transitions gathered.')
 

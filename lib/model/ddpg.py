@@ -343,6 +343,32 @@ class DDPG:
         return tf.convert_to_tensor(states)
 
 
+    def __learn(self, buffer: ReplayBuffer):
+        n_step_rollout = 5
+
+        batch_indices, chosen_probabilities = buffer.sample_indices()
+
+        state_batch = buffer.state_buffer[batch_indices]
+        state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+
+        reward_batches, last_action_batch = self.env.perform_n_step_rollout(
+            policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
+            state_batch=state_batch,
+            n=n_step_rollout
+        )
+
+        buffer.learn(
+            batch_indices=batch_indices,
+            chosen_probabilities=chosen_probabilities,
+            n_step_rollout=n_step_rollout,
+            reward_batches=reward_batches,
+            last_action_batch=last_action_batch
+        )
+
+        self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
+        self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
+
+
     def run(self, run_demonstrations: bool):
         actor_model = self.get_actor()
         actor_perturbed = self.get_actor()
@@ -354,6 +380,8 @@ class DDPG:
         self.actor_model = actor_model
         self.actor_perturbed = actor_perturbed
         self.target_actor = target_actor
+        self.target_critic = target_critic
+        self.critic_model = critic_model
 
         # Making the weights equal initially
         target_actor.set_weights(actor_model.get_weights())
@@ -367,7 +395,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = self.params.batch_size #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -483,10 +511,7 @@ class DDPG:
                     done = True
                     end_ddpg = True
                 
-                buffer.learn()
-                self.update_target(target_actor.variables, actor_model.variables, self.params.tau)
-                self.update_target(target_critic.variables, critic_model.variables, self.params.tau)
-
+                self.__learn(buffer)
 
                 print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_batch_reward))
 

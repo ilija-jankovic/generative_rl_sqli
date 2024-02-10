@@ -108,20 +108,21 @@ class ReplayBuffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     tf.function
     def update(
-        self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
+        self, state_batch, action_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_action_batch: tf.Tensor
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
-            target_actions = self.target_policy(next_state_batch, training=True)
-            y = reward_batch + self.gamma * self.target_critic(
-                [target_actions], training=True
+            discounted_gamma = tf.pow(self.gamma, n_step_rollout)
+            y = discounted_reward_batch + discounted_gamma * self.target_critic(
+                [last_action_batch], training=True
             )
+
             critic_value = self.critic_model([action_batch], training=True)
 
             td_error = y - critic_value
 
-            critic_loss = tf.math.reduce_mean(tf.math.square(td_error))
+            critic_loss = 0.5 * tf.math.reduce_mean(tf.math.square(td_error))
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -159,10 +160,9 @@ class ReplayBuffer:
         priorities = np.float_power(priorities, self.alpha_priority)
 
         return priorities / np.sum(priorities)
-        
 
-    # We compute the loss and update parameters
-    def learn(self):
+
+    def sample_indices(self):
         # Get sampling range
         record_range = min(self.buffer_counter, self.buffer_capacity)
 
@@ -173,11 +173,23 @@ class ReplayBuffer:
 
         chosen_probabilities = [probs[i] for i in batch_indices]
 
+        return batch_indices, chosen_probabilities
+        
+
+    # We compute the loss and update parameters
+    def learn(self, batch_indices: np.ndarray, chosen_probabilities: List[float], n_step_rollout: int, reward_batches: np.ndarray, last_action_batch: tf.Tensor):
+        discounted_reward_batch = reward_batches[0]
+
+        for i in range(1, n_step_rollout):
+            discounted_gamma = np.power(self.gamma, i)
+
+            discounted_reward_batch = np.add(discounted_reward_batch, discounted_gamma * reward_batches[i])
+
         # Convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
+        discounted_reward_batch = tf.convert_to_tensor(discounted_reward_batch, dtype=tf.float32)
+        discounted_reward_batch = tf.expand_dims(discounted_reward_batch, -1)
 
         epsilon_constants = [
             self.epsilon_priority + self.epsilon_priority_demonstration
@@ -188,7 +200,16 @@ class ReplayBuffer:
         
         epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
 
-        priorities = self.update(state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities=chosen_probabilities, epsilon_constants=epsilon_constants)
+        priorities = self.update(
+            state_batch=state_batch,
+            action_batch=action_batch,
+            discounted_reward_batch=discounted_reward_batch,
+            replay_probabilities=chosen_probabilities,
+            epsilon_constants=epsilon_constants,
+            n_step_rollout=n_step_rollout,
+            last_action_batch=last_action_batch
+        )
 
         for i in range(len(batch_indices)):
             self.priorities_buffer[batch_indices[i]] = priorities[i]
+

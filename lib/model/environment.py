@@ -232,3 +232,23 @@ class Environment():
         state = self.__create_state(action, response.text, new_tokens)
 
         return state, reward, episode_ended
+
+    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int):
+        assert(n > 0)
+
+        rewards = []
+
+        for _ in range(n):
+            action_batch = policy(state_batch, training=True)
+
+            env_tuples = [self.perform_action(action, ignore_episode=True) for action in action_batch]
+
+            state_batch = [env_tuple[0] for env_tuple in env_tuples]
+            state_batch  = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+
+            reward_batch = [env_tuple[1] for env_tuple in env_tuples]
+            
+            rewards.append(reward_batch)
+
+        return np.array(rewards), action_batch
+

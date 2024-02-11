@@ -106,11 +106,9 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
-        C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
-
         dictionary_length = len(self.env.dictionary)
 
-        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
+        input_lstm = layers.Input(shape=(self.params.state_size + 1, self.env.embedding_size), batch_size=self.params.batch_size)
 
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(input_lstm)
         lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
@@ -130,12 +128,10 @@ class DDPG:
         dense = layers.BatchNormalization()(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
 
-        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
-
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
         indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))
 
-        return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
+        return keras.Model([input_lstm, input_actions], [indices_output, embedding_output])
 
     def get_critic(self):
         LSTM_UNITS = 1024
@@ -163,20 +159,12 @@ class DDPG:
         return model
 
     @tf.function
-    def get_embedded_lstm_input(self, embeddings, lstm_states):
-        input = tf.concat([embeddings, lstm_states], axis=1)
-
-        return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])
-
-    @tf.function
-    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
+    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states):
         batch_size = self.params.batch_size
 
-        input = tf.cond(
-            pred=tf.equal(action_index, 0),
-            true_fn=lambda: (rl_states, actions),
-            false_fn=lambda: (self.get_embedded_lstm_input(embeddings, lstm_states), actions)
-        )
+        embedding_input = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
+        input = tf.concat([rl_states, embedding_input], axis=1)
+        input = (input, actions)
 
         output = tf.cond(
             tf.equal(type, PolicyType.NORMAL.value),
@@ -186,8 +174,8 @@ class DDPG:
                     true_fn=lambda: self.actor_perturbed(input, training=training),
                     false_fn=lambda: self.target_actor(input, training=training)))
 
-        lstm_states = output[0]
-        indices = output[1]
+        indices_output = output[0]
+        embedding_output = output[1]
 
         # action_index_float is the length of the action after incrementing, which
         # is then used in the below embedding average calculation.
@@ -195,17 +183,17 @@ class DDPG:
 
         # Adding to an average solution by Damien and Dan Dascalescu from:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
-        embeddings = embeddings + (output[2] - embeddings) / action_index_float
+        embeddings = embeddings + (embedding_output - embeddings) / action_index_float
 
         action_indices = tf.range(0, batch_size, dtype=tf.int32)
         action_indices = tf.expand_dims(action_indices, axis=1)
         action_indices = tf.pad(action_indices, [[0, 0], [0, 1]], constant_values=action_index)
 
-        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices)
+        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices_output)
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
+        return actions, action_index, action_index_float, embeddings, type, training, rl_states
 
     @tf.function
     def policy(self, states, type: int, training: bool):
@@ -221,7 +209,6 @@ class DDPG:
         actions = tf.fill([batch_size, action_size], len(self.env.dictionary) - 1)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)
@@ -229,7 +216,7 @@ class DDPG:
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states, lstm_states),
+            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states),
             maximum_iterations=action_size,
         )
 
@@ -396,7 +383,7 @@ class DDPG:
 
         total_episodes = 500
 
-        total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
+        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None

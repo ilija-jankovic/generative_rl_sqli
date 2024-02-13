@@ -91,6 +91,8 @@ class Reporter:
                 'Episode',
                 'Frame',
                 'Is Demonstration',
+                'Critic Loss',
+                'Actor Loss',
                 'Standard Deviation',
                 'ε',
                 'Average Batch KL Divergence',
@@ -122,6 +124,8 @@ class Reporter:
             f.write(f'{stat.epsiode},')
             f.write(f'{stat.frame},')
             f.write(f'{stat.is_demonstration},')
+            f.write(f'{stat.critic_loss},')
+            f.write(f'{stat.actor_loss},')
 
             if not constant_stddev:
                 f.write(f'{stat.stddev},')

@@ -163,7 +163,7 @@ class ReplayBuffer:
 
         priorities = tf.squeeze(tf.square(td_error_1)) + tf.math.square(actor_loss) + epsilon_constants
 
-        return priorities
+        return priorities, critic_loss, actor_loss
     
 
     def __get_replay_probabilities(self, record_range: int):
@@ -215,7 +215,7 @@ class ReplayBuffer:
         
         epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
 
-        priorities = self.update(
+        priorities, critic_loss, actor_loss = self.update(
             state_batch=state_batch,
             action_batch=action_batch,
             reward_batch=reward_batch,
@@ -229,4 +229,6 @@ class ReplayBuffer:
 
         for i in range(len(batch_indices)):
             self.priorities_buffer[batch_indices[i]] = priorities[i]
+
+        return critic_loss, actor_loss
 

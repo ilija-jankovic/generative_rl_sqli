@@ -100,7 +100,9 @@ class DDPG:
         one_hot_encoding = [self.mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.params.batch_size)]
         one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
 
-        indices = tf.argmax(one_hot_encoding, axis=1, output_type=tf.int32)
+        indices = tf.random.categorical(one_hot_encoding, num_samples=1, dtype=tf.int32)
+        indices = tf.squeeze(indices)
+
         embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
         
         return indices, tf.gather(embeddings, indices)
@@ -119,7 +121,6 @@ class DDPG:
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
-        state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
         dense = layers.Dense(1024, activation='relu')(state_h)
@@ -332,30 +333,30 @@ class DDPG:
 
     def __learn(self, buffer: ReplayBuffer):
         n_step_rollout = 5
-        learning_iterations = 1
 
-        for _ in range(learning_iterations):
-            batch_indices, chosen_probabilities = buffer.sample_indices()
+        batch_indices, chosen_probabilities = buffer.sample_indices()
 
-            state_batch = buffer.state_buffer[batch_indices]
-            state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+        state_batch = buffer.state_buffer[batch_indices]
+        state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
-            reward_batches, last_action_batch = self.env.perform_n_step_rollout(
-                policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
-                state_batch=state_batch,
-                n=n_step_rollout
-            )
+        reward_batches, last_action_batch = self.env.perform_n_step_rollout(
+            policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
+            state_batch=state_batch,
+            n=n_step_rollout
+        )
 
-            buffer.learn(
-                batch_indices=batch_indices,
-                chosen_probabilities=chosen_probabilities,
-                n_step_rollout=n_step_rollout,
-                reward_batches=reward_batches,
-                last_action_batch=last_action_batch
-            )
+        critic_loss, actor_loss = buffer.learn(
+            batch_indices=batch_indices,
+            chosen_probabilities=chosen_probabilities,
+            n_step_rollout=n_step_rollout,
+            reward_batches=reward_batches,
+            last_action_batch=last_action_batch
+        )
 
-            self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
-            self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
+        self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
+        self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
+
+        return critic_loss, actor_loss
 
 
     def run(self, run_demonstrations: bool):
@@ -384,7 +385,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -398,7 +399,7 @@ class DDPG:
             action_size=self.env.action_size,
             buffer_capacity=buffer_size,
             batch_size=self.params.batch_size,
-            demonstrations_count=total_exploration_steps,
+            demonstrations_count=total_demonstration_steps,
             actor_model=actor_model,
             policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
             target_policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
@@ -466,6 +467,8 @@ class DDPG:
                 avg_batch_divergence = interactions[1]
                 distance_threshold = interactions[2]
 
+                critic_loss, actor_loss = self.__learn(buffer)
+
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
@@ -474,7 +477,9 @@ class DDPG:
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
                     avg_batch_kl_divergence=avg_batch_divergence,
-                    distance_threshold=distance_threshold
+                    distance_threshold=distance_threshold,
+                    critic_loss=critic_loss,
+                    actor_loss=actor_loss
                 )
                 
                 reporter.record_running_statistic(running_stat)
@@ -498,8 +503,6 @@ class DDPG:
                 if frame > total_exploration_steps:
                     done = True
                     end_ddpg = True
-                
-                self.__learn(buffer)
 
                 print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_batch_reward))
 

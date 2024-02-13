@@ -53,7 +53,7 @@ ACTION_SIZE = 20
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = ACTION_SIZE * 2
+STATE_SIZE = 256
 
 OPEN_URL = 'http://localhost/products.php?id='
 
@@ -149,8 +149,8 @@ params = DDPGHyperparameters(
     critic_learning_rate=0.001,
     embedding_size=EMBEDDING_DIM,
     batch_size=BATCH_SIZE,
-    starting_stddev=0.1,
-    psi=0.0,
+    starting_stddev=0.15,
+    psi=0.3,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,

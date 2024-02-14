@@ -108,6 +108,7 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
+        TEMPERATURE = 0.5
         dictionary_length = len(self.env.dictionary)
 
         input_lstm = layers.Input(shape=(self.params.state_size + 1, self.env.embedding_size), batch_size=self.params.batch_size)
@@ -126,8 +127,9 @@ class DDPG:
         dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
-        dense = layers.BatchNormalization()(dense)
-        dense_output = layers.Dense(dictionary_length, activation='softmax')(dense)
+        #dense = layers.BatchNormalization()(dense)
+        temperature = layers.Lambda(lambda x: x / TEMPERATURE)(dense)
+        dense_output = layers.Dense(dictionary_length, activation='softmax')(temperature)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
         indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))

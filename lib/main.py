@@ -41,7 +41,7 @@ except:
 #
 #
 
-BATCH_SIZE = 512
+BATCH_SIZE = 32
 
 EMBEDDING_DIM = 128
 
@@ -149,7 +149,7 @@ params = DDPGHyperparameters(
     critic_learning_rate=0.001,
     embedding_size=EMBEDDING_DIM,
     batch_size=BATCH_SIZE,
-    starting_stddev=0.15,
+    starting_stddev=0.03,
     psi=0.3,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,

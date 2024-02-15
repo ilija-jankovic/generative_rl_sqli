@@ -133,18 +133,20 @@ class DDPG:
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
 
+        # Add normalisation layers between perturbed layers (pg. 3).
         lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(input_lstm)
+        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
         lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
+        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
         lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
+        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
         state_c = lstm[2]
 
-        # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.BatchNormalization()(state_h)
-        dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.Dense(1024, activation='relu')(state_h)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
@@ -472,9 +474,11 @@ class DDPG:
         for ep in range(1, total_episodes + 1):
             prev_states = self.__create_empty_states()
 
-            while not end_ddpg:
-                self.__update_perturbed_actor()
+            # Update perturbed actor at beginning of episode for stability.
+            # (Pg. 3 of Adapative Parameter Space Noise paper).
+            self.__update_perturbed_actor()
 
+            while not end_ddpg:
                 prev_stddev = self.__stddev
 
                 interactions = self.__get_perturbed_actions(prev_states)

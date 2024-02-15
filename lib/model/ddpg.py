@@ -109,42 +109,45 @@ class DDPG:
 
     def get_actor(self):
         TEMPERATURE = 0.5
+        C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
+
         dictionary_length = len(self.env.dictionary)
 
-        input_lstm = layers.Input(shape=(self.params.state_size + 1, self.env.embedding_size), batch_size=self.params.batch_size)
+        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(input_lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
-        lstm = layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True)(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(input_lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
         state_h = lstm[1]
+        state_c = lstm[2]
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.BatchNormalization()(state_h)
+        dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
-        #dense = layers.BatchNormalization()(dense)
+        dense = layers.BatchNormalization()(dense)
         temperature = layers.Lambda(lambda x: x / TEMPERATURE)(dense)
         dense_output = layers.Dense(dictionary_length, activation='softmax')(temperature)
+
+        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
 
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
         indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))
 
-        return keras.Model([input_lstm, input_actions], [indices_output, embedding_output])
+        return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
 
     def get_critic(self):
         LSTM_UNITS = 1024
 
         action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
 
-        # TODO: Bidirectional suited for NLP sequences.
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(action_input)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True)(lstm)
-        lstm = layers.CuDNNLSTM(LSTM_UNITS)(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(action_input)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
 
         out = layers.Dense(1024, activation="relu")(lstm)
         out = layers.Dense(1024, activation="relu")(out)
@@ -162,12 +165,19 @@ class DDPG:
         return model
 
     @tf.function
-    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states):
+    def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):
+        embeddings = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
+        lstm_states = tf.reshape(lstm_states, [self.params.batch_size, -1, self.env.embedding_size])
+        
+        input = tf.concat([rl_states, embeddings, lstm_states], axis=1)
+
+        return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])
+
+    @tf.function
+    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
         batch_size = self.params.batch_size
 
-        embedding_input = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
-        input = tf.concat([rl_states, embedding_input], axis=1)
-        input = (input, actions)
+        input = (self.get_embedded_lstm_input(rl_states, embeddings, lstm_states), actions)
 
         output = tf.cond(
             tf.equal(type, PolicyType.NORMAL.value),
@@ -177,8 +187,8 @@ class DDPG:
                     true_fn=lambda: self.actor_perturbed(input, training=training),
                     false_fn=lambda: self.target_actor(input, training=training)))
 
-        indices_output = output[0]
-        embedding_output = output[1]
+        lstm_states = output[0]
+        indices = output[1]
 
         # action_index_float is the length of the action after incrementing, which
         # is then used in the below embedding average calculation.
@@ -186,19 +196,18 @@ class DDPG:
 
         # Adding to an average solution by Damien and Dan Dascalescu from:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
-        embeddings = embeddings + (embedding_output - embeddings) / action_index_float
+        embeddings = embeddings + (output[2] - embeddings) / action_index_float
 
         action_indices = tf.range(0, batch_size, dtype=tf.int32)
         action_indices = tf.expand_dims(action_indices, axis=1)
         action_indices = tf.pad(action_indices, [[0, 0], [0, 1]], constant_values=action_index)
 
-        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices_output)
+        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices)
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, action_index_float, embeddings, type, training, rl_states
+        return actions, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
 
-    @tf.function
     def policy(self, states, type: int, training: bool):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.
@@ -212,6 +221,7 @@ class DDPG:
         actions = tf.fill([batch_size, action_size], len(self.env.dictionary) - 1)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)
@@ -219,7 +229,7 @@ class DDPG:
         actions, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states),
+            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 
@@ -447,11 +457,9 @@ class DDPG:
         for ep in range(1, total_episodes + 1):
             prev_states = self.__create_empty_states()
 
-            # Update perturbed actor at beginning of episode for stability.
-            # (Pg. 3 of Adapative Parameter Space Noise paper).
-            self.__update_perturbed_actor()
-
             while not end_ddpg:
+                self.__update_perturbed_actor()
+
                 prev_stddev = self.__stddev
 
                 interactions = self.__get_perturbed_actions(prev_states)

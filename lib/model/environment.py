@@ -246,7 +246,7 @@ class Environment():
         rewards = []
 
         for _ in range(n):
-            action_batch = policy(state_batch, training=True)
+            action_batch = policy(state_batch, training=False)
 
             env_tuples = [self.perform_action(action, ignore_episode=True) for action in action_batch]
 

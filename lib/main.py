@@ -53,12 +53,12 @@ ACTION_SIZE = 20
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = 256
+STATE_SIZE = 40
 
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=8b09c768b3ec5b133d121208a32d6801; {flag}=22ac3c5a5bf0b520d281c122d1490650'
+COOKIE = 'pma_lang=en; PHPSESSID=fc8389d9df98d64dc0a9add6f442581b; {flag}=a97da629b098b75c294dffdc3e463904'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -149,7 +149,7 @@ params = DDPGHyperparameters(
     critic_learning_rate=0.001,
     embedding_size=EMBEDDING_DIM,
     batch_size=BATCH_SIZE,
-    starting_stddev=0.03,
+    starting_stddev=0.05,
     psi=0.3,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,

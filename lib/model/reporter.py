@@ -47,6 +47,7 @@ class Reporter:
             'ε Decay',
             'Min ε',
             'ψ',
+            'Temperature',
             'Action Size',
             'State Size',
             'Prefix',
@@ -81,6 +82,7 @@ class Reporter:
                 f.write(f'{params.epsilon_min},')
 
             f.write(f'{params.psi},')
+            f.write(f'{params.temperature},')
             f.write(f'{params.action_size},')
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')

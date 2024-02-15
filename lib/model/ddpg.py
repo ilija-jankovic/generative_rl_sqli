@@ -86,21 +86,39 @@ class DDPG:
         return tf.stack(mask)
 
     @tf.function
-    def mask_one_hot_encoding(self, single_one_hot_encoding, action: tf.Tensor):
+    def mask_logits(self, logit, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
         # Avoid unnecessary mask construction if psi is zero, as the mask will always
         # be ones in this case.
         return tf.cond(tf.less_equal(self.params.psi, 0.0),
-            true_fn=lambda: single_one_hot_encoding,
-            false_fn=lambda: single_one_hot_encoding * self.get_mask(payload))
+            true_fn=lambda: logit,
+            false_fn=lambda: logit * self.get_mask(payload))
     
     @tf.function
-    def get_embeddings(self, one_hot_encoding, actions):        
-        one_hot_encoding = [self.mask_one_hot_encoding(one_hot_encoding[i], actions[i]) for i in range(self.params.batch_size)]
-        one_hot_encoding = tf.convert_to_tensor(one_hot_encoding, dtype=tf.float32)
+    def penalise_non_ast(self, logits, actions):
+        logits = [self.mask_logits(logits[i], actions[i]) for i in range(self.params.batch_size)]
 
-        indices = tf.random.categorical(one_hot_encoding, num_samples=1, dtype=tf.int32)
+        return tf.convert_to_tensor(logits, dtype=tf.float32)
+    
+    # Modified solution by chasep255 from: 
+    # https://stackoverflow.com/questions/37246030/how-to-change-the-temperature-of-a-softmax-output-in-keras
+    @tf.function
+    def sample_temperatured(self, softmax_probabilities, actions):
+        '''
+        `probabilities` expected to be calculated from last softmax layer of
+        a neural network.
+        '''
+        logits = tf.math.log(softmax_probabilities) / self.params.temperature
+        logits = self.penalise_non_ast(logits, actions)
+
+        probabilities = tf.math.exp(logits) / tf.reduce_sum(tf.math.exp(logits))
+
+        return tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
+    
+    @tf.function
+    def get_embeddings_from_logits(self, softmax_probabilities, actions):
+        indices = self.sample_temperatured(softmax_probabilities, actions)
         indices = tf.squeeze(indices)
 
         embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
@@ -108,12 +126,12 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
-        TEMPERATURE = 0.5
         C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
 
         dictionary_length = len(self.env.dictionary)
 
         input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
+        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
 
         lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(input_lstm)
         lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
@@ -130,15 +148,12 @@ class DDPG:
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(1024, activation='relu')(dense)
         dense = layers.BatchNormalization()(dense)
-        temperature = layers.Lambda(lambda x: x / TEMPERATURE)(dense)
-        dense_output = layers.Dense(dictionary_length, activation='softmax')(temperature)
+        dense = layers.Dense(dictionary_length, activation='softmax')(dense)
 
-        padded_state_c = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
+        padded_state_c_output = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
+        indices_output, embedding_output = layers.Lambda(lambda output: self.get_embeddings_from_logits(output[0], output[1]))((dense, input_actions))
 
-        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
-        indices_output, embedding_output = layers.Lambda(lambda input: self.get_embeddings(input[0], input[1]))((dense_output, input_actions))
-
-        return keras.Model([input_lstm, input_actions], [padded_state_c, indices_output, embedding_output])
+        return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self):
         LSTM_UNITS = 1024
@@ -168,7 +183,7 @@ class DDPG:
     def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):
         embeddings = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
         lstm_states = tf.reshape(lstm_states, [self.params.batch_size, -1, self.env.embedding_size])
-        
+
         input = tf.concat([rl_states, embeddings, lstm_states], axis=1)
 
         return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])

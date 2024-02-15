@@ -16,6 +16,7 @@ class DDPGHyperparameters:
     epsilon_decay: float
     epsilon_min: float
     psi: float
+    temperature: float
     action_size: int
     state_size: int
     prefix: str
@@ -32,6 +33,7 @@ class DDPGHyperparameters:
             batch_size: int,
             starting_stddev: float,
             psi: float,
+            temperature: float,
             action_size: int,
             state_size: int,
             prefix: str,
@@ -60,6 +62,7 @@ class DDPGHyperparameters:
         self.batch_size = batch_size
         self.starting_stddev = starting_stddev
         self.psi = psi
+        self.temperature = temperature
         self.action_size = action_size
         self.state_size = state_size
         self.prefix = prefix

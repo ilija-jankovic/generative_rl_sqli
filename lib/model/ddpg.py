@@ -134,11 +134,11 @@ class DDPG:
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(input_lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(input_lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True))(lstm)
+        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -158,30 +158,38 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 1024
+        LSTM_UNITS = 512
 
-        action_input = layers.Input(shape=(self.env.action_size, 1), batch_size=self.params.batch_size)
+        state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=self.params.batch_size)
 
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(action_input)
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm)
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(state_input)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm_state)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm_state)
 
-        out = layers.Dense(1024, activation="relu")(lstm)
-        out = layers.Dense(1024, activation="relu")(out)
-        out = layers.Dense(512, activation="relu")(out)
-        out = layers.Dense(256, activation="relu")(out)
-        out = layers.Dense(128, activation="relu")(out)
-        out = layers.Dense(64, activation="relu")(out)
-        out = layers.Dense(32, activation="relu")(out)
-        out = layers.Dense(16, activation="relu")(out)
-        outputs = layers.Dense(1)(out)
+        action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
+        embeddding_input = layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
+
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(embeddding_input)
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm_action)
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm_action)
+
+        concat = layers.Concatenate()([lstm_state, lstm_action])
+
+        dense = layers.Dense(1024, activation="relu")(concat)
+        dense = layers.Dense(1024, activation="relu")(dense)
+        dense = layers.Dense(512, activation="relu")(dense)
+        dense = layers.Dense(256, activation="relu")(dense)
+        dense = layers.Dense(128, activation="relu")(dense)
+        dense = layers.Dense(64, activation="relu")(dense)
+        dense = layers.Dense(32, activation="relu")(dense)
+        dense = layers.Dense(16, activation="relu")(dense)
+        outputs = layers.Dense(1)(dense)
 
         # Outputs single value for give state-action
-        model = tf.keras.Model([action_input], outputs)
+        model = tf.keras.Model([state_input, action_input], outputs)
 
         return model
 
-    @tf.function
     def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):
         embeddings = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
         lstm_states = tf.reshape(lstm_states, [self.params.batch_size, -1, self.env.embedding_size])
@@ -190,7 +198,6 @@ class DDPG:
 
         return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])
 
-    @tf.function
     def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
         batch_size = self.params.batch_size
 
@@ -368,7 +375,7 @@ class DDPG:
         state_batch = buffer.state_buffer[batch_indices]
         state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
-        reward_batches, last_action_batch = self.env.perform_n_step_rollout(
+        reward_batches, last_state_batch, last_action_batch = self.env.perform_n_step_rollout(
             policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
             state_batch=state_batch,
             n=n_step_rollout
@@ -379,6 +386,7 @@ class DDPG:
             chosen_probabilities=chosen_probabilities,
             n_step_rollout=n_step_rollout,
             reward_batches=reward_batches,
+            last_state_batch=last_state_batch,
             last_action_batch=last_action_batch
         )
 

@@ -259,5 +259,5 @@ class Environment():
 
         self.__attempted_payloads = list(set(self.__attempted_payloads) - set(attempted_payloads))
 
-        return np.array(rewards), action_batch
+        return np.array(rewards), state_batch, action_batch
 

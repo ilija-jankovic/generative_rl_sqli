@@ -369,16 +369,14 @@ class DDPG:
         return tf.convert_to_tensor(states)
 
 
-    def __learn(self, buffer: ReplayBuffer):
-        n_step_rollout = 5
-
+    def __learn(self, buffer: ReplayBuffer, n_step_rollout = 5):
         batch_indices, chosen_probabilities = buffer.sample_indices()
 
         state_batch = buffer.state_buffer[batch_indices]
         state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
         reward_batches, last_state_batch, last_action_batch = self.env.perform_n_step_rollout(
-            policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
+            policy=lambda state, training: self.policy(state, PolicyType.PERTURBED.value, training=training),
             state_batch=state_batch,
             n=n_step_rollout
         )

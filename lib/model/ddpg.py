@@ -262,9 +262,9 @@ class DDPG:
         return actions
 
 
-    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, is_demonstration: bool):
+    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool, is_demonstration: bool):
         # Recieve state and reward from environment.
-        env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=is_demonstration) for i in range(len(actions))]
+        env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=ignore_episode) for i in range(len(actions))]
 
         obs_tuples = [(prev_states[i], actions[i], env_tuples[i][1], env_tuples[i][0]) for i in range(self.params.batch_size)]
 
@@ -435,7 +435,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
+        total_demonstration_steps = 100 #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -497,7 +497,7 @@ class DDPG:
             interactions = self.__get_perturbed_actions(states)
             actions = interactions[0]
 
-            self.__run_actions(actions, states, buffer, is_demonstration=False)
+            self.__run_actions(actions, states, buffer, ignore_episode=True, is_demonstration=False)
 
 
         for ep in range(1, total_episodes + 1):

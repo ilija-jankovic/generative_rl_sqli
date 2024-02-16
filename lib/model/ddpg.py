@@ -86,39 +86,41 @@ class DDPG:
         return tf.stack(mask)
 
     @tf.function
-    def mask_logits(self, logit, action: tf.Tensor):
+    def mask_probabilities(self, probabilities, action: tf.Tensor):
         payload = tf.py_function(self.env.get_payload, [action], tf.string)
 
         # Avoid unnecessary mask construction if psi is zero, as the mask will always
         # be ones in this case.
         return tf.cond(tf.less_equal(self.params.psi, 0.0),
-            true_fn=lambda: logit,
-            false_fn=lambda: logit * self.get_mask(payload))
+            true_fn=lambda: probabilities,
+            false_fn=lambda: probabilities * self.get_mask(payload))
     
     @tf.function
-    def penalise_non_ast(self, logits, actions):
-        logits = [self.mask_logits(logits[i], actions[i]) for i in range(self.params.batch_size)]
+    def penalise_non_ast(self, probabilities_batch, actions):
+        probabilities_batch = [self.mask_probabilities(probabilities_batch[i], actions[i]) for i in range(self.params.batch_size)]
 
-        return tf.convert_to_tensor(logits, dtype=tf.float32)
+        return tf.convert_to_tensor(probabilities_batch, dtype=tf.float32)
     
     # Modified solution by chasep255 from: 
     # https://stackoverflow.com/questions/37246030/how-to-change-the-temperature-of-a-softmax-output-in-keras
     @tf.function
-    def sample_temperatured(self, softmax_probabilities, actions):
+    def calculate_temperatured_probabilities(self, softmax_probabilities):
         '''
         `probabilities` expected to be calculated from last softmax layer of
         a neural network.
         '''
         logits = tf.math.log(softmax_probabilities) / self.params.temperature
-        logits = self.penalise_non_ast(logits, actions)
 
-        probabilities = tf.math.exp(logits) / tf.reduce_sum(tf.math.exp(logits))
-
-        return tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
+        return tf.math.exp(logits) / tf.reduce_sum(tf.math.exp(logits))
     
-    @tf.function
-    def get_embeddings_from_logits(self, softmax_probabilities, actions):
-        indices = self.sample_temperatured(softmax_probabilities, actions)
+    def get_embeddings_from_probabilities(self, probabilities, actions):
+        probabilities = self.calculate_temperatured_probabilities(probabilities)
+        probabilities = self.penalise_non_ast(probabilities, actions)
+
+        # Log probabilities as tf.random.categorical expects log probabilities.
+        probabilities = tf.math.log(probabilities)
+
+        indices = tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
         indices = tf.squeeze(indices)
 
         embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
@@ -153,7 +155,7 @@ class DDPG:
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c_output = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
-        indices_output, embedding_output = layers.Lambda(lambda output: self.get_embeddings_from_logits(output[0], output[1]))((dense, input_actions))
+        indices_output, embedding_output = layers.Lambda(lambda output: self.get_embeddings_from_probabilities(output[0], output[1]))((dense, input_actions))
 
         return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 

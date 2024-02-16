@@ -368,6 +368,24 @@ class DDPG:
         states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
 
         return tf.convert_to_tensor(states)
+    
+
+    def __calculate_mean_kl_divergence(self, states_batch: tf.Tensor, perturbed_actions_batch: tf.Tensor):
+        steps = len(states_batch)
+
+        assert(steps > 0 and len(perturbed_actions_batch) == steps)
+
+        divergences = []
+
+        for i in range(steps):
+            states = states_batch[i]
+            perturbed_actions = perturbed_actions_batch[i]
+
+            actions = self.policy(states, PolicyType.NORMAL.value, training=False)
+
+            divergences.append(self.get_kl_divergence(actions, perturbed_actions))
+
+        return tf.reduce_mean(divergences)
 
 
     def __learn(self, buffer: ReplayBuffer, reporter: Reporter, episode: int, frame: int, n_step_rollout = 5):
@@ -385,6 +403,7 @@ class DDPG:
         )
 
         average_reward = tf.reduce_mean(reward_batches)
+        divergence = self.__calculate_mean_kl_divergence(state_batches[:-1], action_batches)
 
         for stat in stats:
             reporter.record_payload_statistic(stat)
@@ -406,7 +425,7 @@ class DDPG:
         self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
         self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
-        return average_reward, done, critic_loss, actor_loss
+        return average_reward, divergence, done, critic_loss, actor_loss
 
 
     def run(self, run_demonstrations: bool):
@@ -435,7 +454,7 @@ class DDPG:
         total_episodes = 500
 
         total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = 100 #math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
+        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
@@ -510,16 +529,16 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                avg_reward, done, critic_loss, actor_loss = self.__learn(buffer, reporter, episode=ep, frame=frame)
+                avg_reward, divergence, done, critic_loss, actor_loss = self.__learn(buffer, reporter, episode=ep, frame=frame)
 
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    avg_batch_reward=avg_reward,
+                    avg_n_step_reward=avg_reward,
                     is_demonstration=False,
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
-                    avg_batch_kl_divergence=None,
+                    avg_n_step_kl_divergence=divergence,
                     distance_threshold=None,
                     critic_loss=critic_loss,
                     actor_loss=actor_loss

@@ -48,7 +48,7 @@ class Reporter:
             'Min ε',
             'ψ',
             'Temperature',
-            'n Step Rollout',
+            'n-Step Rollout',
             'Action Size',
             'State Size',
             'Prefix',
@@ -99,9 +99,9 @@ class Reporter:
                 'Actor Loss',
                 'Standard Deviation',
                 'ε',
-                'Average Batch KL Divergence',
+                'Average n-Step KL Divergence',
                 'Distance Threshold',
-                'Average Batch Reward',
+                'Average n-Step Reward',
             ]
 
             if constant_stddev:
@@ -135,12 +135,12 @@ class Reporter:
                 f.write(f'{stat.stddev},')
                 f.write(f'{stat.epsilon},')
 
-            f.write(f'{stat.avg_batch_kl_divergence},')
+            f.write(f'{stat.avg_n_step_kl_divergence},')
 
             if not constant_stddev:
                 f.write(f'{stat.distance_threshold},')
                 
-            f.write(f'{stat.avg_batch_reward}\n')
+            f.write(f'{stat.avg_n_step_reward}\n')
         f.close()
 
     def record_payload_statistic(self, stat: DDPGPayloadStatistic):

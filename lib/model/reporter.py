@@ -48,6 +48,7 @@ class Reporter:
             'Min ε',
             'ψ',
             'Temperature',
+            'n Step Rollout',
             'Action Size',
             'State Size',
             'Prefix',
@@ -83,6 +84,7 @@ class Reporter:
 
             f.write(f'{params.psi},')
             f.write(f'{params.temperature},')
+            f.write(f'{params.n_step_rollout},')
             f.write(f'{params.action_size},')
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')

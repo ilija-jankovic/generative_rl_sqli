@@ -6,6 +6,8 @@ from requests import Response
 from typing import Callable
 import tensorflow as tf
 
+from .ddpg_payload_statistic import DDPGPayloadStatistic
+
 from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
@@ -38,7 +40,7 @@ class Environment():
             embeddings: List[List[int]], 
             action_size: int,
             state_size: int,
-            batch_size: int,
+            frames_per_episode: int,
             columns: List[str],
             tables: List[str],
             double_requests: bool,
@@ -72,7 +74,7 @@ class Environment():
         self.double_requests = double_requests
         
         self.send_request_callback = send_request_callback
-        self.__episode = EpisodeState(batch_size * 5)
+        self.__episode = EpisodeState(frames_per_episode)
 
         self.__inject_initial_payloads()
 
@@ -104,13 +106,13 @@ class Environment():
     def __payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads
 
-    def create_empty_state(self, index: float):
+    def create_empty_state(self, index: int):
         '''
         Creates a state filled with index.
 
         Used to start off each branch of a batch in different directions.
         '''
-        return tf.fill((self.state_size, self.embedding_size), index)
+        return tf.fill((self.state_size, self.embedding_size), float(index))
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -193,8 +195,9 @@ class Environment():
         res_new_tokens += [[0.0] * self.embedding_size] * (res_section_size - len(res_new_tokens))
 
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
+
     
-    def perform_action(self, action: np.ndarray, ignore_episode: bool):
+    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -226,38 +229,57 @@ class Environment():
         self.__record_payload(payload)
 
         if ignore_episode:
-            episode_ended = False
+            done = False
         else:
-            episode_ended = self.__update_episode()
+            done = self.__update_episode()
 
-        state = self.__create_state(action, response.text, new_tokens)
+        state = self.create_empty_state(index=batch_index) if done else self.__create_state(action, response.text, new_tokens)
 
-        return state, reward, episode_ended
+        return state, reward, done
 
-    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int):
+    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int, episode: int, frame: int):
         assert(n > 0)
 
-        # Keep track of payloads attempted in rollout to remove them from the cache
-        # after rollout completed.
-        #
-        # This ensures the environment acts as close as possible to normal action execution.
-        attempted_payloads = self.__attempted_payloads.copy()
+        state_batches = [state_batch]
+        action_batches = []
+        reward_batches = []
 
-        rewards = []
+        payload_stats = []
+
+        done = False
 
         for _ in range(n):
             action_batch = policy(state_batch, training=False)
 
-            env_tuples = [self.perform_action(action, ignore_episode=True) for action in action_batch]
+            env_tuples = [self.perform_action(action_batch[i], batch_index=i) for i in range(len(action_batch))]
 
             state_batch = [env_tuple[0] for env_tuple in env_tuples]
-            state_batch  = tf.convert_to_tensor(state_batch, dtype=tf.float32)
-
             reward_batch = [env_tuple[1] for env_tuple in env_tuples]
-            
-            rewards.append(reward_batch)
+            done_batch = [env_tuple[2] for env_tuple in env_tuples]
 
-        self.__attempted_payloads = list(set(self.__attempted_payloads) - set(attempted_payloads))
+            state_batches.append(state_batch)
+            action_batches.append(action_batch)
+            reward_batches.append(reward_batch)
 
-        return np.array(rewards), state_batch, action_batch
+            for i in range(len(action_batch)):
+                action = action_batch[i]
+                reward = reward_batch[i]
+
+                if reward > 0.0:
+                    stat = DDPGPayloadStatistic(
+                        epsiode=episode,
+                        frame=frame,
+                        payload=self.get_payload(action),
+                        reward=reward,
+                        is_demonstration=False
+                    )
+
+                    payload_stats.append(stat)
+
+            done = done or True in done_batch
+
+        state_batches = tf.convert_to_tensor(state_batches, dtype=tf.float32)
+        reward_batches = tf.convert_to_tensor(reward_batches, dtype=tf.float32)
+
+        return state_batches, action_batches, reward_batches, payload_stats, done
 

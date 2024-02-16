@@ -34,6 +34,7 @@ class DDPGHyperparameters:
             starting_stddev: float,
             psi: float,
             temperature: float,
+            n_step_rollout: int,
             action_size: int,
             state_size: int,
             prefix: str,
@@ -63,6 +64,7 @@ class DDPGHyperparameters:
         self.starting_stddev = starting_stddev
         self.psi = psi
         self.temperature = temperature
+        self.n_step_rollout = n_step_rollout
         self.action_size = action_size
         self.state_size = state_size
         self.prefix = prefix

@@ -262,9 +262,9 @@ class DDPG:
         return actions
 
 
-    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool, is_demonstration: bool):
+    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, is_demonstration: bool):
         # Recieve state and reward from environment.
-        env_tuples = [self.env.perform_action(action, ignore_episode=ignore_episode) for action in actions]
+        env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=is_demonstration) for i in range(len(actions))]
 
         obs_tuples = [(prev_states[i], actions[i], env_tuples[i][1], env_tuples[i][0]) for i in range(self.params.batch_size)]
 
@@ -365,35 +365,48 @@ class DDPG:
 
 
     def __create_empty_states(self):
-        states = [self.env.create_empty_state(index=float(i)) for i in range(self.params.batch_size)]
+        states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
+
         return tf.convert_to_tensor(states)
 
 
-    def __learn(self, buffer: ReplayBuffer, n_step_rollout = 5):
+    def __learn(self, buffer: ReplayBuffer, reporter: Reporter, episode: int, frame: int, n_step_rollout = 5):
         batch_indices, chosen_probabilities = buffer.sample_indices()
 
         state_batch = buffer.state_buffer[batch_indices]
         state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
-        reward_batches, last_state_batch, last_action_batch = self.env.perform_n_step_rollout(
+        state_batches, action_batches, reward_batches, stats, done = self.env.perform_n_step_rollout(
             policy=lambda state, training: self.policy(state, PolicyType.PERTURBED.value, training=training),
             state_batch=state_batch,
+            episode=episode,
+            frame=frame,
             n=n_step_rollout
         )
+
+        average_reward = tf.reduce_mean(reward_batches)
+
+        for stat in stats:
+            reporter.record_payload_statistic(stat)
+
+        for i in range(n_step_rollout):
+            observations = [(state_batches[i][j], action_batches[i][j], reward_batches[i][j], state_batches[i + 1][j]) for j in range(self.params.batch_size)]
+
+            buffer.record(observations, is_demonstration=False)
 
         critic_loss, actor_loss = buffer.learn(
             batch_indices=batch_indices,
             chosen_probabilities=chosen_probabilities,
             n_step_rollout=n_step_rollout,
             reward_batches=reward_batches,
-            last_state_batch=last_state_batch,
-            last_action_batch=last_action_batch
+            last_state_batch=state_batches[-2],
+            last_action_batch=action_batches[-1]
         )
 
         self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
         self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
-        return critic_loss, actor_loss
+        return average_reward, done, critic_loss, actor_loss
 
 
     def run(self, run_demonstrations: bool):
@@ -478,9 +491,17 @@ class DDPG:
                 print(f'{i + self.params.batch_size}/{total_demonstration_steps} demonstration observations gathered.')
 
             print('Transitions gathered.')
+        else:
+            states = self.__create_empty_states()
+
+            interactions = self.__get_perturbed_actions(states)
+            actions = interactions[0]
+
+            self.__run_actions(actions, states, buffer, is_demonstration=False)
+
 
         for ep in range(1, total_episodes + 1):
-            prev_states = self.__create_empty_states()
+            states = self.__create_empty_states()
 
             # Update perturbed actor at beginning of episode for stability.
             # (Pg. 3 of Adapative Parameter Space Noise paper).
@@ -489,59 +510,33 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                interactions = self.__get_perturbed_actions(prev_states)
-                actions = interactions[0]
-
-                env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=False)
-                states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
-                
-                done = True in [env_tuple[2] for env_tuple in env_tuples]
-
-                frame += self.params.batch_size
-
-                avg_batch_reward = sum([env_tuple[1] for env_tuple in env_tuples]) / self.params.batch_size
-
-                avg_batch_divergence = interactions[1]
-                distance_threshold = interactions[2]
-
-                critic_loss, actor_loss = self.__learn(buffer)
+                avg_reward, done, critic_loss, actor_loss = self.__learn(buffer, reporter, episode=ep, frame=frame)
 
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    avg_batch_reward=avg_batch_reward,
+                    avg_batch_reward=avg_reward,
                     is_demonstration=False,
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
-                    avg_batch_kl_divergence=avg_batch_divergence,
-                    distance_threshold=distance_threshold,
+                    avg_batch_kl_divergence=None,
+                    distance_threshold=None,
                     critic_loss=critic_loss,
                     actor_loss=actor_loss
                 )
                 
                 reporter.record_running_statistic(running_stat)
 
-                payload_stats = [
-                    DDPGPayloadStatistic(
-                        epsiode=ep,
-                        frame=frame,
-                        payload=self.env.get_payload(actions[i]),
-                        reward=env_tuples[i][1],
-                        is_demonstration=False
-                    ) for i in range(len(actions)) if env_tuples[i][1] > 0.0
-                ]
-            
-                for stat in payload_stats:
-                    reporter.record_payload_statistic(stat)
-
                 if not self.params.constant_stddev:
                     self.__decay_epsilon()
+                
+                frame += self.params.batch_size * self.params.n_step_rollout
 
                 if frame > total_exploration_steps:
                     done = True
                     end_ddpg = True
 
-                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_batch_reward))
+                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_reward))
 
                 # End this episode when `done` is True
                 if done:

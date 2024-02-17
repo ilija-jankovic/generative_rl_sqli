@@ -128,7 +128,7 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
 
     def get_actor(self):
-        C_PADDING = self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)
+        C_PADDING = self.actor_lstm_units % self.env.embedding_size
 
         dictionary_length = len(self.env.dictionary)
 
@@ -451,9 +451,7 @@ class DDPG:
         critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0)
         actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, decay=0.001)
 
-        total_episodes = 500
-
-        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
+        total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
@@ -519,7 +517,7 @@ class DDPG:
             self.__run_actions(actions, states, buffer, ignore_episode=True, is_demonstration=False)
 
 
-        for ep in range(1, total_episodes + 1):
+        while True:
             states = self.__create_empty_states()
 
             # Update perturbed actor at beginning of episode for stability.
@@ -559,6 +557,7 @@ class DDPG:
 
                 # End this episode when `done` is True
                 if done:
+                    ep += 1
                     break
 
                 prev_states = states

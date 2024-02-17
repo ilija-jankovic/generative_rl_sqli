@@ -103,6 +103,41 @@ class ReplayBuffer:
         self.buffer_counter += self.batch_size
 
 
+    @tf.function
+    def normalize_0_1(self, tensor: tf.Tensor):
+        '''
+        Expects only non-negative values in `tensor`.
+        '''
+        tf.debugging.assert_non_negative(tensor, '[0,1] normalization ' +
+            'tensor must not contain negative values.')
+        
+        sums = tf.reduce_sum(tensor, axis=-1, keepdims=True)
+        
+        return tensor / sums
+
+
+    @tf.function
+    def get_kl_divergence(self, t1: tf.Tensor, t2: tf.Tensor):
+        '''
+        `t1` and `t2` are normalized between `[0,1]` for divergence calculation,
+        but must only contain non-negative values.
+        '''
+        tf.debugging.assert_non_negative(t1,'Tensor for divergence ' +
+            'calculation must not contain negative values.')
+        tf.debugging.assert_non_negative(t2,'Tensor for divergence ' +
+            'calculation must not contain negative values.')
+
+        t1 = tf.cast(t1, dtype=tf.float32)
+        t2 = tf.cast(t2, dtype=tf.float32)
+
+        # Ensure values are scaled to sum to one to meet KL divergence
+        # requirement of probability distribution inputs.
+        t1 = self.normalize_0_1(t1)
+        t2 = self.normalize_0_1(t2)
+
+        return tf.keras.metrics.kl_divergence(t1, t2)
+    
+
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
@@ -110,6 +145,13 @@ class ReplayBuffer:
     def update(
         self, state_batch, action_batch, reward_batch, next_state_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_state_batch: tf.Tensor, last_action_batch: tf.Tensor
     ):
+        loss_weight_rollout = 0.5
+        loss_weight_l2 = 0.1
+
+        # TODO: Implement this here and in observation recording:
+        #loss_weight_priorities = 
+
+
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         with tf.GradientTape() as tape:
@@ -130,10 +172,11 @@ class ReplayBuffer:
 
             td_error_n = y - critic_value
 
-            l2_1_step = tf.math.reduce_mean(tf.math.square(td_error_1))
-            l2_n_step = tf.math.reduce_mean(tf.math.square(td_error_n))
+            loss_1_step = tf.math.reduce_mean(tf.math.square(td_error_1))
+            loss_n_step = 0.5 * tf.math.reduce_mean(tf.math.square(td_error_n))
+            l2 = tf.math.reduce_sum(tf.math.square(td_error_1))
 
-            critic_loss = 0.5 * (l2_1_step + l2_n_step)
+            critic_loss = loss_1_step + loss_weight_rollout * loss_n_step + loss_weight_l2 * l2
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -143,9 +186,13 @@ class ReplayBuffer:
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
             critic_value = self.critic_model([state_batch, actions], training=True)
+
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
-            actor_loss = -tf.math.reduce_mean(critic_value)
+
+            l2 = tf.math.reduce_sum(tf.math.square(self.get_kl_divergence(target_actions, actions)))
+
+            actor_loss = -tf.math.reduce_mean(critic_value) + loss_weight_l2 * l2
 
         # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)

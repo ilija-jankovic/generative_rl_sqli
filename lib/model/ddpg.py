@@ -533,6 +533,8 @@ class DDPG:
 
                 avg_reward = tf.reduce_mean(rewards)
 
+                frame += self.params.batch_size
+
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
@@ -551,8 +553,6 @@ class DDPG:
                 if not self.params.constant_stddev:
                     self.__decay_epsilon()
                 
-                frame += self.params.batch_size
-
                 if frame > total_exploration_steps:
                     done = True
                     end_ddpg = True

@@ -104,24 +104,20 @@ class ReplayBuffer:
         return tf.keras.metrics.kl_divergence(t1, t2)
     
 
-    def get_actor_loss(self, critic_value: float, actions: tf.Tensor, target_actions: tf.Tensor):
-        l2 = tf.math.reduce_sum(tf.math.square(self.get_kl_divergence(target_actions, actions)))
-
+    def get_actor_loss(self, critic_value: float):
         # Used `-value` as we want to maximize the value given
         # by the critic for our actions
-        return -tf.math.reduce_mean(critic_value) + self.l2_weight * l2
+        return -tf.math.reduce_mean(critic_value)
 
 
-    def get_critic_loss(self, critic_value: float, target_critic_value: float, discounted_return: tf.Tensor, discounted_return_rollout: tf.Tensor):
+    def get_critic_loss(self, critic_value: float, discounted_return: tf.Tensor, discounted_return_rollout: tf.Tensor):
         td_error = discounted_return - critic_value
         td_error_rollout = discounted_return_rollout - critic_value
 
         loss_1_step = tf.math.reduce_mean(tf.math.square(td_error))
         loss_rollout = 0.5 * tf.math.reduce_mean(tf.math.square(td_error_rollout))
 
-        l2 = tf.math.reduce_sum(tf.math.square(target_critic_value - critic_value))
-
-        critic_loss = loss_1_step + self.rollout_weight * loss_rollout + self.l2_weight * l2
+        critic_loss = loss_1_step + self.rollout_weight * loss_rollout
 
         return critic_loss, td_error
 
@@ -172,16 +168,17 @@ class ReplayBuffer:
 
             # n-step.
             discounted_gamma = tf.pow(self.gamma, n_step_rollout)
-            discounted_return_rollout = discounted_reward_batch + discounted_gamma * self.critic_model(
+            discounted_return_rollout = discounted_reward_batch + discounted_gamma * self.target_critic(
                 [last_state_batch, last_action_batch], training=True
             )
 
             critic_loss, td_error = self.get_critic_loss(
                 critic_value=critic_value,
-                target_critic_value=target_critic_value,
                 discounted_return=discounted_return,
                 discounted_return_rollout=discounted_return_rollout
             )
+
+            critic_loss += tf.add_n(self.critic_model.losses)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -190,15 +187,11 @@ class ReplayBuffer:
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
-            target_actions = self.target_policy(state_batch, training=True)
             
             critic_value = self.critic_model([state_batch, actions], training=True)
 
-            actor_loss = self.get_actor_loss(
-                critic_value=critic_value,
-                actions=actions,
-                target_actions=target_actions
-            )
+            actor_loss = self.get_actor_loss(critic_value=critic_value)
+            actor_loss += tf.add_n(self.actor_model.losses)
 
         # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)

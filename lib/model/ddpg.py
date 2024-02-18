@@ -31,7 +31,7 @@ class DDPG:
     __stddev: float
     __epsilon: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 256):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 512):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         dictionary_length = len(env.dictionary)
@@ -136,11 +136,17 @@ class DDPG:
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(input_lstm)
+        lstm = layers.Bidirectional(
+            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
+                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(input_lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(lstm)
+        lstm = layers.Bidirectional(
+            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
+                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True, kernel_initializer=tf.keras.initializers.Orthogonal()))(lstm)
+        lstm = layers.Bidirectional(
+            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
+                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -148,9 +154,9 @@ class DDPG:
         state_h = lstm[1]
         state_c = lstm[2]
 
-        dense = layers.Dense(1024, activation='relu')(state_h)
+        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(state_h)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(1024, activation='relu')(dense)
+        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -160,31 +166,31 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 256
+        LSTM_UNITS = 512
 
         state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=self.params.batch_size)
 
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(state_input)
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm_state)
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm_state)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(state_input)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_state)
+        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_state)
 
         action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
         embeddding_input = layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
 
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(embeddding_input)
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True))(lstm_action)
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS))(lstm_action)
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(embeddding_input)
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_action)
+        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_action)
 
         concat = layers.Concatenate()([lstm_state, lstm_action])
 
-        dense = layers.Dense(1024, activation="relu")(concat)
-        dense = layers.Dense(1024, activation="relu")(dense)
-        dense = layers.Dense(512, activation="relu")(dense)
-        dense = layers.Dense(256, activation="relu")(dense)
-        dense = layers.Dense(128, activation="relu")(dense)
-        dense = layers.Dense(64, activation="relu")(dense)
-        dense = layers.Dense(32, activation="relu")(dense)
-        dense = layers.Dense(16, activation="relu")(dense)
+        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(concat)
+        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(512, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(32, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dense(16, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
         outputs = layers.Dense(1)(dense)
 
         # Outputs single value for give state-action

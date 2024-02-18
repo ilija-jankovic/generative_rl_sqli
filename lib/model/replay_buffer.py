@@ -172,7 +172,7 @@ class ReplayBuffer:
 
             # n-step.
             discounted_gamma = tf.pow(self.gamma, n_step_rollout)
-            discounted_return_rollout = discounted_reward_batch + discounted_gamma * self.target_critic(
+            discounted_return_rollout = discounted_reward_batch + discounted_gamma * self.critic_model(
                 [last_state_batch, last_action_batch], training=True
             )
 

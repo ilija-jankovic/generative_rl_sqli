@@ -395,7 +395,8 @@ class DDPG:
         state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
         state_batches, action_batches, reward_batches, stats, done = self.env.perform_n_step_rollout(
-            policy=lambda state, training: self.policy(state, PolicyType.PERTURBED.value, training=training),
+            policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
+            perturbed_policy=lambda state, training: self.policy(state, PolicyType.PERTURBED.value, training=training),
             state_batch=state_batch,
             episode=episode,
             frame=frame,

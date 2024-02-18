@@ -237,7 +237,7 @@ class Environment():
 
         return state, reward, done
 
-    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int, episode: int, frame: int):
+    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], perturbed_policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int, episode: int, frame: int):
         assert(n > 0)
 
         state_batches = [state_batch]
@@ -248,8 +248,8 @@ class Environment():
 
         done = False
 
-        for _ in range(n):
-            action_batch = policy(state_batch, training=False)
+        for i in range(n):
+            action_batch = perturbed_policy(state_batch, training=False) if i == 0 else policy(state_batch, training=False)
 
             env_tuples = [self.perform_action(action_batch[i], batch_index=i) for i in range(len(action_batch))]
 

@@ -49,6 +49,9 @@ class Reporter:
             'ψ',
             'Temperature',
             'n-Step Rollout',
+            'n-Step Rollout Loss Weight',
+            'L2 Regularisation Weight',
+            'Priority Calculation Actor Loss Weight',
             'Action Size',
             'State Size',
             'Prefix',
@@ -85,6 +88,9 @@ class Reporter:
             f.write(f'{params.psi},')
             f.write(f'{params.temperature},')
             f.write(f'{params.n_step_rollout},')
+            f.write(f'{params.rollout_weight},')
+            f.write(f'{params.l2_weight},')
+            f.write(f'{params.priority_weight},')
             f.write(f'{params.action_size},')
             f.write(f'{params.state_size},')
             f.write(f'{params.prefix},')

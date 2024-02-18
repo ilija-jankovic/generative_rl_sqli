@@ -474,7 +474,10 @@ class DDPG:
             critic_model=critic_model,
             actor_optimizer=actor_optimizer,
             critic_optimizer=critic_optimizer,
-            gamma=self.params.gamma
+            gamma=self.params.gamma,
+            rollout_weight=self.params.rollout_weight,
+            l2_weight=self.params.l2_weight,
+            priority_weight=self.params.priority_weight
         )
         
         frame = 0

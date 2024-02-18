@@ -17,6 +17,9 @@ class DDPGHyperparameters:
     epsilon_min: float
     psi: float
     temperature: float
+    priority_weight: float
+    rollout_weight: float
+    l2_weight: float
     action_size: int
     state_size: int
     prefix: str
@@ -35,6 +38,9 @@ class DDPGHyperparameters:
             psi: float,
             temperature: float,
             n_step_rollout: int,
+            priority_weight: float,
+            rollout_weight: float,
+            l2_weight: float,
             action_size: int,
             state_size: int,
             prefix: str,
@@ -65,6 +71,9 @@ class DDPGHyperparameters:
         self.psi = psi
         self.temperature = temperature
         self.n_step_rollout = n_step_rollout
+        self.priority_weight = priority_weight
+        self.rollout_weight =rollout_weight
+        self.l2_weight = l2_weight
         self.action_size = action_size
         self.state_size = state_size
         self.prefix = prefix

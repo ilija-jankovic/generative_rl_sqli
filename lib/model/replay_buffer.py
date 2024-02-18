@@ -190,6 +190,8 @@ class ReplayBuffer:
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
+            target_actions = self.target_policy(state_batch, training=True)
+            
             critic_value = self.critic_model([state_batch, actions], training=True)
 
             actor_loss = self.get_actor_loss(

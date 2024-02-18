@@ -31,7 +31,7 @@ class DDPG:
     __stddev: float
     __epsilon: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 512):
+    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 256):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         dictionary_length = len(env.dictionary)
@@ -160,7 +160,7 @@ class DDPG:
         return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self):
-        LSTM_UNITS = 512
+        LSTM_UNITS = 256
 
         state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=self.params.batch_size)
 

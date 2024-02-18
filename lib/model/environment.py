@@ -217,7 +217,10 @@ class Environment():
         
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
-            print(f'Successful payload (unscaled reward: {reward}):')
+
+            prefix = 'UNRECORDED' if ignore_episode else 'RECORDED'
+            
+            print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
             print(payload)
         else:
             reward = -1.0

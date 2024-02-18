@@ -67,41 +67,6 @@ class ReplayBuffer:
         self.priority_weight = priority_weight
         self.rollout_weight = rollout_weight
         self.l2_weight = l2_weight
-
-
-    @tf.function
-    def normalize_0_1(self, tensor: tf.Tensor):
-        '''
-        Expects only non-negative values in `tensor`.
-        '''
-        tf.debugging.assert_non_negative(tensor, '[0,1] normalization ' +
-            'tensor must not contain negative values.')
-        
-        sums = tf.reduce_sum(tensor, axis=-1, keepdims=True)
-        
-        return tensor / sums
-
-
-    @tf.function
-    def get_kl_divergence(self, t1: tf.Tensor, t2: tf.Tensor):
-        '''
-        `t1` and `t2` are normalized between `[0,1]` for divergence calculation,
-        but must only contain non-negative values.
-        '''
-        tf.debugging.assert_non_negative(t1,'Tensor for divergence ' +
-            'calculation must not contain negative values.')
-        tf.debugging.assert_non_negative(t2,'Tensor for divergence ' +
-            'calculation must not contain negative values.')
-
-        t1 = tf.cast(t1, dtype=tf.float32)
-        t2 = tf.cast(t2, dtype=tf.float32)
-
-        # Ensure values are scaled to sum to one to meet KL divergence
-        # requirement of probability distribution inputs.
-        t1 = self.normalize_0_1(t1)
-        t2 = self.normalize_0_1(t2)
-
-        return tf.keras.metrics.kl_divergence(t1, t2)
     
 
     def get_actor_loss(self, critic_value: float):
@@ -110,9 +75,9 @@ class ReplayBuffer:
         return -tf.math.reduce_mean(critic_value)
 
 
-    def get_critic_loss(self, critic_value: float, discounted_return: tf.Tensor, discounted_return_rollout: tf.Tensor):
-        td_error = discounted_return - critic_value
-        td_error_rollout = discounted_return_rollout - critic_value
+    def get_critic_loss(self, critic_value: float, y_target: tf.Tensor, y_rollout_target: tf.Tensor):
+        td_error = y_target - critic_value
+        td_error_rollout = y_rollout_target - critic_value
 
         loss_1_step = tf.math.reduce_mean(tf.math.square(td_error))
         loss_rollout = 0.5 * tf.math.reduce_mean(tf.math.square(td_error_rollout))
@@ -162,20 +127,21 @@ class ReplayBuffer:
             target_actions = self.target_policy(next_state_batch, training=True)
             
             target_critic_value = self.target_critic([next_state_batch, target_actions], training=True)
-            discounted_return = reward_batch + self.gamma * target_critic_value
+
+            y_target = reward_batch + self.gamma * target_critic_value
 
             critic_value = self.critic_model([state_batch, action_batch], training=True)
 
             # n-step.
             discounted_gamma = tf.pow(self.gamma, n_step_rollout)
-            discounted_return_rollout = discounted_reward_batch + discounted_gamma * self.target_critic(
+            y_rollout_target = discounted_reward_batch + discounted_gamma * self.target_critic(
                 [last_state_batch, last_action_batch], training=True
             )
 
             critic_loss, td_error = self.get_critic_loss(
                 critic_value=critic_value,
-                discounted_return=discounted_return,
-                discounted_return_rollout=discounted_return_rollout
+                y_target=y_target,
+                y_rollout_target=y_rollout_target
             )
 
             critic_loss += tf.add_n(self.critic_model.losses)

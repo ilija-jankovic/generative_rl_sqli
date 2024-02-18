@@ -272,11 +272,17 @@ class DDPG:
         # Recieve state and reward from environment.
         env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=ignore_episode) for i in range(len(actions))]
 
-        obs_tuples = [(prev_states[i], actions[i], env_tuples[i][1], env_tuples[i][0]) for i in range(self.params.batch_size)]
+        states = [env_tuple[0] for env_tuple in env_tuples]
+        rewards = [env_tuple[1] for env_tuple in env_tuples]
+        done_flags = [env_tuple[2] for env_tuple in env_tuples]
+
+        obs_tuples = [(prev_states[i], actions[i], rewards[i], states[i]) for i in range(self.params.batch_size)]
 
         buffer.record(obs_tuples, is_demonstration=is_demonstration)
 
-        return env_tuples
+        done = True in done_flags
+
+        return states, rewards, done
     
     
     def __update_perturbed_actor(self):
@@ -374,65 +380,43 @@ class DDPG:
         states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
 
         return tf.convert_to_tensor(states)
-    
-
-    def __calculate_mean_kl_divergence(self, states_batch: tf.Tensor, perturbed_actions_batch: tf.Tensor):
-        steps = len(states_batch)
-
-        assert(steps > 0 and len(perturbed_actions_batch) == steps)
-
-        divergences = []
-
-        for i in range(steps):
-            states = states_batch[i]
-            perturbed_actions = perturbed_actions_batch[i]
-
-            actions = self.policy(states, PolicyType.NORMAL.value, training=False)
-
-            divergences.append(self.get_kl_divergence(actions, perturbed_actions))
-
-        return tf.reduce_mean(divergences)
 
 
-    def __learn(self, buffer: ReplayBuffer, reporter: Reporter, episode: int, frame: int, n_step_rollout = 5):
-        batch_indices, chosen_probabilities = buffer.sample_indices()
+    def __learn(self, buffer: ReplayBuffer, n_step_rollout: int):
+        critic_losses = []
+        actor_losses = []
 
-        state_batch = buffer.state_buffer[batch_indices]
-        state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
+        for _ in range(self.params.learnings_per_batch):
+            batch_indices, chosen_probabilities = buffer.sample_indices()
 
-        state_batches, action_batches, reward_batches, stats, done = self.env.perform_n_step_rollout(
-            policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
-            perturbed_policy=lambda state, training: self.policy(state, PolicyType.PERTURBED.value, training=training),
-            state_batch=state_batch,
-            episode=episode,
-            frame=frame,
-            n=n_step_rollout
-        )
+            state_batch = buffer.state_buffer[batch_indices]
+            state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
 
-        average_reward = tf.reduce_mean(reward_batches)
-        divergence = self.__calculate_mean_kl_divergence(state_batches[:-1], action_batches)
+            state_batches, action_batches, reward_batches = self.env.perform_n_step_rollout(
+                policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
+                state_batch=state_batch,
+                n=n_step_rollout
+            )
 
-        for stat in stats:
-            reporter.record_payload_statistic(stat)
+            critic_loss, actor_loss = buffer.learn(
+                batch_indices=batch_indices,
+                chosen_probabilities=chosen_probabilities,
+                n_step_rollout=n_step_rollout,
+                reward_batches=reward_batches,
+                last_state_batch=state_batches[-2],
+                last_action_batch=action_batches[-1]
+            )
 
-        for i in range(n_step_rollout):
-            observations = [(state_batches[i][j], action_batches[i][j], reward_batches[i][j], state_batches[i + 1][j]) for j in range(self.params.batch_size)]
+            critic_losses.append(critic_loss)
+            actor_losses.append(actor_loss)
 
-            buffer.record(observations, is_demonstration=False)
+            self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
+            self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
-        critic_loss, actor_loss = buffer.learn(
-            batch_indices=batch_indices,
-            chosen_probabilities=chosen_probabilities,
-            n_step_rollout=n_step_rollout,
-            reward_batches=reward_batches,
-            last_state_batch=state_batches[-2],
-            last_action_batch=action_batches[-1]
-        )
+        avg_critic_loss = tf.reduce_mean(critic_losses)
+        avg_actor_loss = tf.reduce_mean(actor_losses)
 
-        self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
-        self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
-
-        return average_reward, divergence, done, critic_loss, actor_loss
+        return avg_critic_loss, avg_actor_loss
 
 
     def run(self, run_demonstrations: bool):
@@ -501,34 +485,23 @@ class DDPG:
 
         end_ddpg = False
 
+        states = None
+
         if run_demonstrations:
-            prev_states = self.__create_empty_states()
+            states = self.__create_empty_states()
 
             for i in range(0, total_demonstration_steps, self.params.batch_size):
+                print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
+
                 actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
-                env_tuples = self.__run_actions(actions, prev_states, buffer, ignore_episode=False, is_demonstration=True)
-                prev_states = tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples])
-                
-                done = True in [env_tuple[2] for env_tuple in env_tuples]
-
-                if done:
-                    prev_states = self.__create_empty_states()
-
-                print(f'{i + self.params.batch_size}/{total_demonstration_steps} demonstration observations gathered.')
+                states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False, is_demonstration=True)
 
             print('Transitions gathered.')
-        else:
-            states = self.__create_empty_states()
-
-            interactions = self.__get_perturbed_actions(states)
-            actions = interactions[0]
-
-            self.__run_actions(actions, states, buffer, ignore_episode=True, is_demonstration=False)
-
 
         while True:
-            states = self.__create_empty_states()
+            if states is None:
+                states = self.__create_empty_states()
 
             # Update perturbed actor at beginning of episode for stability.
             # (Pg. 3 of Adapative Parameter Space Noise paper).
@@ -537,16 +510,37 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                avg_reward, divergence, done, critic_loss, actor_loss = self.__learn(buffer, reporter, episode=ep, frame=frame)
+                actions, divergence, _ = self.__get_perturbed_actions(states)
+                states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False, is_demonstration=False)
+                
+                critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+
+                for i in range(self.params.batch_size):
+                    reward = rewards[i]
+
+                    if reward > 0.0:
+                        action = actions[i]
+
+                        stat = DDPGPayloadStatistic(
+                            epsiode=ep,
+                            frame=frame,
+                            payload=self.env.get_payload(action),
+                            reward=reward,
+                            is_demonstration=False
+                        )
+
+                        reporter.record_payload_statistic(stat)
+
+                avg_reward = tf.reduce_mean(rewards)
 
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    avg_n_step_reward=avg_reward,
+                    avg_batch_reward=avg_reward,
                     is_demonstration=False,
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
-                    avg_n_step_kl_divergence=divergence,
+                    avg_batch_kl_divergence=divergence,
                     distance_threshold=None,
                     critic_loss=critic_loss,
                     actor_loss=actor_loss
@@ -557,7 +551,7 @@ class DDPG:
                 if not self.params.constant_stddev:
                     self.__decay_epsilon()
                 
-                frame += self.params.batch_size * self.params.n_step_rollout
+                frame += self.params.batch_size
 
                 if frame > total_exploration_steps:
                     done = True
@@ -569,8 +563,6 @@ class DDPG:
                 if done:
                     ep += 1
                     break
-
-                prev_states = states
 
             if end_ddpg:
                 break

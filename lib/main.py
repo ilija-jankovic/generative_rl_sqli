@@ -153,6 +153,7 @@ params = DDPGHyperparameters(
     psi=0.3,
     temperature=0.2,
     n_step_rollout=5,
+    learnings_per_batch=3,
     rollout_weight=0.02,
     l2_weight=0.01,
     priority_weight=0.03,

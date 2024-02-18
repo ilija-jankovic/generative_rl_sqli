@@ -17,6 +17,8 @@ class DDPGHyperparameters:
     epsilon_min: float
     psi: float
     temperature: float
+    n_step_rollout: int
+    learnings_per_batch: int
     priority_weight: float
     rollout_weight: float
     l2_weight: float
@@ -38,6 +40,7 @@ class DDPGHyperparameters:
             psi: float,
             temperature: float,
             n_step_rollout: int,
+            learnings_per_batch: int,
             priority_weight: float,
             rollout_weight: float,
             l2_weight: float,
@@ -71,6 +74,7 @@ class DDPGHyperparameters:
         self.psi = psi
         self.temperature = temperature
         self.n_step_rollout = n_step_rollout
+        self.learnings_per_batch = learnings_per_batch
         self.priority_weight = priority_weight
         self.rollout_weight =rollout_weight
         self.l2_weight = l2_weight

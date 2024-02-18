@@ -6,8 +6,6 @@ from requests import Response
 from typing import Callable
 import tensorflow as tf
 
-from .ddpg_payload_statistic import DDPGPayloadStatistic
-
 from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
@@ -237,49 +235,27 @@ class Environment():
 
         return state, reward, done
 
-    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], perturbed_policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int, episode: int, frame: int):
+    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int):
         assert(n > 0)
 
         state_batches = [state_batch]
         action_batches = []
         reward_batches = []
 
-        payload_stats = []
+        for _ in range(n):
+            action_batch = policy(state_batch, training=False)
 
-        done = False
-
-        for i in range(n):
-            action_batch = perturbed_policy(state_batch, training=False) if i == 0 else policy(state_batch, training=False)
-
-            env_tuples = [self.perform_action(action_batch[i], batch_index=i) for i in range(len(action_batch))]
+            env_tuples = [self.perform_action(action_batch[i], batch_index=i, ignore_episode=True) for i in range(len(action_batch))]
 
             state_batch = [env_tuple[0] for env_tuple in env_tuples]
             reward_batch = [env_tuple[1] for env_tuple in env_tuples]
-            done_batch = [env_tuple[2] for env_tuple in env_tuples]
 
             state_batches.append(state_batch)
             action_batches.append(action_batch)
             reward_batches.append(reward_batch)
 
-            for i in range(len(action_batch)):
-                action = action_batch[i]
-                reward = reward_batch[i]
-
-                if reward > 0.0:
-                    stat = DDPGPayloadStatistic(
-                        epsiode=episode,
-                        frame=frame,
-                        payload=self.get_payload(action),
-                        reward=reward,
-                        is_demonstration=False
-                    )
-
-                    payload_stats.append(stat)
-
-            done = done or True in done_batch
-
         state_batches = tf.convert_to_tensor(state_batches, dtype=tf.float32)
         reward_batches = tf.convert_to_tensor(reward_batches, dtype=tf.float32)
 
-        return state_batches, action_batches, reward_batches, payload_stats, done
+        return state_batches, action_batches, reward_batches
 

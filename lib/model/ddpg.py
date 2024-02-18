@@ -485,11 +485,9 @@ class DDPG:
 
         end_ddpg = False
 
-        states = None
+        states = self.__create_empty_states()
 
         if run_demonstrations:
-            states = self.__create_empty_states()
-
             for i in range(0, total_demonstration_steps, self.params.batch_size):
                 print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
 
@@ -500,9 +498,6 @@ class DDPG:
             print('Transitions gathered.')
 
         while True:
-            if states is None:
-                states = self.__create_empty_states()
-
             # Update perturbed actor at beginning of episode for stability.
             # (Pg. 3 of Adapative Parameter Space Noise paper).
             self.__update_perturbed_actor()

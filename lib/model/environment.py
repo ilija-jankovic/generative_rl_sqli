@@ -227,11 +227,10 @@ class Environment():
 
         # TODO: Add extend episode condition based on parameter.
         
-        self.__record_payload(payload)
-
         if ignore_episode:
             done = False
         else:
+            self.__record_payload(payload)
             done = self.__update_episode()
 
         state = self.create_empty_state(index=batch_index) if done else self.__create_state(action, response.text, new_tokens)

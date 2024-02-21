@@ -60,7 +60,7 @@ class ReplayBuffer:
         self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-        self.priorities_buffer = np.zeros([self.buffer_capacity + self.batch_size])
+        self.priorities_buffer = np.full([self.buffer_capacity + self.batch_size], 1.0)
 
         self.gamma = gamma
 
@@ -88,7 +88,7 @@ class ReplayBuffer:
 
 
     # Takes (s,a,r,s') obervation tuple as input
-    def record(self, obs_tuple_batch, is_demonstration: bool):
+    def record(self, obs_tuple_batch):
         # Set index to zero if buffer_capacity is exceeded,
         # replacing old records
         index = self.buffer_counter % self.buffer_capacity
@@ -104,9 +104,7 @@ class ReplayBuffer:
         self.reward_buffer[index : index + self.batch_size] = reward_batch
         self.next_state_buffer[index : index + self.batch_size] = next_state_batch
 
-        priorities = tf.fill([self.batch_size], self.epsilon_priority)
-        if is_demonstration:
-            priorities += self.epsilon_priority_demonstration
+        priorities = tf.fill([self.batch_size], tf.reduce_max(self.priorities_buffer[:self.buffer_counter + self.batch_size]))
 
         self.priorities_buffer[self.buffer_counter : self.buffer_counter + self.batch_size] = priorities
 
@@ -161,7 +159,12 @@ class ReplayBuffer:
 
         # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
-        priority_weighting = 1.0 / (self.batch_size * tf.math.reduce_mean(replay_probabilities))
+        priority_weights = 1.0 / (self.batch_size * replay_probabilities)
+
+        # Normalise weights based on max.
+        priority_weights /= tf.reduce_max(priority_weights)
+
+        priority_weighting = tf.reduce_mean(priority_weights)
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
         for layer in actor_grad:

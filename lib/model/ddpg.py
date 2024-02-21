@@ -268,7 +268,7 @@ class DDPG:
         return actions
 
 
-    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool, is_demonstration: bool):
+    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool):
         # Recieve state and reward from environment.
         env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=ignore_episode) for i in range(len(actions))]
 
@@ -278,7 +278,7 @@ class DDPG:
 
         obs_tuples = [(prev_states[i], actions[i], rewards[i], states[i]) for i in range(self.params.batch_size)]
 
-        buffer.record(obs_tuples, is_demonstration=is_demonstration)
+        buffer.record(obs_tuples)
 
         done = True in done_flags
 
@@ -499,7 +499,7 @@ class DDPG:
 
                 actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
-                states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False, is_demonstration=True)
+                states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False)
 
             print('Transitions gathered.')
 
@@ -512,7 +512,7 @@ class DDPG:
                 prev_stddev = self.__stddev
 
                 actions, divergence, _ = self.__get_perturbed_actions(states)
-                states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False, is_demonstration=False)
+                states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
                 avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)

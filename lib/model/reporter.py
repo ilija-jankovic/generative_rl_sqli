@@ -109,7 +109,9 @@ class Reporter:
                 'ε',
                 'Average Batch KL Divergence',
                 'Distance Threshold',
-                'Average Batch Reward',
+                'Average Main Rollout Reward',
+                'Average n-Step Rollout Reward',
+                'Average Combined Reward',
             ]
 
             if constant_stddev:
@@ -148,7 +150,9 @@ class Reporter:
             if not constant_stddev:
                 f.write(f'{stat.distance_threshold},')
                 
-            f.write(f'{stat.avg_batch_reward}\n')
+            f.write(f'{stat.avg_main_rollout_reward},')
+            f.write(f'{stat.avg_n_rollout_reward},')
+            f.write(f'{stat.avg_combined_reward}\n')
         f.close()
 
     def record_payload_statistic(self, stat: DDPGPayloadStatistic):

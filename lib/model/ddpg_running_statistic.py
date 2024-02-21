@@ -2,7 +2,9 @@ class DDPGRunningStatistic:
 
     epsiode: int
     frame: int
-    avg_batch_reward: float
+    avg_main_rollout_reward: float
+    avg_n_rollout_reward: float
+    avg_combined_reward: float
     is_demonstration: bool
     stddev: float
     epsilon: float
@@ -15,7 +17,8 @@ class DDPGRunningStatistic:
             self,
             epsiode: int,
             frame: int,
-            avg_batch_reward: float,
+            avg_main_rollout_reward: float,
+            avg_n_rollout_reward: float,
             is_demonstration: bool,
             stddev: float,
             epsilon: float,
@@ -26,7 +29,8 @@ class DDPGRunningStatistic:
         ) -> None:
         self.epsiode = epsiode
         self.frame = frame
-        self.avg_batch_reward = avg_batch_reward
+        self.avg_main_rollout_reward = avg_main_rollout_reward
+        self.avg_n_rollout_reward = avg_n_rollout_reward
         self.is_demonstration = is_demonstration
         self.stddev = stddev
         self.epsilon = epsilon
@@ -34,3 +38,6 @@ class DDPGRunningStatistic:
         self.distance_threshold = distance_threshold
         self.critic_loss = critic_loss
         self.actor_loss = actor_loss
+
+        self.avg_combined_reward = (avg_main_rollout_reward + avg_n_rollout_reward) / 2.0
+    

@@ -386,6 +386,8 @@ class DDPG:
         critic_losses = []
         actor_losses = []
 
+        avg_reward = tf.convert_to_tensor(0, tf.float32)
+
         for _ in range(self.params.learnings_per_batch):
             batch_indices, chosen_probabilities = buffer.sample_indices()
 
@@ -397,6 +399,8 @@ class DDPG:
                 state_batch=state_batch,
                 n=n_step_rollout
             )
+            
+            avg_reward += tf.reduce_mean(reward_batches)
 
             critic_loss, actor_loss = buffer.learn(
                 batch_indices=batch_indices,
@@ -413,10 +417,12 @@ class DDPG:
             self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
             self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
+        avg_reward /= self.params.learnings_per_batch
+
         avg_critic_loss = tf.reduce_mean(critic_losses)
         avg_actor_loss = tf.reduce_mean(actor_losses)
 
-        return avg_critic_loss, avg_actor_loss
+        return avg_reward, avg_critic_loss, avg_actor_loss
 
 
     def run(self, run_demonstrations: bool):
@@ -442,7 +448,7 @@ class DDPG:
         critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0)
         actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, decay=0.001)
 
-        total_exploration_steps = math.ceil(200000 / self.params.batch_size) * self.params.batch_size
+        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
@@ -508,8 +514,11 @@ class DDPG:
                 actions, divergence, _ = self.__get_perturbed_actions(states)
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False, is_demonstration=False)
                 
-                critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+                avg_main_rollout_reward = tf.reduce_mean(rewards)
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
 
+                # TODO: Record all successful payloads, even from rollout, as they
+                # are equally valuable to pen-testers.
                 for i in range(self.params.batch_size):
                     reward = rewards[i]
 
@@ -526,14 +535,13 @@ class DDPG:
 
                         reporter.record_payload_statistic(stat)
 
-                avg_reward = tf.reduce_mean(rewards)
-
                 frame += self.params.batch_size
 
                 running_stat = DDPGRunningStatistic(
                     epsiode=ep,
                     frame=frame,
-                    avg_batch_reward=avg_reward,
+                    avg_main_rollout_reward=avg_main_rollout_reward,
+                    avg_n_rollout_reward=avg_n_rollout_reward,
                     is_demonstration=False,
                     stddev=prev_stddev,
                     epsilon=self.__epsilon,
@@ -552,7 +560,7 @@ class DDPG:
                     done = True
                     end_ddpg = True
 
-                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_reward))
+                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, running_stat.avg_combined_reward))
 
                 # End this episode when `done` is True
                 if done:

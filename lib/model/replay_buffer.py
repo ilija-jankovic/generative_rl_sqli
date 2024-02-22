@@ -60,7 +60,11 @@ class ReplayBuffer:
         self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-        self.priorities_buffer = np.full([self.buffer_capacity + self.batch_size], 1.0)
+
+        initial_batch_priority = self.epsilon_priority + self.epsilon_priority_demonstration \
+            if demonstrations_count > 0 else self.epsilon_priority
+        
+        self.priorities_buffer = np.full([self.buffer_capacity + self.batch_size], initial_batch_priority)
 
         self.gamma = gamma
 

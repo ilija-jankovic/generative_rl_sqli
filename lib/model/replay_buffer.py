@@ -60,7 +60,7 @@ class ReplayBuffer:
         self.action_buffer = np.zeros((self.buffer_capacity, action_size), dtype=np.int32)
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, state_size, embedding_size))
-        self.priorities_buffer = np.full([self.buffer_capacity + self.batch_size], 1.0)
+        self.priorities_buffer = np.full([self.buffer_capacity], 1.0)
 
         self.gamma = gamma
 
@@ -104,7 +104,8 @@ class ReplayBuffer:
         self.reward_buffer[index : index + self.batch_size] = reward_batch
         self.next_state_buffer[index : index + self.batch_size] = next_state_batch
 
-        priorities = tf.fill([self.batch_size], tf.reduce_max(self.priorities_buffer[:self.buffer_counter + self.batch_size]))
+        new_observation_priority = 1.0 if self.buffer_counter == 0 else tf.reduce_max(self.priorities_buffer[:self.buffer_counter])
+        priorities = tf.fill([self.batch_size], new_observation_priority)
 
         self.priorities_buffer[self.buffer_counter : self.buffer_counter + self.batch_size] = priorities
 

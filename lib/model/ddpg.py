@@ -448,7 +448,7 @@ class DDPG:
         critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0)
         actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, decay=0.001)
 
-        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
+        total_exploration_steps = math.ceil(100000 / self.params.learnings_per_batch / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None
@@ -560,7 +560,7 @@ class DDPG:
                     done = True
                     end_ddpg = True
 
-                print("[{}] Episode: {}, Total Frame Count: {}, Average Batch Reward: {}".format(datetime.datetime.now(), ep, frame, running_stat.avg_combined_reward))
+                print("[{}] Episode: {}, Total Frame Count: {}, Average n-Step Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_n_rollout_reward))
 
                 # End this episode when `done` is True
                 if done:

@@ -268,17 +268,13 @@ class DDPG:
         return actions
 
 
-    def __run_actions(self, actions: tf.Tensor, prev_states: tf.Tensor, buffer: ReplayBuffer, ignore_episode: bool):
+    def __run_actions(self, actions: tf.Tensor, ignore_episode: bool):
         # Recieve state and reward from environment.
         env_tuples = [self.env.perform_action(actions[i], batch_index=i, ignore_episode=ignore_episode) for i in range(len(actions))]
 
         states = [env_tuple[0] for env_tuple in env_tuples]
         rewards = [env_tuple[1] for env_tuple in env_tuples]
         done_flags = [env_tuple[2] for env_tuple in env_tuples]
-
-        obs_tuples = [(prev_states[i], actions[i], rewards[i], states[i]) for i in range(self.params.batch_size)]
-
-        buffer.record(obs_tuples)
 
         done = True in done_flags
 
@@ -382,72 +378,22 @@ class DDPG:
         return tf.convert_to_tensor(states)
 
 
-    def __learn(self, buffer: ReplayBuffer, n_step_rollout: int):
-        critic_losses = []
-        actor_losses = []
-
+    def __learn(self, n_step_rollout: int):
         avg_reward = tf.convert_to_tensor(0, tf.float32)
 
         for _ in range(self.params.learnings_per_batch):
-            batch_indices, chosen_probabilities = buffer.sample_indices()
-
-            state_batch = buffer.state_buffer[batch_indices]
-            state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
-
-            state_batches, action_batches, reward_batches = self.env.perform_n_step_rollout(
-                policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
-                state_batch=state_batch,
+            reward_batches = self.env.perform_n_step_rollout(
                 n=n_step_rollout
             )
             
             avg_reward += tf.reduce_mean(reward_batches)
 
-            critic_loss, actor_loss = buffer.learn(
-                batch_indices=batch_indices,
-                chosen_probabilities=chosen_probabilities,
-                n_step_rollout=n_step_rollout,
-                reward_batches=reward_batches,
-                last_state_batch=state_batches[-2],
-                last_action_batch=action_batches[-1]
-            )
-
-            critic_losses.append(critic_loss)
-            actor_losses.append(actor_loss)
-
-            self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
-            self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
-
         avg_reward /= self.params.learnings_per_batch
 
-        avg_critic_loss = tf.reduce_mean(critic_losses)
-        avg_actor_loss = tf.reduce_mean(actor_losses)
-
-        return avg_reward, avg_critic_loss, avg_actor_loss
+        return avg_reward, 0.0, 0.0
 
 
     def run(self, run_demonstrations: bool):
-        actor_model = self.get_actor()
-        actor_perturbed = self.get_actor()
-        critic_model = self.get_critic()
-
-        target_actor = self.get_actor()
-        target_critic = self.get_critic()
-
-        self.actor_model = actor_model
-        self.actor_perturbed = actor_perturbed
-        self.target_actor = target_actor
-        self.target_critic = target_critic
-        self.critic_model = critic_model
-
-        # Making the weights equal initially
-        target_actor.set_weights(actor_model.get_weights())
-        target_critic.set_weights(critic_model.get_weights())
-
-        # Nadam for RNNs recommended by OverLordGoldDragon:
-        # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-        critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0)
-        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, decay=0.001)
-
         total_exploration_steps = math.ceil(100000 / self.params.learnings_per_batch / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
@@ -456,26 +402,6 @@ class DDPG:
         buffer_size = total_exploration_steps + total_demonstration_steps if run_demonstrations else total_exploration_steps
 
         self.params.buffer_size = buffer_size
-
-        buffer = ReplayBuffer(
-            state_size=self.env.state_size,
-            embedding_size=self.env.embedding_size,
-            action_size=self.env.action_size,
-            buffer_capacity=buffer_size,
-            batch_size=self.params.batch_size,
-            demonstrations_count=total_demonstration_steps,
-            actor_model=actor_model,
-            policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
-            target_policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
-            target_critic=target_critic,
-            critic_model=critic_model,
-            actor_optimizer=actor_optimizer,
-            critic_optimizer=critic_optimizer,
-            gamma=self.params.gamma,
-            rollout_weight=self.params.rollout_weight,
-            l2_weight=self.params.l2_weight,
-            priority_weight=self.params.priority_weight
-        )
         
         frame = 0
 
@@ -491,31 +417,15 @@ class DDPG:
 
         end_ddpg = False
 
-        states = self.__create_empty_states()
-
-        if run_demonstrations:
-            for i in range(0, total_demonstration_steps, self.params.batch_size):
-                print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
-
-                actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
-
-                states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False)
-
-            print('Transitions gathered.')
-
         while True:
-            # Update perturbed actor at beginning of episode for stability.
-            # (Pg. 3 of Adapative Parameter Space Noise paper).
-            self.__update_perturbed_actor()
-
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                actions, divergence, _ = self.__get_perturbed_actions(states)
-                states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
+                actions, divergence = [tf.convert_to_tensor([random.randint(0, len(self.env.dictionary)-1) for _ in range(self.params.action_size)]) for _ in range(self.params.batch_size)], 0.0
+                _, rewards, done = self.__run_actions(actions, ignore_episode=False)
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(n_step_rollout=self.params.n_step_rollout)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.

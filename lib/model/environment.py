@@ -237,27 +237,21 @@ class Environment():
 
         return state, reward, done
 
-    def perform_n_step_rollout(self, policy: Callable[[np.array], np.array], state_batch: tf.Tensor, n: int):
+    def perform_n_step_rollout(self, n: int):
         assert(n > 0)
 
-        state_batches = [state_batch]
-        action_batches = []
         reward_batches = []
 
         for _ in range(n):
-            action_batch = policy(state_batch, training=False)
+            action_batch = [tf.convert_to_tensor([random.randint(0, len(self.dictionary)-1) for _ in range(self.action_size)]) for _ in range(32)]
 
             env_tuples = [self.perform_action(action_batch[i], batch_index=i, ignore_episode=True) for i in range(len(action_batch))]
 
-            state_batch = [env_tuple[0] for env_tuple in env_tuples]
             reward_batch = [env_tuple[1] for env_tuple in env_tuples]
 
-            state_batches.append(state_batch)
-            action_batches.append(action_batch)
             reward_batches.append(reward_batch)
 
-        state_batches = tf.convert_to_tensor(state_batches, dtype=tf.float32)
         reward_batches = tf.convert_to_tensor(reward_batches, dtype=tf.float32)
 
-        return state_batches, action_batches, reward_batches
+        return reward_batches
 

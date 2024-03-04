@@ -25,13 +25,21 @@ class DDPG:
     encoded_payloads: List[List[int]]
     params: DDPGHyperparameters
     actor_lstm_units: int
+    dropout: float
     
     actor_perturbed: keras.Model
 
     __stddev: float
     __epsilon: float
     
-    def __init__(self, env: Environment, encoded_payloads: List[List[int]], params: DDPGHyperparameters, actor_lstm_units: int = 512):
+    def __init__(
+            self,
+            env: Environment,
+            encoded_payloads: List[List[int]],
+            params: DDPGHyperparameters,
+            actor_lstm_units: int = 512,
+            dropout: float = 0.2,
+        ):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
         dictionary_length = len(env.dictionary)
@@ -42,7 +50,7 @@ class DDPG:
         self.env = env
         self.params = params
         self.actor_lstm_units = actor_lstm_units
-
+        self.dropout = dropout
 
         self.__stddev = params.starting_stddev
         
@@ -126,6 +134,28 @@ class DDPG:
         embeddings = tf.convert_to_tensor(self.env.embeddings, dtype=tf.float32)
         
         return indices, tf.gather(embeddings, indices)
+    
+    def __create_lstm_layer(self, units: int, return_tensors: bool = True):
+        return layers.Bidirectional(
+            layers.CuDNNLSTM(
+                units,
+                return_state=return_tensors,
+                return_sequences=return_tensors,
+                kernel_initializer=tf.keras.initializers.Orthogonal(),
+                kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight),
+                kernel_constraint=tf.keras.constraints.unit_norm(),
+                recurrent_constraint=tf.keras.constraints.unit_norm(),
+                bias_constraint=tf.keras.constraints.unit_norm()
+            ))
+    
+    def __create_hidden_dense_layer(self, units: int):
+        return layers.Dense(
+            units,
+            activation='relu',
+            kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight),
+            kernel_constraint=tf.keras.constraints.unit_norm(),
+            bias_constraint=tf.keras.constraints.unit_norm()
+        )
 
     def get_actor(self):
         C_PADDING = self.actor_lstm_units % self.env.embedding_size
@@ -136,17 +166,11 @@ class DDPG:
         input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
 
         # Add normalisation layers between perturbed layers (pg. 3).
-        lstm = layers.Bidirectional(
-            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
-                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(input_lstm)
+        lstm = self.__create_lstm_layer(self.actor_lstm_units)(input_lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(
-            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
-                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm)
+        lstm = self.__create_lstm_layer(self.actor_lstm_units)(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
-        lstm = layers.Bidirectional(
-            layers.CuDNNLSTM(self.actor_lstm_units, return_state=True, return_sequences=True,
-                             kernel_initializer=tf.keras.initializers.Orthogonal(), kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm)
+        lstm = self.__create_lstm_layer(self.actor_lstm_units)(lstm)
         lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
@@ -154,9 +178,12 @@ class DDPG:
         state_h = lstm[1]
         state_c = lstm[2]
 
-        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(state_h)
+        dense = layers.Dropout(self.dropout)(state_h)
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
         dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -170,27 +197,36 @@ class DDPG:
 
         state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=self.params.batch_size)
 
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(state_input)
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_state)
-        lstm_state = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_state)
+        lstm_state = self.__create_lstm_layer(LSTM_UNITS)(state_input)
+        lstm_state = self.__create_lstm_layer(LSTM_UNITS)(lstm_state)
+        lstm_state = self.__create_lstm_layer(LSTM_UNITS, return_tensors=False)(lstm_state)
 
         action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
         embeddding_input = layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
 
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(embeddding_input)
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, return_state=True, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_action)
-        lstm_action = layers.Bidirectional(layers.CuDNNLSTM(LSTM_UNITS, kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight)))(lstm_action)
+        lstm_action = self.__create_lstm_layer(LSTM_UNITS)(embeddding_input)
+        lstm_action = self.__create_lstm_layer(LSTM_UNITS)(lstm_action)
+        lstm_action = self.__create_lstm_layer(LSTM_UNITS, return_tensors=False)(lstm_action)
 
         concat = layers.Concatenate()([lstm_state, lstm_action])
 
-        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(concat)
-        dense = layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(512, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(32, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
-        dense = layers.Dense(16, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight))(dense)
+        dense = layers.Dropout(self.dropout)(concat)
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(512)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(256)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(128)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(64)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(32)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(16)(dense)
+        dense = layers.Dropout(self.dropout)(dense)
         outputs = layers.Dense(1)(dense)
 
         # Outputs single value for give state-action

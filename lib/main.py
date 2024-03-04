@@ -58,7 +58,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=fc8389d9df98d64dc0a9add6f442581b; {flag}=a97da629b098b75c294dffdc3e463904'
+COOKIE = 'pma_lang=en; PHPSESSID=6266060bc8e1c8a6705bc0c9df20ea95; {flag}=8b6dd7db9af49e67306feb59a8bdc52c'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -144,7 +144,7 @@ else:
 
 params = DDPGHyperparameters(
     gamma=0.999,
-    tau=0.001,
+    tau=0.999,
     actor_learning_rate=0.00015,
     critic_learning_rate=0.0003,
     embedding_size=EMBEDDING_DIM,
@@ -153,9 +153,9 @@ params = DDPGHyperparameters(
     psi=0.3,
     temperature=0.5,
     n_step_rollout=5,
-    learnings_per_batch=20,
+    learnings_per_batch=1,
     rollout_weight=0.0001,
-    l2_weight=0.0001,
+    l2_weight=0.1,
     priority_weight=0.0001,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,

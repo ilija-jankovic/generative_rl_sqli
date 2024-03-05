@@ -143,9 +143,9 @@ class DDPG:
                 return_sequences=return_tensors,
                 kernel_initializer=tf.keras.initializers.Orthogonal(),
                 kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight),
-                kernel_constraint=tf.keras.constraints.unit_norm(),
-                recurrent_constraint=tf.keras.constraints.unit_norm(),
-                bias_constraint=tf.keras.constraints.unit_norm()
+                kernel_constraint=tf.keras.constraints.max_norm(3),
+                recurrent_constraint=tf.keras.constraints.max_norm(3),
+                bias_constraint=tf.keras.constraints.max_norm(3)
             ))
     
     def __create_hidden_dense_layer(self, units: int):
@@ -153,8 +153,8 @@ class DDPG:
             units,
             activation='relu',
             kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight),
-            kernel_constraint=tf.keras.constraints.unit_norm(),
-            bias_constraint=tf.keras.constraints.unit_norm()
+            kernel_constraint=tf.keras.constraints.max_norm(3),
+            bias_constraint=tf.keras.constraints.max_norm(3)
         )
 
     def get_actor(self):

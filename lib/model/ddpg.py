@@ -38,7 +38,7 @@ class DDPG:
             encoded_payloads: List[List[int]],
             params: DDPGHyperparameters,
             actor_lstm_units: int = 512,
-            dropout: float = 0.2,
+            dropout: float = 0.1,
         ):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 

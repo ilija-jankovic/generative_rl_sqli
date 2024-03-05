@@ -144,7 +144,7 @@ else:
 
 params = DDPGHyperparameters(
     gamma=0.999,
-    tau=0.999,
+    tau=0.001,
     actor_learning_rate=0.00015,
     critic_learning_rate=0.0003,
     embedding_size=EMBEDDING_DIM,

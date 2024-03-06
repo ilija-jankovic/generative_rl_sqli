@@ -144,7 +144,7 @@ else:
 
 params = DDPGHyperparameters(
     gamma=0.999,
-    tau=0.999,
+    tau=0.001,
     actor_learning_rate=0.00015,
     critic_learning_rate=0.0003,
     embedding_size=EMBEDDING_DIM,
@@ -154,9 +154,9 @@ params = DDPGHyperparameters(
     temperature=0.5,
     n_step_rollout=5,
     learnings_per_batch=20,
-    rollout_weight=0.01,
-    l2_weight=0.01,
-    priority_weight=0.01,
+    rollout_weight=0.0001,
+    l2_weight=0.0001,
+    priority_weight=0.0001,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,

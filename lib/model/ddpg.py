@@ -25,7 +25,6 @@ class DDPG:
     encoded_payloads: List[List[int]]
     params: DDPGHyperparameters
     actor_lstm_units: int
-    dropout: float
     
     actor_perturbed: keras.Model
 
@@ -38,7 +37,6 @@ class DDPG:
             encoded_payloads: List[List[int]],
             params: DDPGHyperparameters,
             actor_lstm_units: int = 512,
-            dropout: float = 0.1,
         ):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
 
@@ -50,7 +48,6 @@ class DDPG:
         self.env = env
         self.params = params
         self.actor_lstm_units = actor_lstm_units
-        self.dropout = dropout
 
         self.__stddev = params.starting_stddev
         
@@ -178,12 +175,9 @@ class DDPG:
         state_h = lstm[1]
         state_c = lstm[2]
 
-        dense = layers.Dropout(self.dropout)(state_h)
-        dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
+        dense = self.__create_hidden_dense_layer(1024)(state_h)
         dense = layers.BatchNormalization()(dense)
         dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = layers.BatchNormalization()(dense)
         dense = layers.Dense(dictionary_length, activation='softmax')(dense)
 
@@ -210,23 +204,14 @@ class DDPG:
 
         concat = layers.Concatenate()([lstm_state, lstm_action])
 
-        dense = layers.Dropout(self.dropout)(concat)
+        dense = self.__create_hidden_dense_layer(1024)(concat)
         dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
-        dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(512)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(256)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(128)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(64)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         dense = self.__create_hidden_dense_layer(16)(dense)
-        dense = layers.Dropout(self.dropout)(dense)
         outputs = layers.Dense(1)(dense)
 
         # Outputs single value for give state-action

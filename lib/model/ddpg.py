@@ -101,8 +101,8 @@ class DDPG:
             false_fn=lambda: probabilities * self.get_mask(payload))
     
     @tf.function
-    def penalise_non_ast(self, probabilities_batch, actions):
-        probabilities_batch = [self.mask_probabilities(probabilities_batch[i], actions[i]) for i in range(self.params.batch_size)]
+    def penalise_non_ast(self, probabilities_batch: tf.Tensor, actions):
+        probabilities_batch = [self.mask_probabilities(probabilities_batch[i], actions[i]) for i in range(probabilities_batch.shape[0])]
 
         return tf.convert_to_tensor(probabilities_batch, dtype=tf.float32)
     
@@ -159,8 +159,10 @@ class DDPG:
 
         dictionary_length = len(self.env.dictionary)
 
-        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=self.params.batch_size)
-        input_actions = layers.Input(shape=(self.env.action_size), batch_size=self.params.batch_size, dtype=tf.int32)
+        batch_size = self.params.batch_size
+
+        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=batch_size)
+        input_actions = layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
 
         # Add normalisation layers between perturbed layers (pg. 3).
         lstm = self.__create_lstm_layer(self.actor_lstm_units)(input_lstm)
@@ -189,13 +191,15 @@ class DDPG:
     def get_critic(self):
         LSTM_UNITS = 512
 
-        state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=self.params.batch_size)
+        batch_size = self.params.batch_size
+
+        state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=batch_size)
 
         lstm_state = self.__create_lstm_layer(LSTM_UNITS)(state_input)
         lstm_state = self.__create_lstm_layer(LSTM_UNITS)(lstm_state)
         lstm_state = self.__create_lstm_layer(LSTM_UNITS, return_tensors=False)(lstm_state)
 
-        action_input = layers.Input(shape=(self.env.action_size,), batch_size=self.params.batch_size, dtype=tf.int32)
+        action_input = layers.Input(shape=(self.env.action_size,), batch_size=batch_size, dtype=tf.int32)
         embeddding_input = layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
 
         lstm_action = self.__create_lstm_layer(LSTM_UNITS)(embeddding_input)
@@ -447,18 +451,25 @@ class DDPG:
 
 
     def run(self, run_demonstrations: bool):
-        actor_model = self.get_actor()
-        actor_perturbed = self.get_actor()
-        critic_model = self.get_critic()
+        # Use multiple GPUs.
+        #
+        # Device log from: https://www.tensorflow.org/guide/keras/distributed_training
+        strategy = tf.distribute.MirroredStrategy()
+        print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
 
-        target_actor = self.get_actor()
-        target_critic = self.get_critic()
+        with strategy.scope():
+            actor_model = self.get_actor()
+            actor_perturbed = self.get_actor()
+            critic_model = self.get_critic()
 
-        self.actor_model = actor_model
-        self.actor_perturbed = actor_perturbed
-        self.target_actor = target_actor
-        self.target_critic = target_critic
-        self.critic_model = critic_model
+            target_actor = self.get_actor()
+            target_critic = self.get_critic()
+
+            self.actor_model = actor_model
+            self.actor_perturbed = actor_perturbed
+            self.target_actor = target_actor
+            self.target_critic = target_critic
+            self.critic_model = critic_model
 
         # Making the weights equal initially
         target_actor.set_weights(actor_model.get_weights())
@@ -479,6 +490,7 @@ class DDPG:
         self.params.buffer_size = buffer_size
 
         buffer = ReplayBuffer(
+            strategy=strategy,
             state_size=self.env.state_size,
             embedding_size=self.env.embedding_size,
             action_size=self.env.action_size,

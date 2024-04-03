@@ -17,6 +17,7 @@ class ReplayBuffer:
 
     def __init__(
             self,
+            strategy: tf.distribute.MirroredStrategy,
             state_size: int,
             embedding_size: int,
             action_size: int,
@@ -35,6 +36,8 @@ class ReplayBuffer:
             rollout_weight: float,
             l2_weight: float
         ):
+        self.strategy = strategy
+
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
@@ -146,9 +149,10 @@ class ReplayBuffer:
             critic_loss += tf.add_n(self.critic_model.losses)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
-        self.critic_optimizer.apply_gradients(
-            zip(critic_grad, self.critic_model.trainable_variables),
-        )
+
+        self.strategy.run(lambda: self.critic_optimizer.apply_gradients(
+                zip(critic_grad, self.critic_model.trainable_variables),
+            ))
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
@@ -171,9 +175,9 @@ class ReplayBuffer:
         for layer in actor_grad:
             layer *= priority_weighting
 
-        self.actor_optimizer.apply_gradients(
-            zip(actor_grad, self.actor_model.trainable_variables), 
-        )
+        self.strategy.run(lambda: self.actor_optimizer.apply_gradients(
+                zip(actor_grad, self.actor_model.trainable_variables), 
+            ))
 
         priorities = tf.squeeze(tf.square(td_error)) + self.priority_weight * tf.math.square(actor_loss) + epsilon_constants
 

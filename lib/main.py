@@ -15,6 +15,8 @@ from model.ddpg_hyperparameters import DDPGHyperparameters
 
 import sql_parser.schema_parser as schema_parser
 
+
+
 # TODO: Use argparse instead.
 args = sys.argv[1:]
 
@@ -41,7 +43,7 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 2
 
 EMBEDDING_DIM = 128
 
@@ -58,7 +60,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=6266060bc8e1c8a6705bc0c9df20ea95; {flag}=8b6dd7db9af49e67306feb59a8bdc52c'
+COOKIE = 'pma_lang=en; PHPSESSID=28cca1e7439fa3071a336509084e2c9c; {flag}=55a7cf9c71f1c9c495413f934dd1a158'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -107,6 +109,9 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = data_service.load_embeddings()
 else:
+    # MIGHT NOT BE USED BECAUSE OF CAPITAL LETTERS.
+    #
+    # TODO: Ensure lowercase.
     queries = data_service.load_wikisql_queries()
 
     parser = WikiSQLParser(schema)
@@ -176,7 +181,7 @@ environment = Environment(
     double_requests=double_requests,
     send_request_callback= lambda payload:
         requests.get(OPEN_URL + payload, headers=headers))
-                                         
+                                        
 state: np.ndarray
 
 def print_decoded_injections():

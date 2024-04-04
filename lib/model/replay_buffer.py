@@ -113,8 +113,12 @@ class ReplayBuffer:
         self.priorities_buffer[self.buffer_counter : self.buffer_counter + self.batch_size] = priorities
 
         self.buffer_counter += self.batch_size
-    
 
+    def apply_gradient(self, gradient, optimizer: tf.keras.optimizers.Optimizer, model: tf.keras.Model):
+        grads_and_vars = zip(gradient, model.trainable_variables)
+
+        optimizer.apply_gradients(grads_and_vars)
+    
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
@@ -150,9 +154,7 @@ class ReplayBuffer:
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
 
-        self.strategy.run(lambda: self.critic_optimizer.apply_gradients(
-                zip(critic_grad, self.critic_model.trainable_variables),
-            ))
+        self.strategy.run(self.apply_gradient, (critic_grad, self.critic_optimizer, self.critic_model))
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
@@ -175,9 +177,7 @@ class ReplayBuffer:
         for layer in actor_grad:
             layer *= priority_weighting
 
-        self.strategy.run(lambda: self.actor_optimizer.apply_gradients(
-                zip(actor_grad, self.actor_model.trainable_variables), 
-            ))
+        self.strategy.run(self.apply_gradient, (actor_grad, self.actor_optimizer, self.actor_model))
 
         priorities = tf.squeeze(tf.square(td_error)) + self.priority_weight * tf.math.square(actor_loss) + epsilon_constants
 

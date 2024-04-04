@@ -465,11 +465,11 @@ class DDPG:
             target_actor = self.get_actor()
             target_critic = self.get_critic()
 
-            self.actor_model = actor_model
-            self.actor_perturbed = actor_perturbed
-            self.target_actor = target_actor
-            self.target_critic = target_critic
-            self.critic_model = critic_model
+        self.actor_model = actor_model
+        self.actor_perturbed = actor_perturbed
+        self.target_actor = target_actor
+        self.target_critic = target_critic
+        self.critic_model = critic_model
 
         # Making the weights equal initially
         target_actor.set_weights(actor_model.get_weights())

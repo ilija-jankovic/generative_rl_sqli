@@ -223,6 +223,7 @@ class DDPG:
 
         return model
 
+    @tf.function
     def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):
         embeddings = tf.reshape(embeddings, [self.params.batch_size, -1, self.env.embedding_size])
         lstm_states = tf.reshape(lstm_states, [self.params.batch_size, -1, self.env.embedding_size])
@@ -231,6 +232,7 @@ class DDPG:
 
         return tf.reshape(input, [self.params.batch_size, -1, self.env.embedding_size])
 
+    @tf.function
     def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
         batch_size = self.params.batch_size
 

@@ -15,8 +15,6 @@ from model.ddpg_hyperparameters import DDPGHyperparameters
 
 import sql_parser.schema_parser as schema_parser
 
-
-
 # TODO: Use argparse instead.
 args = sys.argv[1:]
 
@@ -43,7 +41,7 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 4
 
 EMBEDDING_DIM = 128
 
@@ -60,7 +58,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=ce10cec084411e552881d6ddcdd1f2ee; {flag}=70c639df5e30bdee440e4cdf599fec2b'
+COOKIE = 'pma_lang=en; PHPSESSID=3336267ae380bfd119577b8bfcd69e1f; {flag}=f5f8590cd58a54e94377e6ae2eded4d9'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \

@@ -544,11 +544,15 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                actions, divergence, _ = self.__get_perturbed_actions(states)
+                with tf.profiler.experimental.Profile('logdir'):
+                    actions, divergence, _ = self.__get_perturbed_actions(states)
+                    
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+
+                with tf.profiler.experimental.Profile('logdir'):
+                    avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.

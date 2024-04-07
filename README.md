@@ -1,3 +1,17 @@
+**Useful Commands**
+
+Run with minimal options for debugging (requires generated embeddings):
+
+```sh
+python lib\main.py --no-run-sqlmap --no-demonstrations --from-cache --no-double-requests
+```
+
+Open Tensorboard for profiling:
+
+```sh
+tensorboard --logdir logs/1
+```
+
 **SQL List**
 
 This list contains a number of entries which the agent can use to build queries which which to view data with. 

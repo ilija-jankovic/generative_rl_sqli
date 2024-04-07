@@ -6,8 +6,6 @@ import math
 import random
 from typing import List
 import tensorflow as tf
-import keras
-from keras import layers
 import numpy as np
 from sqltree import sqltree
 
@@ -26,7 +24,7 @@ class DDPG:
     params: DDPGHyperparameters
     actor_lstm_units: int
     
-    actor_perturbed: keras.Model
+    actor_perturbed: tf.keras.Model
 
     __stddev: float
     __epsilon: float
@@ -133,8 +131,8 @@ class DDPG:
         return indices, tf.gather(embeddings, indices)
     
     def __create_lstm_layer(self, units: int, return_tensors: bool = True):
-        return layers.Bidirectional(
-            layers.CuDNNLSTM(
+        return tf.keras.layers.Bidirectional(
+            tf.keras.layers.LSTM(
                 units,
                 return_state=return_tensors,
                 return_sequences=return_tensors,
@@ -146,7 +144,7 @@ class DDPG:
             ))
     
     def __create_hidden_dense_layer(self, units: int):
-        return layers.Dense(
+        return tf.keras.layers.Dense(
             units,
             activation='relu',
             kernel_regularizer=tf.keras.regularizers.l2(self.params.l2_weight),
@@ -161,16 +159,16 @@ class DDPG:
 
         batch_size = self.params.batch_size
 
-        input_lstm = layers.Input(shape=(None, self.env.embedding_size), batch_size=batch_size)
-        input_actions = layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
+        input_lstm = tf.keras.layers.Input(shape=(None, self.env.embedding_size), batch_size=batch_size)
+        input_actions = tf.keras.layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
 
-        # Add normalisation layers between perturbed layers (pg. 3).
+        # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
         lstm = self.__create_lstm_layer(self.actor_lstm_units)(input_lstm)
-        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
+        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
         lstm = self.__create_lstm_layer(self.actor_lstm_units)(lstm)
-        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
+        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
         lstm = self.__create_lstm_layer(self.actor_lstm_units)(lstm)
-        lstm = list(map(lambda state: layers.BatchNormalization()(state), lstm))
+        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
@@ -178,35 +176,35 @@ class DDPG:
         state_c = lstm[2]
 
         dense = self.__create_hidden_dense_layer(1024)(state_h)
-        dense = layers.BatchNormalization()(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
         dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = layers.BatchNormalization()(dense)
-        dense = layers.Dense(dictionary_length, activation='softmax')(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        dense = tf.keras.layers.Dense(dictionary_length, activation='softmax')(dense)
 
-        padded_state_c_output = layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
-        indices_output, embedding_output = layers.Lambda(lambda output: self.get_embeddings_from_probabilities(output[0], output[1]))((dense, input_actions))
+        padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
+        indices_output, embedding_output = tf.keras.layers.Lambda(lambda output: self.get_embeddings_from_probabilities(output[0], output[1]))((dense, input_actions))
 
-        return keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
+        return tf.keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self):
         LSTM_UNITS = 512
 
         batch_size = self.params.batch_size
 
-        state_input = layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=batch_size)
+        state_input = tf.keras.layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=batch_size)
 
         lstm_state = self.__create_lstm_layer(LSTM_UNITS)(state_input)
         lstm_state = self.__create_lstm_layer(LSTM_UNITS)(lstm_state)
         lstm_state = self.__create_lstm_layer(LSTM_UNITS, return_tensors=False)(lstm_state)
 
-        action_input = layers.Input(shape=(self.env.action_size,), batch_size=batch_size, dtype=tf.int32)
-        embeddding_input = layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
+        action_input = tf.keras.layers.Input(shape=(self.env.action_size,), batch_size=batch_size, dtype=tf.int32)
+        embeddding_input = tf.keras.layers.Lambda(lambda action: tf.gather(self.env.embeddings, action))(action_input)
 
         lstm_action = self.__create_lstm_layer(LSTM_UNITS)(embeddding_input)
         lstm_action = self.__create_lstm_layer(LSTM_UNITS)(lstm_action)
         lstm_action = self.__create_lstm_layer(LSTM_UNITS, return_tensors=False)(lstm_action)
 
-        concat = layers.Concatenate()([lstm_state, lstm_action])
+        concat = tf.keras.layers.Concatenate()([lstm_state, lstm_action])
 
         dense = self.__create_hidden_dense_layer(1024)(concat)
         dense = self.__create_hidden_dense_layer(1024)(dense)
@@ -216,7 +214,7 @@ class DDPG:
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
         dense = self.__create_hidden_dense_layer(16)(dense)
-        outputs = layers.Dense(1)(dense)
+        outputs = tf.keras.layers.Dense(1)(dense)
 
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)

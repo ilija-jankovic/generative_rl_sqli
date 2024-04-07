@@ -3,7 +3,6 @@
 
 from typing import Callable, List
 import tensorflow as tf
-import keras
 import numpy as np
 
 class ReplayBuffer:
@@ -23,10 +22,10 @@ class ReplayBuffer:
             action_size: int,
             demonstrations_count: int,
             target_policy: Callable[[np.array], np.array],
-            target_critic: keras.Model,
+            target_critic: tf.keras.Model,
             policy: Callable[[np.array], np.array],
-            actor_model: keras.Model,
-            critic_model: keras.Model,
+            actor_model: tf.keras.Model,
+            critic_model: tf.keras.Model,
             actor_optimizer: tf.keras.optimizers.Optimizer,
             critic_optimizer: tf.keras.optimizers.Optimizer,
             buffer_capacity: int,

@@ -413,7 +413,9 @@ class DDPG:
 
         avg_reward = tf.convert_to_tensor(0, tf.float32)
 
-        for _ in range(self.params.learnings_per_batch):
+        tf.profiler.experimental.start('tensorboard_log')
+
+        for learning_step in range(self.params.learnings_per_batch):
             batch_indices, chosen_probabilities = buffer.sample_indices()
 
             state_batch = buffer.state_buffer[batch_indices]
@@ -424,23 +426,26 @@ class DDPG:
                 state_batch=state_batch,
                 n=n_step_rollout
             )
-            
+                
             avg_reward += tf.reduce_mean(reward_batches)
 
-            critic_loss, actor_loss = buffer.learn(
-                batch_indices=batch_indices,
-                chosen_probabilities=chosen_probabilities,
-                n_step_rollout=n_step_rollout,
-                reward_batches=reward_batches,
-                last_state_batch=state_batches[-2],
-                last_action_batch=action_batches[-1]
-            )
-
+            with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1):
+                critic_loss, actor_loss = buffer.learn(
+                    batch_indices=batch_indices,
+                    chosen_probabilities=chosen_probabilities,
+                    n_step_rollout=n_step_rollout,
+                    reward_batches=reward_batches,
+                    last_state_batch=state_batches[-2],
+                    last_action_batch=action_batches[-1]
+                )
+                
             critic_losses.append(critic_loss)
             actor_losses.append(actor_loss)
 
             self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
             self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
+
+        tf.profiler.experimental.stop()
 
         avg_reward /= self.params.learnings_per_batch
 
@@ -448,7 +453,7 @@ class DDPG:
         avg_actor_loss = tf.reduce_mean(actor_losses)
 
         return avg_reward, avg_critic_loss, avg_actor_loss
-
+    
 
     def run(self, run_demonstrations: bool):
         # Use multiple GPUs.
@@ -544,15 +549,13 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                with tf.profiler.experimental.Profile('logdir'):
-                    actions, divergence, _ = self.__get_perturbed_actions(states)
-                    
+                actions, divergence, _ = self.__get_perturbed_actions(states)
+
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
 
-                with tf.profiler.experimental.Profile('logdir'):
-                    avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.
@@ -592,7 +595,7 @@ class DDPG:
 
                 if not self.params.constant_stddev:
                     self.__decay_epsilon()
-                
+
                 if frame > total_exploration_steps:
                     done = True
                     end_ddpg = True
@@ -603,6 +606,7 @@ class DDPG:
                 if done:
                     ep += 1
                     break
+
 
             if end_ddpg:
                 break

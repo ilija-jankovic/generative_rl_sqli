@@ -1,3 +1,9 @@
+**IMPORTANT**
+
+Use Python `3.7.4`.
+
+To do with TensorFlow but reason forgotten. `TODO:` experiment with newer Python versions.
+
 **Useful Commands**
 
 Run from root of project with minimal options for debugging (requires generated embeddings):

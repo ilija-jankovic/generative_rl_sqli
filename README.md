@@ -33,3 +33,9 @@ Reserved SQL keywords by [W3 Schools](https://www.w3schools.com/sql/sql_ref_keyw
 Reserved SQL operators by [W3 Schools](https://www.w3schools.com/sql/sql_operators.asp).
 
 10GB Test DB for test site from [StackOverflow](https://www.brentozar.com/archive/2015/10/how-to-download-the-stack-overflow-database-via-bittorrent/)
+
+**Extra Information**
+
+Using old version of 2.8.0 of `tensorboard-plugin-profile` due to error outlined by Anatolist in [this issue](https://github.com/tensorflow/profiler/issues/12).
+
+Solution by [`GoldenGoldy`](https://github.com/tensorflow/profiler/issues/12#issuecomment-1806793838).

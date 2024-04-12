@@ -278,7 +278,7 @@ class DDPG:
         actions = tf.fill([batch_size, action_size], len(self.env.dictionary) - 1)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.env.embedding_size - (self.actor_lstm_units % self.env.embedding_size)], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.actor_lstm_units % self.env.embedding_size], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)

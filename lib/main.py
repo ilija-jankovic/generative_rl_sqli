@@ -107,9 +107,9 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = data_service.load_embeddings()
 else:
-    # MIGHT NOT BE USED BECAUSE OF CAPITAL LETTERS.
+    # MIGHT NOT BE USED BECAUSE OF LOWERCASE LETTERS.
     #
-    # TODO: Ensure lowercase.
+    # TODO: Ensure uppercase.
     queries = data_service.load_wikisql_queries()
 
     parser = WikiSQLParser(schema)

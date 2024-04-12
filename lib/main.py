@@ -12,8 +12,11 @@ from model.ddpg import DDPG
 from model.environment import Environment
 from model.payload_builder import PayloadBuilder
 from model.ddpg_hyperparameters import DDPGHyperparameters
+import tensorflow as tf
 
 import sql_parser.schema_parser as schema_parser
+
+tf.config.optimizer.set_jit(True)
 
 # TODO: Use argparse instead.
 args = sys.argv[1:]

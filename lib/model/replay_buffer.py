@@ -131,7 +131,7 @@ class ReplayBuffer:
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
-    tf.function
+    @tf.function
     def update(
         self, state_batch, action_batch, reward_batch, next_state_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_state_batch: tf.Tensor, last_action_batch: tf.Tensor
     ):

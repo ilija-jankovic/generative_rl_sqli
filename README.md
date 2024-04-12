@@ -4,6 +4,16 @@ Use Python `3.7.4`.
 
 To do with TensorFlow but reason forgotten. `TODO:` experiment with newer Python versions.
 
+**XLA**
+
+XLA is uesd for this project, which requires CUDA.
+
+You may need to set the XLA flag to point to CUDA before running this program. An example of how to achieve this is as follows:
+
+```sh
+set XLA_FLAGS=--xla_gpu_cuda_data_dir="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4"
+```
+
 **Useful Commands**
 
 Run from root of project with minimal options for debugging (requires generated embeddings):

@@ -14,6 +14,8 @@ You may need to set the XLA flag to point to CUDA before running this program. A
 set XLA_FLAGS=--xla_gpu_cuda_data_dir="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4"
 ```
 
+Based on solution by [user14653986](https://stackoverflow.com/a/64872998).
+
 **Useful Commands**
 
 Run from root of project with minimal options for debugging (requires generated embeddings):

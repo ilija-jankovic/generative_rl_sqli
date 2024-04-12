@@ -236,15 +236,18 @@ class DDPG:
 
     @tf.function
     def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
-        batch_size = self.params.batch_size
+        batch_size = tf.convert_to_tensor(self.params.batch_size, dtype=tf.int32)
 
         input = (self.get_embedded_lstm_input(rl_states, embeddings, lstm_states), actions)
 
+        normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
+        perturbed_policy_id = tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32)
+
         output = tf.cond(
-            tf.equal(type, PolicyType.NORMAL.value),
+            tf.equal(type, normal_policy_id),
                 true_fn=lambda: self.actor_model(input, training=training),
                 false_fn=lambda: tf.cond(
-                tf.equal(type, PolicyType.PERTURBED.value),
+                tf.equal(type, perturbed_policy_id),
                     true_fn=lambda: self.actor_perturbed(input, training=training),
                     false_fn=lambda: self.target_actor(input, training=training)))
 
@@ -276,11 +279,11 @@ class DDPG:
 
         This enum cannot be passed directly due to `@tf.function` limitations.
         '''
-        batch_size = self.params.batch_size
-
+        batch_size = tf.constant(self.params.batch_size, dtype=tf.int32)
         action_size = tf.constant(self.env.action_size, dtype=tf.int32)
+        dictionary_size = tf.constant(len(self.env.dictionary) - 1, dtype=tf.int32)
 
-        actions = tf.fill([batch_size, action_size], len(self.env.dictionary) - 1)
+        actions = tf.fill([batch_size, action_size], dictionary_size)
         
         embeddings = tf.zeros([batch_size, self.env.embedding_size], dtype=tf.float32)
         lstm_states = tf.zeros([batch_size, self.actor_lstm_units + self.actor_lstm_units % self.env.embedding_size], dtype=tf.float32)
@@ -510,8 +513,8 @@ class DDPG:
             batch_size=self.params.batch_size,
             demonstrations_count=total_demonstration_steps,
             actor_model=actor_model,
-            policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
-            target_policy=lambda state, training: self.policy(state, PolicyType.TARGET.value, training=training),
+            policy=lambda state, training: self.policy(state, tf.constant(PolicyType.NORMAL.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
+            target_policy=lambda state, training: self.policy(state, tf.constant(PolicyType.TARGET.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
             target_critic=target_critic,
             critic_model=critic_model,
             actor_optimizer=actor_optimizer,

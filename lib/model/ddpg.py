@@ -269,6 +269,7 @@ class DDPG:
         
         return actions, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
 
+    @tf.function
     def policy(self, states, type: int, training: bool):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.

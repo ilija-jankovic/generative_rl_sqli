@@ -152,12 +152,12 @@ class DDPG:
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
 
-    def get_actor(self):
+    def get_actor(self, device_count: int):
         C_PADDING = self.actor_lstm_units % self.env.embedding_size
 
         dictionary_length = len(self.env.dictionary)
 
-        batch_size = self.params.batch_size
+        batch_size = self.params.batch_size * device_count
 
         input_lstm = tf.keras.layers.Input(shape=(None, self.env.embedding_size), batch_size=batch_size)
         input_actions = tf.keras.layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
@@ -186,10 +186,10 @@ class DDPG:
 
         return tf.keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
 
-    def get_critic(self):
+    def get_critic(self, device_count: int):
         LSTM_UNITS = 512
 
-        batch_size = self.params.batch_size
+        batch_size = self.params.batch_size * device_count
 
         state_input = tf.keras.layers.Input(shape=(self.env.state_size, self.params.embedding_size), batch_size=batch_size)
 
@@ -460,15 +460,17 @@ class DDPG:
         #
         # Device log from: https://www.tensorflow.org/guide/keras/distributed_training
         strategy = tf.distribute.MirroredStrategy()
-        print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
+
+        device_count = strategy.num_replicas_in_sync
+        print('Number of devices: {}'.format(device_count))
 
         with strategy.scope():
-            actor_model = self.get_actor()
-            actor_perturbed = self.get_actor()
-            critic_model = self.get_critic()
+            actor_model = self.get_actor(device_count)
+            actor_perturbed = self.get_actor(device_count)
+            critic_model = self.get_critic(device_count)
 
-            target_actor = self.get_actor()
-            target_critic = self.get_critic()
+            target_actor = self.get_actor(device_count)
+            target_critic = self.get_critic(device_count)
 
         self.actor_model = actor_model
         self.actor_perturbed = actor_perturbed

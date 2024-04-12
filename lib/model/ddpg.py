@@ -153,13 +153,17 @@ class DDPG:
         )
 
     def get_actor(self, device_count: int):
-        C_PADDING = self.actor_lstm_units % self.env.embedding_size
+        c_padding = self.actor_lstm_units % self.env.embedding_size
+        c_size = math.ceil(self.actor_lstm_units / self.env.embedding_size)
+
+        # Input = RL state size + LSTM cell state size + single input for average embedding across action fragment.
+        input_size = self.env.state_size + c_size + 1
 
         dictionary_length = len(self.env.dictionary)
 
         batch_size = self.params.batch_size * device_count
 
-        input_lstm = tf.keras.layers.Input(shape=(None, self.env.embedding_size), batch_size=batch_size)
+        input_lstm = tf.keras.layers.Input(shape=(input_size, self.env.embedding_size), batch_size=batch_size)
         input_actions = tf.keras.layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
 
         # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
@@ -181,7 +185,7 @@ class DDPG:
         dense = tf.keras.layers.BatchNormalization()(dense)
         dense = tf.keras.layers.Dense(dictionary_length, activation='softmax')(dense)
 
-        padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, C_PADDING]]))(state_c)
+        padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, c_padding]]))(state_c)
         indices_output, embedding_output = tf.keras.layers.Lambda(lambda output: self.get_embeddings_from_probabilities(output[0], output[1]))((dense, input_actions))
 
         return tf.keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])

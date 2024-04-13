@@ -11,10 +11,6 @@ class DDPGHyperparameters:
     buffer_size: int
     batch_size: int
     starting_stddev: float
-    alpha_scalar: float
-    epsilon_start: float
-    epsilon_decay: float
-    epsilon_min: float
     psi: float
     temperature: float
     n_step_rollout: int
@@ -26,7 +22,6 @@ class DDPGHyperparameters:
     state_size: int
     prefix: str
     suffix: str
-    constant_stddev: bool
 
     def __init__(
             self,
@@ -48,22 +43,7 @@ class DDPGHyperparameters:
             state_size: int,
             prefix: str,
             suffix: str,
-            constant_stddev: bool,
-            alpha_scalar: float = None,
-            epsilon_start: float = None,
-            epsilon_decay: float = None,
-            epsilon_min: float = None
         ) -> None:
-        '''
-        If `constant_stddev` is true, the standard deviation of noise perturbation
-        is always `starting_stddev`.
-        
-        Otherwise, the standard deviation begins at `starting_stddev`, and decays
-        logarithmically based on the epsilon parameters.
-
-        `alpha_scalar`, `epsilon_start`, `epsilon_decay`, and `epsilon_min` must
-        all be set if `constant_stddev` is `False`.
-        '''
         self.gamma = gamma
         self.tau = tau
         self.actor_learning_rate = actor_learning_rate
@@ -82,8 +62,3 @@ class DDPGHyperparameters:
         self.state_size = state_size
         self.prefix = prefix
         self.suffix = suffix
-        self.constant_stddev = constant_stddev
-        self.alpha_scalar = alpha_scalar
-        self.epsilon_start = epsilon_start
-        self.epsilon_decay = epsilon_decay
-        self.epsilon_min = epsilon_min

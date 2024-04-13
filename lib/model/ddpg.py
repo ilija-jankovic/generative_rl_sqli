@@ -48,8 +48,6 @@ class DDPG:
         self.actor_lstm_units = actor_lstm_units
 
         self.__stddev = params.starting_stddev
-        
-        self.__epsilon = None if self.params.constant_stddev else params.epsilon_start 
 
         # Take out empty tokens.
         encoded_payloads = [[token for token in payload if token != len(env.dictionary) - 1] for payload in encoded_payloads]
@@ -365,50 +363,6 @@ class DDPG:
         return tf.reduce_mean(divergences)
 
 
-    # Page 15 of Adaptive Noise Paper for epsilon-based KL divergence threshold.
-    def __calculate_distance_threshold(self):
-        return -np.log(1.0 - self.__epsilon + (self.__epsilon / self.params.batch_size))
-
-
-    def __iterate_adaptive_stddev(self, divergence: float, distance_threshold: float):
-        # Adapted solution by Sören Kirchner:
-        # https://soeren-kirchner.medium.com/deep-deterministic-policy-gradient-ddpg-with-and-without-ornstein-uhlenbeck-process-e6d272adfc3
-        #
-        # Changed distance and sigma definitions based on the
-        # PARAMETER SPACE NOISE FOR EXPLORATION paper:
-        # https://openreview.net/pdf?id=ByBAl2eAZ
-        #
-        # Page 15:
-        # "Setting δ := σ as
-        # the adaptive parameter space threshold thus results in effective action space noise that has the same
-        # standard deviation as regular Gaussian action space noise."
-        if divergence <= distance_threshold:
-            self.__stddev *= self.params.alpha_scalar
-        else:
-            self.__stddev /= self.params.alpha_scalar
-            
-    
-    def __get_perturbed_actions(self, states: tf.Tensor):
-        actions = self.policy(states, PolicyType.NORMAL.value, training=False)
-        actions_perturbed = self.policy(states, PolicyType.PERTURBED.value, training=False)
-
-        constant_stddev = self.params.constant_stddev
-
-        # Actions are comprised of indices which are never negative, meeting
-        # the conditions of the KL divergence method.
-        divergence = self.get_kl_divergence(actions, actions_perturbed)
-
-        distance_threshold = None if constant_stddev else self.__calculate_distance_threshold()
-
-        if not constant_stddev:
-            self.__iterate_adaptive_stddev(divergence=divergence, distance_threshold=distance_threshold)
-
-        return actions_perturbed, divergence, distance_threshold
-    
-    def __decay_epsilon(self):
-        self.__epsilon = max(self.__epsilon * self.params.epsilon_decay, self.params.epsilon_min)
-
-
     def __create_empty_states(self):
         states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
 
@@ -421,7 +375,7 @@ class DDPG:
 
         avg_reward = tf.convert_to_tensor(0, tf.float32)
 
-        tf.profiler.experimental.start('tensorboard_log')
+        #tf.profiler.experimental.start('tensorboard_log')
 
         for learning_step in range(self.params.learnings_per_batch):
             batch_indices, chosen_probabilities = buffer.sample_indices()
@@ -437,15 +391,15 @@ class DDPG:
                 
             avg_reward += tf.reduce_mean(reward_batches)
 
-            with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1):
-                critic_loss, actor_loss = buffer.learn(
-                    batch_indices=batch_indices,
-                    chosen_probabilities=chosen_probabilities,
-                    n_step_rollout=n_step_rollout,
-                    reward_batches=reward_batches,
-                    last_state_batch=state_batches[-2],
-                    last_action_batch=action_batches[-1]
-                )
+            #with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1):
+            critic_loss, actor_loss = buffer.learn(
+                batch_indices=batch_indices,
+                chosen_probabilities=chosen_probabilities,
+                n_step_rollout=n_step_rollout,
+                reward_batches=reward_batches,
+                last_state_batch=state_batches[-2],
+                last_action_batch=action_batches[-1]
+            )
                 
             critic_losses.append(critic_loss)
             actor_losses.append(actor_loss)
@@ -453,7 +407,7 @@ class DDPG:
             self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
             self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
-        tf.profiler.experimental.stop()
+        #tf.profiler.experimental.stop()
 
         avg_reward /= self.params.learnings_per_batch
 
@@ -562,7 +516,7 @@ class DDPG:
             while not end_ddpg:
                 prev_stddev = self.__stddev
 
-                actions, divergence, _ = self.__get_perturbed_actions(states)
+                actions = self.policy(states, tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32), training=tf.constant(False, dtype=tf.bool))
 
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
                 
@@ -596,18 +550,11 @@ class DDPG:
                     avg_main_rollout_reward=avg_main_rollout_reward,
                     avg_n_rollout_reward=avg_n_rollout_reward,
                     is_demonstration=False,
-                    stddev=prev_stddev,
-                    epsilon=self.__epsilon,
-                    avg_batch_kl_divergence=divergence,
-                    distance_threshold=None,
                     critic_loss=critic_loss,
                     actor_loss=actor_loss
                 )
                 
                 reporter.record_running_statistic(running_stat)
-
-                if not self.params.constant_stddev:
-                    self.__decay_epsilon()
 
                 if frame > total_exploration_steps:
                     done = True

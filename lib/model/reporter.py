@@ -30,8 +30,6 @@ class Reporter:
         
         os.makedirs(os.path.dirname(self.__statistics_filename), exist_ok=True)
 
-        constant_stddev = params.constant_stddev
-
         column_names = [
             'γ',
             'τ',
@@ -40,12 +38,7 @@ class Reporter:
             'Embedding Size',
             'Buffer Size',
             'Batch Size',
-            'Standard Deviation' if constant_stddev else 'Starting Standard Deviation',
-            'Constant Standard Deviation',
-            'Alpha Scalar',
-            'Starting ε',
-            'ε Decay',
-            'Min ε',
+            'Standard Deviation',
             'ψ',
             'Temperature',
             'n-Step Rollout',
@@ -59,12 +52,6 @@ class Reporter:
             'Suffix',
         ]
 
-        if constant_stddev:
-            column_names.remove('Alpha Scalar')
-            column_names.remove('Starting ε')
-            column_names.remove('ε Decay')
-            column_names.remove('Min ε')
-        
         with open(self.__statistics_filename, 'w', encoding='utf-8') as f:
             f.write(f'Report started at {now}\n')
             f.write('\n')
@@ -78,14 +65,6 @@ class Reporter:
             f.write(f'{params.buffer_size},')
             f.write(f'{params.batch_size},')
             f.write(f'{params.starting_stddev},')
-            f.write(f'{params.constant_stddev},')
-
-            if not constant_stddev:
-                f.write(f'{params.alpha_scalar},')
-                f.write(f'{params.epsilon_start},')
-                f.write(f'{params.epsilon_decay},')
-                f.write(f'{params.epsilon_min},')
-
             f.write(f'{params.psi},')
             f.write(f'{params.temperature},')
             f.write(f'{params.n_step_rollout},')
@@ -105,20 +84,11 @@ class Reporter:
                 'Is Demonstration',
                 'Average n-Step Critic Loss',
                 'Average n-Step Actor Loss',
-                'Standard Deviation',
-                'ε',
-                'Average Batch KL Divergence',
-                'Distance Threshold',
                 'Average Main Rollout Reward',
                 'Average n-Step Rollout Reward',
                 'Average Combined Reward',
             ]
-
-            if constant_stddev:
-                column_names.remove('Standard Deviation')
-                column_names.remove('ε')
-                column_names.remove('Distance Threshold')
-
+            
             f.write(','.join(column_names) + '\n')
         f.close()
 
@@ -131,8 +101,6 @@ class Reporter:
         if not self.__started:
             raise Exception('Must call start() before recording a statistic.')
         
-        constant_stddev = self.__params.constant_stddev
-        
         with open(self.__statistics_filename, 'a', encoding='utf-8') as f:
             f.write(f'{datetime.now()},')
             f.write(f'{stat.epsiode},')
@@ -140,16 +108,6 @@ class Reporter:
             f.write(f'{stat.is_demonstration},')
             f.write(f'{stat.critic_loss},')
             f.write(f'{stat.actor_loss},')
-
-            if not constant_stddev:
-                f.write(f'{stat.stddev},')
-                f.write(f'{stat.epsilon},')
-
-            f.write(f'{stat.avg_batch_kl_divergence},')
-
-            if not constant_stddev:
-                f.write(f'{stat.distance_threshold},')
-                
             f.write(f'{stat.avg_main_rollout_reward},')
             f.write(f'{stat.avg_n_rollout_reward},')
             f.write(f'{stat.avg_combined_reward}\n')

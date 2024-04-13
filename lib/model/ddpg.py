@@ -490,10 +490,13 @@ class DDPG:
         target_actor.set_weights(actor_model.get_weights())
         target_critic.set_weights(critic_model.get_weights())
 
+        # Mixed precision gives significant performance increase:
+        # https://developer.nvidia.com/automatic-mixed-precision
+        #
         # Nadam for RNNs recommended by OverLordGoldDragon:
         # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-        critic_optimizer = tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0, beta_1=0.999, beta_2=0.999)
-        actor_optimizer = tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, beta_1=0.999, beta_2=0.999, decay=0.001)
+        critic_optimizer = tf.compat.v1.mixed_precision.enable_mixed_precision_graph_rewrite(tf.keras.optimizers.Nadam(self.params.critic_learning_rate, clipvalue=0.5, clipnorm=1.0, beta_1=0.999, beta_2=0.999))
+        actor_optimizer = tf.compat.v1.mixed_precision.enable_mixed_precision_graph_rewrite(tf.keras.optimizers.Nadam(self.params.actor_learning_rate, clipvalue=0.5, clipnorm=1.0, beta_1=0.999, beta_2=0.999, decay=0.001))
 
         total_exploration_steps = math.ceil(100000 / self.params.learnings_per_batch / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0

@@ -26,8 +26,8 @@ class ReplayBuffer:
             policy: Callable[[np.array], np.array],
             actor_model: tf.keras.Model,
             critic_model: tf.keras.Model,
-            actor_optimizer: tf.keras.optimizers.Optimizer,
-            critic_optimizer: tf.keras.optimizers.Optimizer,
+            actor_optimizer: tf.keras.mixed_precision.LossScaleOptimizer,
+            critic_optimizer: tf.keras.mixed_precision.LossScaleOptimizer,
             buffer_capacity: int,
             batch_size: int,
             gamma: float,
@@ -161,7 +161,10 @@ class ReplayBuffer:
 
             critic_loss += tf.add_n(self.critic_model.losses)
 
+            critic_loss = self.critic_optimizer.get_scaled_loss(critic_loss)
+
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
+        critic_grad = self.critic_optimizer.get_unscaled_gradients(critic_grad)
 
         self.strategy.run(self.apply_critic_gradients, [critic_grad])
 
@@ -173,6 +176,8 @@ class ReplayBuffer:
             actor_loss = self.get_actor_loss(critic_value=critic_value)
             actor_loss += tf.add_n(self.actor_model.losses)
 
+            actor_loss = self.actor_optimizer.get_scaled_loss(actor_loss)
+
         # TODO: Explain calculations.
         replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
         priority_weights = 1.0 / (self.batch_size * replay_probabilities)
@@ -183,6 +188,8 @@ class ReplayBuffer:
         priority_weighting = tf.reduce_mean(priority_weights)
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
+        actor_grad = self.actor_optimizer.get_unscaled_gradients(actor_grad)
+
         for layer in actor_grad:
             layer *= priority_weighting
 

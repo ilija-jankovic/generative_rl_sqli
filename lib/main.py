@@ -72,7 +72,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=3336267ae380bfd119577b8bfcd69e1f; {flag}=f5f8590cd58a54e94377e6ae2eded4d9'
+COOKIE = 'pma_lang=en; PHPSESSID=ddf9077013a6d31121128d958a4f2622; {flag}=9dcb88e0137649590b755372b040afad'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -178,7 +178,6 @@ params = DDPGHyperparameters(
     state_size=STATE_SIZE,
     prefix=payload_builder.prefix,
     suffix=payload_builder.suffix,
-    constant_stddev=True
     # TODO: Add extend epsiode parameter.
 )
 

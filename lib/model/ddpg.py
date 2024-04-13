@@ -339,30 +339,6 @@ class DDPG:
         return tensor / sums
 
 
-    @tf.function
-    def get_kl_divergence(self, t1: tf.Tensor, t2: tf.Tensor):
-        '''
-        `t1` and `t2` are normalized between `[0,1]` for divergence calculation,
-        but must only contain non-negative values.
-        '''
-        tf.debugging.assert_non_negative(t1,'Tensor for divergence ' +
-            'calculation must not contain negative values.')
-        tf.debugging.assert_non_negative(t2,'Tensor for divergence ' +
-            'calculation must not contain negative values.')
-
-        t1 = tf.cast(t1, dtype=tf.float32)
-        t2 = tf.cast(t2, dtype=tf.float32)
-
-        # Ensure values are scaled to sum to one to meet KL divergence
-        # requirement of probability distribution inputs.
-        t1 = self.normalize_0_1(t1)
-        t2 = self.normalize_0_1(t2)
-
-        divergences = tf.keras.metrics.kl_divergence(t1, t2)
-
-        return tf.reduce_mean(divergences)
-
-
     def __create_empty_states(self):
         states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
 

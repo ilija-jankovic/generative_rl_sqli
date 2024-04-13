@@ -13,8 +13,19 @@ from model.environment import Environment
 from model.payload_builder import PayloadBuilder
 from model.ddpg_hyperparameters import DDPGHyperparameters
 import tensorflow as tf
+import os
 
 import sql_parser.schema_parser as schema_parser
+
+# GPU private mode allows for optimisation. Thread count of two recommended but we set
+# it to three.Environment variable documentation from:
+# https://www.tensorflow.org/guide/gpu_performance_analysis#2_gpu_host_thread_contention
+#
+# TensorFlow environment variable setting solution by Prerak Mody from Performance Summary
+# section in:
+# https://towardsdatascience.com/profiling-in-tensorflow-2-x-576f5700124a
+os.environ['TF_GPU_THREAD_MODE'] = 'gpu_private'
+os.environ['TF_GPU_THREAD_COUNT'] = '3'
 
 tf.config.optimizer.set_jit(True)
 

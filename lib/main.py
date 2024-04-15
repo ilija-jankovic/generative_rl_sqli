@@ -38,6 +38,7 @@ run_sqlmap = '--no-run-sqlmap' not in args
 record_demonstrations = '--no-demonstrations' not in args
 use_cache = '--from-cache' in args
 double_requests = '--no-double-requests' not in args
+profile = '--profile' in args
 
 embedding_data_rows = None
 
@@ -210,7 +211,8 @@ def main():
     ddpg = DDPG(
         environment,
         encoded_payloads=encoded_payloads,
-        params=params
+        params=params,
+        profile=profile
     )
 
     print('Running DDPG...')

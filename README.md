@@ -24,6 +24,12 @@ Run from root of project with minimal options for debugging (requires generated 
 python lib\main.py --no-run-sqlmap --no-demonstrations --from-cache --no-double-requests
 ```
 
+Enable profiling with the `--profile` flag. For example:
+
+```sh
+python lib\main.py --profile
+```
+
 Open TensorBoard for profiling from root of project:
 
 ```sh

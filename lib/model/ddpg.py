@@ -23,6 +23,7 @@ class DDPG:
     env: Environment
     encoded_payloads: List[List[int]]
     params: DDPGHyperparameters
+    profile: bool
     actor_lstm_units: int
     
     actor_perturbed: tf.keras.Model
@@ -34,6 +35,7 @@ class DDPG:
             env: Environment,
             encoded_payloads: List[List[int]],
             params: DDPGHyperparameters,
+            profile: bool,
             actor_lstm_units: int = 512,
         ):
         assert(params.psi >= 0.0 and params.psi <= 1.0)
@@ -45,6 +47,7 @@ class DDPG:
 
         self.env = env
         self.params = params
+        self.profile = profile
         self.actor_lstm_units = actor_lstm_units
 
         self.__stddev = params.starting_stddev
@@ -488,7 +491,10 @@ class DDPG:
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
 
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout, profile=frame != 0)
+                # Don't profile first learning batch as model is initialised and initial casts
+                # are performed by mixed precision optimisers.
+                profile = self.profile and frame != 0
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout, profile=profile)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.

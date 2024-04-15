@@ -28,7 +28,6 @@ class DDPG:
     actor_perturbed: tf.keras.Model
 
     __stddev: float
-    __epsilon: float
     
     def __init__(
             self,

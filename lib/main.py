@@ -27,6 +27,8 @@ import sql_parser.schema_parser as schema_parser
 os.environ['TF_GPU_THREAD_MODE'] = 'gpu_private'
 os.environ['TF_GPU_THREAD_COUNT'] = '3'
 
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
+
 tf.config.optimizer.set_jit(True)
 
 # TODO: Use argparse instead.

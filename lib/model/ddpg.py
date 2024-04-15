@@ -1,6 +1,7 @@
 # Modification of DDPG Keras example from:
 # https://keras.io/examples/rl/ddpg_pendulum/
 
+from contextlib import nullcontext
 import datetime
 import math
 import random
@@ -345,13 +346,14 @@ class DDPG:
         return tf.convert_to_tensor(states)
 
 
-    def __learn(self, buffer: ReplayBuffer, n_step_rollout: int):
+    def __learn(self, buffer: ReplayBuffer, n_step_rollout: int, profile: bool):
         critic_losses = []
         actor_losses = []
 
         avg_reward = tf.convert_to_tensor(0, tf.float32)
 
-        #tf.profiler.experimental.start('tensorboard_log')
+        if profile:
+            tf.profiler.experimental.start('tensorboard_log')
 
         for learning_step in range(self.params.learnings_per_batch):
             batch_indices, chosen_probabilities = buffer.sample_indices()
@@ -367,15 +369,18 @@ class DDPG:
                 
             avg_reward += tf.reduce_mean(reward_batches)
 
-            #with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1):
-            critic_loss, actor_loss = buffer.learn(
-                batch_indices=batch_indices,
-                chosen_probabilities=chosen_probabilities,
-                n_step_rollout=n_step_rollout,
-                reward_batches=reward_batches,
-                last_state_batch=state_batches[-2],
-                last_action_batch=action_batches[-1]
-            )
+            last_state_batch = state_batches[-2]
+            last_action_batch = action_batches[-1]
+
+            with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1) if profile else nullcontext():
+                critic_loss, actor_loss = buffer.learn(
+                    batch_indices=batch_indices,
+                    chosen_probabilities=chosen_probabilities,
+                    n_step_rollout=n_step_rollout,
+                    reward_batches=reward_batches,
+                    last_state_batch=last_state_batch,
+                    last_action_batch=last_action_batch
+                )
                 
             critic_losses.append(critic_loss)
             actor_losses.append(actor_loss)
@@ -383,7 +388,8 @@ class DDPG:
             self.update_target(self.target_actor.variables, self.actor_model.variables, self.params.tau)
             self.update_target(self.target_critic.variables, self.critic_model.variables, self.params.tau)
 
-        #tf.profiler.experimental.stop()
+        if profile:
+            tf.profiler.experimental.stop()
 
         avg_reward /= self.params.learnings_per_batch
 
@@ -498,7 +504,7 @@ class DDPG:
                 
                 avg_main_rollout_reward = tf.reduce_mean(rewards)
 
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout)
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout, profile=frame != 0)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.

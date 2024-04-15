@@ -327,19 +327,6 @@ class DDPG:
             layer.assign_add(noise)
 
 
-    @tf.function
-    def normalize_0_1(self, tensor: tf.Tensor):
-        '''
-        Expects only non-negative values in `tensor`.
-        '''
-        tf.debugging.assert_non_negative(tensor, '[0,1] normalization ' +
-            'tensor must not contain negative values.')
-        
-        sums = tf.reduce_sum(tensor, axis=-1, keepdims=True)
-        
-        return tensor / sums
-
-
     def __create_empty_states(self):
         states = [self.env.create_empty_state(index=i) for i in range(self.params.batch_size)]
 

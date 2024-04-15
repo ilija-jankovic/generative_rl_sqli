@@ -496,8 +496,6 @@ class DDPG:
             self.__update_perturbed_actor()
 
             while not end_ddpg:
-                prev_stddev = self.__stddev
-
                 actions = self.policy(states, tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32), training=tf.constant(False, dtype=tf.bool))
 
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)

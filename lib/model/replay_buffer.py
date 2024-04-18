@@ -107,24 +107,7 @@ class ReplayBuffer:
 
         self.buffer_counter += self.batch_size
 
-
-    @tf.function
-    def apply_actor_gradients(self, gradient):
-        grads_and_vars = zip(gradient, self.actor_model.trainable_variables)
-
-        self.actor_optimizer.apply_gradients(grads_and_vars)
-
-
-    @tf.function
-    def apply_critic_gradients(self, gradient):
-        grads_and_vars = zip(gradient, self.critic_model.trainable_variables)
-
-        self.critic_optimizer.apply_gradients(grads_and_vars)
-
     
-    # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
-    # TensorFlow to build a static graph out of the logic and computations in our function.
-    # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
         self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
@@ -152,8 +135,8 @@ class ReplayBuffer:
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         critic_grad = self.critic_optimizer.get_unscaled_gradients(critic_grad)
+        self.critic_optimizer.apply_gradients(zip(critic_grad, self.critic_model.trainable_variables))
 
-        self.strategy.run(self.apply_critic_gradients, [critic_grad])
 
         with tf.GradientTape() as tape:
             actions = self.policy(state_batch, training=True)
@@ -176,11 +159,10 @@ class ReplayBuffer:
 
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
         actor_grad = self.actor_optimizer.get_unscaled_gradients(actor_grad)
+        self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor_model.trainable_variables))
 
         for layer in actor_grad:
             layer *= priority_weighting
-
-        self.strategy.run(self.apply_actor_gradients, [actor_grad])
 
         priorities = tf.squeeze(tf.square(td_error)) + self.priority_weight * tf.math.square(actor_loss) + epsilon_constants
 
@@ -228,14 +210,18 @@ class ReplayBuffer:
         
         epsilon_constants = tf.convert_to_tensor(epsilon_constants, dtype=tf.float32)
 
-        priorities, critic_loss, actor_loss = self.update(
-            state_batch=state_batch,
-            action_batch=action_batch,
-            reward_batch=reward_batch,
-            next_state_batch=next_state_batch,
-            replay_probabilities=chosen_probabilities,
-            epsilon_constants=epsilon_constants,
-        )
+        priorities, critic_loss, actor_loss = self.strategy.run(self.update, [
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+            chosen_probabilities,
+            epsilon_constants
+        ])
+
+        priorities = self.strategy.reduce(tf.distribute.ReduceOp.MEAN, priorities, axis=None)
+        critic_loss = self.strategy.reduce(tf.distribute.ReduceOp.SUM, critic_loss, axis=None)
+        actor_loss = self.strategy.reduce(tf.distribute.ReduceOp.SUM, actor_loss, axis=None)
 
         for i in range(len(batch_indices)):
             self.priorities_buffer[batch_indices[i]] = priorities[i]

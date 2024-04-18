@@ -29,6 +29,10 @@ os.environ['TF_GPU_THREAD_COUNT'] = '3'
 
 os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
+# Multi-GPU Keras environment variable from official Keras tutorial:
+# https://keras.io/guides/distributed_training_with_tensorflow/
+os.environ['KERAS_BACKEND'] = 'tensorflow'
+
 tf.config.optimizer.set_jit(True)
 
 # TODO: Use argparse instead.
@@ -58,7 +62,7 @@ except:
 #
 #
 
-BATCH_SIZE = 2048
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 128
 

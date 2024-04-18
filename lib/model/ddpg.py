@@ -363,7 +363,7 @@ class DDPG:
         target_actor.set_weights(actor_model.get_weights())
         target_critic.set_weights(critic_model.get_weights())
 
-        total_exploration_steps = math.ceil(100000 / self.params.learnings_per_batch / self.params.batch_size) * self.params.batch_size
+        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
         total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
         run_demonstrations = run_demonstrations and self.encoded_payloads is not None

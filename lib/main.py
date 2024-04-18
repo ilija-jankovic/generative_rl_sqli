@@ -58,7 +58,7 @@ except:
 #
 #
 
-BATCH_SIZE = 512
+BATCH_SIZE = 2048
 
 EMBEDDING_DIM = 128
 
@@ -75,7 +75,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=ddf9077013a6d31121128d958a4f2622; {flag}=9dcb88e0137649590b755372b040afad'
+COOKIE = 'pma_lang=en; PHPSESSID=4ec657631913af91fad2f6cfd91c26fe; {flag}=d395771085aab05244a4fb8fd91bf4ee'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -170,7 +170,7 @@ params = DDPGHyperparameters(
     embedding_size=EMBEDDING_DIM,
     batch_size=BATCH_SIZE,
     starting_stddev=0.001,
-    psi=0.99,
+    psi=0.0,
     temperature=0.5,
     n_step_rollout=1,
     learnings_per_batch=20,

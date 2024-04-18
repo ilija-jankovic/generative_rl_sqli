@@ -287,8 +287,6 @@ class DDPG:
         critic_losses = []
         actor_losses = []
 
-        avg_reward = tf.convert_to_tensor(0, tf.float32)
-
         if profile:
             tf.profiler.experimental.start('tensorboard_log')
 
@@ -305,12 +303,10 @@ class DDPG:
         if profile:
             tf.profiler.experimental.stop()
 
-        avg_reward /= self.params.learnings_per_batch
-
         avg_critic_loss = tf.reduce_mean(critic_losses)
         avg_actor_loss = tf.reduce_mean(actor_losses)
 
-        return avg_reward, avg_critic_loss, avg_actor_loss
+        return avg_critic_loss, avg_actor_loss
     
 
     def run(self, run_demonstrations: bool):
@@ -433,12 +429,12 @@ class DDPG:
 
                 states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
                 
-                avg_main_rollout_reward = tf.reduce_mean(rewards)
+                avg_main_rollout_reward = float(np.average(rewards))
 
                 # Don't profile first learning batch as model is initialised and initial casts
                 # are performed by mixed precision optimisers.
                 profile = self.profile and frame != 0
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, profile=profile)
+                critic_loss, actor_loss = self.__learn(buffer, profile=profile)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.
@@ -464,7 +460,6 @@ class DDPG:
                     epsiode=ep,
                     frame=frame,
                     avg_main_rollout_reward=avg_main_rollout_reward,
-                    avg_n_rollout_reward=avg_n_rollout_reward,
                     is_demonstration=False,
                     critic_loss=critic_loss,
                     actor_loss=actor_loss
@@ -476,7 +471,7 @@ class DDPG:
                     done = True
                     end_ddpg = True
 
-                print("[{}] Episode: {}, Total Frame Count: {}, Average n-Step Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_n_rollout_reward))
+                print("[{}] Episode: {}, Total Frame Count: {}, Average n-Step Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_main_rollout_reward))
 
                 # End this episode when `done` is True
                 if done:

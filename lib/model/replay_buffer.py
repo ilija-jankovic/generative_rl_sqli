@@ -77,16 +77,10 @@ class ReplayBuffer:
         return -tf.math.reduce_mean(critic_value)
 
 
-    def get_critic_loss(self, critic_value: float, y_target: tf.Tensor, y_rollout_target: tf.Tensor):
+    def get_critic_loss(self, critic_value: float, y_target: tf.Tensor):
         td_error = y_target - critic_value
-        td_error_rollout = y_rollout_target - critic_value
 
-        loss_1_step = tf.math.reduce_mean(tf.math.square(td_error))
-        loss_rollout = 0.5 * tf.math.reduce_mean(tf.math.square(td_error_rollout))
-
-        critic_loss = loss_1_step + self.rollout_weight * loss_rollout
-
-        return critic_loss, td_error
+        return tf.math.reduce_mean(tf.math.square(td_error)), td_error
 
 
     # Takes (s,a,r,s') obervation tuple as input
@@ -133,7 +127,7 @@ class ReplayBuffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-        self, state_batch, action_batch, reward_batch, next_state_batch, discounted_reward_batch, replay_probabilities, epsilon_constants, n_step_rollout: int, last_state_batch: tf.Tensor, last_action_batch: tf.Tensor
+        self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -147,16 +141,9 @@ class ReplayBuffer:
 
             critic_value = self.critic_model([state_batch, action_batch], training=True)
 
-            # n-step.
-            discounted_gamma = tf.pow(self.gamma, n_step_rollout)
-            y_rollout_target = discounted_reward_batch + discounted_gamma * self.target_critic(
-                [last_state_batch, last_action_batch], training=True
-            )
-
             critic_loss, td_error = self.get_critic_loss(
                 critic_value=critic_value,
                 y_target=y_target,
-                y_rollout_target=y_rollout_target
             )
 
             critic_loss += tf.add_n(self.critic_model.losses)
@@ -224,21 +211,13 @@ class ReplayBuffer:
         
 
     # We compute the loss and update parameters
-    def learn(self, batch_indices: np.ndarray, chosen_probabilities: List[float], n_step_rollout: int, reward_batches: np.ndarray, last_state_batch: tf.Tensor, last_action_batch: tf.Tensor):
-        discounted_reward_batch = reward_batches[0]
+    def learn(self):
+        batch_indices, chosen_probabilities = self.sample_indices()
 
-        for i in range(1, n_step_rollout):
-            discounted_gamma = np.power(self.gamma, i)
-
-            discounted_reward_batch = np.add(discounted_reward_batch, discounted_gamma * reward_batches[i])
-
-        # Convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.int32)
         reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
-        discounted_reward_batch = tf.convert_to_tensor(discounted_reward_batch, dtype=tf.float32)
-        discounted_reward_batch = tf.expand_dims(discounted_reward_batch, -1)
 
         epsilon_constants = [
             self.epsilon_priority + self.epsilon_priority_demonstration
@@ -254,12 +233,8 @@ class ReplayBuffer:
             action_batch=action_batch,
             reward_batch=reward_batch,
             next_state_batch=next_state_batch,
-            discounted_reward_batch=discounted_reward_batch,
             replay_probabilities=chosen_probabilities,
             epsilon_constants=epsilon_constants,
-            n_step_rollout=n_step_rollout,
-            last_state_batch=last_state_batch,
-            last_action_batch=last_action_batch
         )
 
         for i in range(len(batch_indices)):

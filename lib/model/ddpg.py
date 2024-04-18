@@ -283,7 +283,7 @@ class DDPG:
         return tf.convert_to_tensor(states)
 
 
-    def __learn(self, buffer: ReplayBuffer, n_step_rollout: int, profile: bool):
+    def __learn(self, buffer: ReplayBuffer, profile: bool):
         critic_losses = []
         actor_losses = []
 
@@ -293,31 +293,8 @@ class DDPG:
             tf.profiler.experimental.start('tensorboard_log')
 
         for learning_step in range(self.params.learnings_per_batch):
-            batch_indices, chosen_probabilities = buffer.sample_indices()
-
-            state_batch = buffer.state_buffer[batch_indices]
-            state_batch = tf.convert_to_tensor(state_batch, dtype=tf.float32)
-
-            state_batches, action_batches, reward_batches = self.env.perform_n_step_rollout(
-                policy=lambda state, training: self.policy(state, PolicyType.NORMAL.value, training=training),
-                state_batch=state_batch,
-                n=n_step_rollout
-            )
-                
-            avg_reward += tf.reduce_mean(reward_batches)
-
-            last_state_batch = state_batches[-2]
-            last_action_batch = action_batches[-1]
-
             with tf.profiler.experimental.Trace('train', step_num=learning_step, _r=1) if profile else nullcontext():
-                critic_loss, actor_loss = buffer.learn(
-                    batch_indices=batch_indices,
-                    chosen_probabilities=chosen_probabilities,
-                    n_step_rollout=n_step_rollout,
-                    reward_batches=reward_batches,
-                    last_state_batch=last_state_batch,
-                    last_action_batch=last_action_batch
-                )
+                critic_loss, actor_loss = buffer.learn()
                 
             critic_losses.append(critic_loss)
             actor_losses.append(actor_loss)
@@ -461,7 +438,7 @@ class DDPG:
                 # Don't profile first learning batch as model is initialised and initial casts
                 # are performed by mixed precision optimisers.
                 profile = self.profile and frame != 0
-                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, n_step_rollout=self.params.n_step_rollout, profile=profile)
+                avg_n_rollout_reward, critic_loss, actor_loss = self.__learn(buffer, profile=profile)
 
                 # TODO: Record all successful payloads, even from rollout, as they
                 # are equally valuable to pen-testers.

@@ -11,7 +11,10 @@ class DDPGHyperparameters:
     buffer_size: int
     batch_size: int
     starting_stddev: float
+    
+    # NOTE: Deprecated parameter until application in reward function.
     psi: float
+
     temperature: float
     n_step_rollout: int
     learnings_per_batch: int

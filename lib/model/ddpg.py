@@ -8,7 +8,6 @@ import random
 from typing import List
 import tensorflow as tf
 import numpy as np
-from sqltree import sqltree
 
 from .ddpg_hyperparameters import DDPGHyperparameters
 from .ddpg_running_statistic import DDPGRunningStatistic
@@ -68,59 +67,9 @@ class DDPG:
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
 
-    @tf.function
-    def get_mask(self, payload):
-        dictionary_length = len(self.env.dictionary)
-        suffix_length = len(self.params.suffix)
-
-        mask = []
-        
-        for i in range(dictionary_length - 1):
-            token = self.env.dictionary[i]
-
-            try:
-                sqltree(f'SELECT * FROM products WHERE id= \'{payload[:-suffix_length] + token + self.params.suffix}\'')
-                mask.append(1.0)
-            except:
-                mask.append(1.0 - self.params.psi)
-
-        # Account for termination token.
-        mask += [1.0]
-
-        return tf.stack(mask)
-
-    @tf.function
-    def mask_probabilities(self, probabilities, action: tf.Tensor):
-        payload = tf.py_function(self.env.get_payload, [action], tf.string)
-
-        # Avoid unnecessary mask construction if psi is zero, as the mask will always
-        # be ones in this case.
-        return tf.cond(tf.less_equal(self.params.psi, 0.0),
-            true_fn=lambda: probabilities,
-            false_fn=lambda: probabilities * self.get_mask(payload))
     
     @tf.function
-    def penalise_non_ast(self, probabilities_batch: tf.Tensor, actions):
-        probabilities_batch = [self.mask_probabilities(probabilities_batch[i], actions[i]) for i in range(probabilities_batch.shape[0])]
-
-        return tf.convert_to_tensor(probabilities_batch, dtype=tf.float32)
-    
-    # Modified solution by chasep255 from: 
-    # https://stackoverflow.com/questions/37246030/how-to-change-the-temperature-of-a-softmax-output-in-keras
-    @tf.function
-    def calculate_temperatured_probabilities(self, softmax_probabilities):
-        '''
-        `probabilities` expected to be calculated from last softmax layer of
-        a neural network.
-        '''
-        logits = tf.math.log(softmax_probabilities) / self.params.temperature
-
-        return tf.math.exp(logits) / tf.reduce_sum(tf.math.exp(logits))
-    
-    def get_embeddings_from_probabilities(self, probabilities, actions):
-        probabilities = self.calculate_temperatured_probabilities(probabilities)
-        probabilities = self.penalise_non_ast(probabilities, actions)
-
+    def get_embeddings_from_probabilities(self, probabilities):
         # Log probabilities as tf.random.categorical expects log probabilities.
         probabilities = tf.math.log(probabilities)
 

@@ -114,7 +114,6 @@ class DDPG:
         batch_size = self.params.batch_size * device_count
 
         input_lstm = tf.keras.layers.Input(shape=(input_size, self.env.embedding_size), batch_size=batch_size)
-        input_actions = tf.keras.layers.Input(shape=(self.env.action_size), batch_size=batch_size, dtype=tf.int32)
 
         # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
         lstm = self.__create_lstm_layer(self.actor_lstm_units)(input_lstm)
@@ -136,9 +135,9 @@ class DDPG:
         dense = tf.keras.layers.Dense(dictionary_length, activation='softmax')(dense)
 
         padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, c_padding]]))(state_c)
-        indices_output, embedding_output = tf.keras.layers.Lambda(lambda output: self.get_embeddings_from_probabilities(output[0], output[1]))((dense, input_actions))
+        indices_output, embedding_output = tf.keras.layers.Lambda(self.get_embeddings_from_probabilities)((dense))
 
-        return tf.keras.Model([input_lstm, input_actions], [padded_state_c_output, indices_output, embedding_output])
+        return tf.keras.Model([input_lstm], [padded_state_c_output, indices_output, embedding_output])
 
     def get_critic(self, device_count: int):
         LSTM_UNITS = 512
@@ -188,7 +187,7 @@ class DDPG:
     def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
         batch_size = tf.convert_to_tensor(self.params.batch_size, dtype=tf.int32)
 
-        input = (self.get_embedded_lstm_input(rl_states, embeddings, lstm_states), actions)
+        input = self.get_embedded_lstm_input(rl_states, embeddings, lstm_states)
 
         normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
         perturbed_policy_id = tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32)

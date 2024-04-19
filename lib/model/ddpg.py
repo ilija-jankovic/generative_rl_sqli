@@ -16,7 +16,8 @@ from .reporter import Reporter
 
 from .enums.policy_type import PolicyType
 from .environment import Environment
-from .replay_buffer import ReplayBuffer
+from .replay_buffer import ReplayBuffer, strategy
+
 
 class DDPG:
     env: Environment
@@ -310,12 +311,6 @@ class DDPG:
     
 
     def run(self, run_demonstrations: bool):
-        # Strategy to utilise multiple GPUs.
-        #
-        # HierarchicalCopyAllReduce for multi-GPU setup on single machine recommendation from:
-        # https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
-        strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-
         device_count = strategy.num_replicas_in_sync
         print('Number of devices: {}'.format(device_count))
 
@@ -354,131 +349,130 @@ class DDPG:
                     decay=0.001
                 ))
 
-        self.actor_model = actor_model
-        self.actor_perturbed = actor_perturbed
-        self.target_actor = target_actor
-        self.target_critic = target_critic
-        self.critic_model = critic_model
+            self.actor_model = actor_model
+            self.actor_perturbed = actor_perturbed
+            self.target_actor = target_actor
+            self.target_critic = target_critic
+            self.critic_model = critic_model
 
-        # Making the weights equal initially
-        target_actor.set_weights(actor_model.get_weights())
-        target_critic.set_weights(critic_model.get_weights())
+            # Making the weights equal initially
+            target_actor.set_weights(actor_model.get_weights())
+            target_critic.set_weights(critic_model.get_weights())
 
-        total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
-        total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
+            total_exploration_steps = math.ceil(100000 / self.params.batch_size) * self.params.batch_size
+            total_demonstration_steps = math.ceil(len(self.encoded_payloads) / self.params.batch_size) * self.params.batch_size * 2 if run_demonstrations else 0
 
-        run_demonstrations = run_demonstrations and self.encoded_payloads is not None
+            run_demonstrations = run_demonstrations and self.encoded_payloads is not None
 
-        buffer_size = total_exploration_steps + total_demonstration_steps if run_demonstrations else total_exploration_steps
+            buffer_size = total_exploration_steps + total_demonstration_steps if run_demonstrations else total_exploration_steps
 
-        self.params.buffer_size = buffer_size
+            self.params.buffer_size = buffer_size
 
-        buffer = ReplayBuffer(
-            strategy=strategy,
-            state_size=self.env.state_size,
-            embedding_size=self.env.embedding_size,
-            action_size=self.env.action_size,
-            buffer_capacity=buffer_size,
-            batch_size=self.params.batch_size,
-            demonstrations_count=total_demonstration_steps,
-            actor_model=actor_model,
-            policy=lambda state, training: self.policy(state, tf.constant(PolicyType.NORMAL.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
-            target_policy=lambda state, training: self.policy(state, tf.constant(PolicyType.TARGET.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
-            target_critic=target_critic,
-            critic_model=critic_model,
-            actor_optimizer=actor_optimizer,
-            critic_optimizer=critic_optimizer,
-            gamma=self.params.gamma,
-            rollout_weight=self.params.rollout_weight,
-            l2_weight=self.params.l2_weight,
-            priority_weight=self.params.priority_weight
-        )
-        
-        frame = 0
+            buffer = ReplayBuffer(
+                state_size=self.env.state_size,
+                embedding_size=self.env.embedding_size,
+                action_size=self.env.action_size,
+                buffer_capacity=buffer_size,
+                batch_size=self.params.batch_size,
+                demonstrations_count=total_demonstration_steps,
+                actor_model=actor_model,
+                policy=lambda state, training: self.policy(state, tf.constant(PolicyType.NORMAL.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
+                target_policy=lambda state, training: self.policy(state, tf.constant(PolicyType.TARGET.value, dtype=tf.int32), training=tf.constant(training, dtype=tf.bool)),
+                target_critic=target_critic,
+                critic_model=critic_model,
+                actor_optimizer=actor_optimizer,
+                critic_optimizer=critic_optimizer,
+                gamma=self.params.gamma,
+                rollout_weight=self.params.rollout_weight,
+                l2_weight=self.params.l2_weight,
+                priority_weight=self.params.priority_weight
+            )
+            
+            frame = 0
 
-        reporter = Reporter()
+            reporter = Reporter()
 
-        print('Starting reporter...')
-        reporter.start(self.params)
+            print('Starting reporter...')
+            reporter.start(self.params)
 
-        if run_demonstrations:
-            print('Gathering demonstrations...')
+            if run_demonstrations:
+                print('Gathering demonstrations...')
 
-        ep = 1
+            ep = 1
 
-        end_ddpg = False
+            end_ddpg = False
 
-        states = self.__create_empty_states()
+            states = self.__create_empty_states()
 
-        if run_demonstrations:
-            for i in range(0, total_demonstration_steps, self.params.batch_size):
-                print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
+            if run_demonstrations:
+                for i in range(0, total_demonstration_steps, self.params.batch_size):
+                    print(f'{i}/{total_demonstration_steps} demonstration observations gathered.')
 
-                actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
+                    actions = tf.convert_to_tensor([random.choice(self.encoded_payloads) for _ in range(self.params.batch_size)])
 
-                states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False)
+                    states, _, __ = self.__run_actions(actions, states, buffer, ignore_episode=False)
 
-            print('Transitions gathered.')
+                print('Transitions gathered.')
 
-        while True:
-            # Update perturbed actor at beginning of episode for stability.
-            # (Pg. 3 of Adapative Parameter Space Noise paper).
-            self.__update_perturbed_actor()
+            while True:
+                # Update perturbed actor at beginning of episode for stability.
+                # (Pg. 3 of Adapative Parameter Space Noise paper).
+                self.__update_perturbed_actor()
 
-            while not end_ddpg:
-                actions = self.policy(states, tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32), training=tf.constant(False, dtype=tf.bool))
+                while not end_ddpg:
+                    actions = self.policy(states, tf.constant(PolicyType.PERTURBED.value, dtype=tf.int32), training=tf.constant(False, dtype=tf.bool))
 
-                states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
-                
-                avg_main_rollout_reward = float(np.average(rewards))
+                    states, rewards, done = self.__run_actions(actions, states, buffer, ignore_episode=False)
+                    
+                    avg_main_rollout_reward = float(np.average(rewards))
 
-                # Don't profile first learning batch as model is initialised and initial casts
-                # are performed by mixed precision optimisers.
-                profile = self.profile and frame != 0
-                critic_loss, actor_loss = self.__learn(buffer, profile=profile)
+                    # Don't profile first learning batch as model is initialised and initial casts
+                    # are performed by mixed precision optimisers.
+                    profile = self.profile and frame != 0
+                    critic_loss, actor_loss = self.__learn(buffer, profile=profile)
 
-                # TODO: Record all successful payloads, even from rollout, as they
-                # are equally valuable to pen-testers.
-                for i in range(self.params.batch_size):
-                    reward = rewards[i]
+                    # TODO: Record all successful payloads, even from rollout, as they
+                    # are equally valuable to pen-testers.
+                    for i in range(self.params.batch_size):
+                        reward = rewards[i]
 
-                    if reward > 0.0:
-                        action = actions[i]
+                        if reward > 0.0:
+                            action = actions[i]
 
-                        stat = DDPGPayloadStatistic(
-                            epsiode=ep,
-                            frame=frame,
-                            payload=self.env.get_payload(action),
-                            reward=reward,
-                            is_demonstration=False
-                        )
+                            stat = DDPGPayloadStatistic(
+                                epsiode=ep,
+                                frame=frame,
+                                payload=self.env.get_payload(action),
+                                reward=reward,
+                                is_demonstration=False
+                            )
 
-                        reporter.record_payload_statistic(stat)
+                            reporter.record_payload_statistic(stat)
 
-                frame += self.params.batch_size
+                    frame += self.params.batch_size
 
-                running_stat = DDPGRunningStatistic(
-                    epsiode=ep,
-                    frame=frame,
-                    avg_main_rollout_reward=avg_main_rollout_reward,
-                    is_demonstration=False,
-                    critic_loss=critic_loss,
-                    actor_loss=actor_loss
-                )
-                
-                reporter.record_running_statistic(running_stat)
+                    running_stat = DDPGRunningStatistic(
+                        epsiode=ep,
+                        frame=frame,
+                        avg_main_rollout_reward=avg_main_rollout_reward,
+                        is_demonstration=False,
+                        critic_loss=critic_loss,
+                        actor_loss=actor_loss
+                    )
+                    
+                    reporter.record_running_statistic(running_stat)
 
-                if frame > total_exploration_steps:
-                    done = True
-                    end_ddpg = True
+                    if frame > total_exploration_steps:
+                        done = True
+                        end_ddpg = True
 
-                print("[{}] Episode: {}, Total Frame Count: {}, Average n-Step Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_main_rollout_reward))
+                    print("[{}] Episode: {}, Total Frame Count: {}, Average n-Step Batch Reward: {}".format(datetime.datetime.now(), ep, frame, avg_main_rollout_reward))
 
-                # End this episode when `done` is True
-                if done:
-                    ep += 1
+                    # End this episode when `done` is True
+                    if done:
+                        ep += 1
+                        break
+
+
+                if end_ddpg:
                     break
-
-
-            if end_ddpg:
-                break

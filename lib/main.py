@@ -62,7 +62,7 @@ except:
 #
 #
 
-BATCH_SIZE = 512
+BATCH_SIZE = 4
 
 EMBEDDING_DIM = 128
 
@@ -79,7 +79,7 @@ STATE_SIZE = 40
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=4ec657631913af91fad2f6cfd91c26fe; {flag}=d395771085aab05244a4fb8fd91bf4ee'
+COOKIE = 'pma_lang=en; PHPSESSID=d2d9b716c2cfa9bdb362c90932e8e8a9; {flag}=c8fbbc86abe8bd6a5eb6a3b4d0411301'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \

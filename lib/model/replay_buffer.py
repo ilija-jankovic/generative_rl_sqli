@@ -10,7 +10,7 @@ import numpy as np
 #
 # HierarchicalCopyAllReduce for multi-GPU setup on single machine recommendation from:
 # https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
-strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+strategy = tf.distribute.OneDeviceStrategy(device='GPU:0')
 
 
 class ReplayBuffer:
@@ -100,45 +100,44 @@ class ReplayBuffer:
 
         self.buffer_counter += self.batch_size
 
-    
-    with strategy.scope():
-        @tf.function
-        def update(
-            self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
-        ):
-            # Training and updating Actor & Critic networks.
-            # See Pseudo Code.
-            with tf.GradientTape() as tape:
-                # 1-step.
-                target_actions = self.target_policy(next_state_batch, training=True)
-                
-                target_critic_value = self.target_critic([next_state_batch, target_actions], training=True)
+    # https://github.com/tensorflow/tensorflow/issues/56423#issuecomment-1155450768
+    @tf.function(jit_compile=True)
+    def calculate_critic_gradient_values(self, state_batch, action_batch, reward_batch, next_state_batch):
+        with tf.GradientTape() as tape:
+            # 1-step.
+            target_actions = self.target_policy(next_state_batch, training=True)
+            
+            target_critic_value = self.target_critic([next_state_batch, target_actions], training=True)
 
-                y_target = reward_batch + self.gamma * target_critic_value
+            y_target = reward_batch + self.gamma * target_critic_value
 
-                critic_value = self.critic_model([state_batch, action_batch], training=True)
+            critic_value = self.critic_model([state_batch, action_batch], training=True)
 
-                td_error = y_target - critic_value
-                critic_loss = tf.math.reduce_mean(tf.math.square(td_error))
+            td_error = y_target - critic_value
+            critic_loss = tf.math.reduce_mean(tf.math.square(td_error))
 
-                critic_loss += tf.add_n(self.critic_model.losses)
-
-                critic_loss = self.critic_optimizer.get_scaled_loss(critic_loss)
+            critic_loss += tf.add_n(self.critic_model.losses)
+            critic_loss = self.critic_optimizer.get_scaled_loss(critic_loss)
 
             critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
             critic_grad = self.critic_optimizer.get_unscaled_gradients(critic_grad)
-            self.critic_optimizer.apply_gradients(zip(critic_grad, self.critic_model.trainable_variables))
 
+            return critic_grad, critic_loss, td_error
 
-            with tf.GradientTape() as tape:
-                actions = self.policy(state_batch, training=True)
-                
-                critic_value = self.critic_model([state_batch, actions], training=True)
+    @tf.function(jit_compile=True)
+    def calculate_actor_gradient_values(self, state_batch, td_error, replay_probabilities, epsilon_constants):
+        with tf.GradientTape() as tape:
+            actions = self.policy(state_batch, training=True)
+            
+            critic_value = self.critic_model([state_batch, actions], training=True)
 
-                actor_loss =  -tf.math.reduce_mean(critic_value)
-                actor_loss += tf.add_n(self.actor_model.losses)
+            actor_loss =  -tf.math.reduce_mean(critic_value)
+            actor_loss += tf.add_n(self.actor_model.losses)
 
-                actor_loss = self.actor_optimizer.get_scaled_loss(actor_loss)
+            actor_loss = self.actor_optimizer.get_scaled_loss(actor_loss)
+
+            actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
+            actor_grad = self.actor_optimizer.get_unscaled_gradients(actor_grad)
 
             # TODO: Explain calculations.
             replay_probabilities = tf.convert_to_tensor(replay_probabilities, dtype=tf.float32)
@@ -149,16 +148,34 @@ class ReplayBuffer:
 
             priority_weighting = tf.reduce_mean(priority_weights)
 
-            actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables, unconnected_gradients='zero')
-            actor_grad = self.actor_optimizer.get_unscaled_gradients(actor_grad)
-            self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor_model.trainable_variables))
-
             for layer in actor_grad:
                 layer *= priority_weighting
 
             priorities = tf.squeeze(tf.square(td_error)) + self.priority_weight * tf.math.square(actor_loss) + epsilon_constants
 
-            return priorities, critic_loss, actor_loss
+            return actor_grad, actor_loss, priorities
+
+
+    @tf.function
+    def apply_critic_gradients(self, gradient):
+        self.critic_optimizer.apply_gradients(zip(gradient, self.critic_model.trainable_variables))
+
+
+    @tf.function
+    def apply_actor_gradients(self, gradient):
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+
+
+    def update(
+        self, state_batch, action_batch, reward_batch, next_state_batch, replay_probabilities, epsilon_constants
+    ):
+        critic_grad, critic_loss, td_error = self.calculate_critic_gradient_values(state_batch, action_batch, reward_batch, next_state_batch)
+        actor_grad, actor_loss, priorities = self.calculate_actor_gradient_values(state_batch, td_error, replay_probabilities, epsilon_constants)
+
+        self.apply_critic_gradients(critic_grad)
+        self.apply_actor_gradients(actor_grad)
+
+        return priorities, critic_loss, actor_loss
     
 
     def __get_replay_probabilities(self, record_range: int):

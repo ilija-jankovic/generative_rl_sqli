@@ -7,7 +7,10 @@ timestep = 0
 gamma = 0.999
 value_model = None
 policy_model = None
-probability_ratio_clip_threshold = 0.0001
+
+# This value (epsilon) is based on best performing clipping strategy
+# in Table 1, pg. 7.
+probability_ratio_clip_threshold = 0.2
 
 def value_estimator():
     pass

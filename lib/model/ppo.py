@@ -25,6 +25,7 @@ def calculate_advantage(
     global T, gamma, value_model
 
     assert(len(rewards) == T)
+    assert(terminal_timestep > initial_timestep)
 
     advantage = -value_model(first_state)
 

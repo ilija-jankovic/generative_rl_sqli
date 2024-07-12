@@ -80,7 +80,7 @@ def clipped_surrogate_loss(
 
     return tf.reduce_mean(minimums)
 
-def temporal_difference_mse(y, y_target):
-    td_error = y - y_target
+def mse(y, y_target):
+    y_difference = y - y_target
 
-    return tf.math.reduce_mean(tf.math.square(td_error))
+    return tf.math.reduce_mean(tf.math.square(y_difference))

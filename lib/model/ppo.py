@@ -6,7 +6,9 @@ PARALLEL_ACTORS = 1
 timestep = 0
 gamma = 0.999
 value_model = None
+target_value_model = None
 policy_model = None
+old_policy_model = None
 
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7.
@@ -77,3 +79,8 @@ def clipped_surrogate_loss(
     minimums = calculate_clipped_probability_ratios(probability_ratios, advantages)
 
     return tf.reduce_mean(minimums)
+
+def temporal_difference_mse(y, y_target):
+    td_error = y - y_target
+
+    return tf.math.reduce_mean(tf.math.square(td_error))

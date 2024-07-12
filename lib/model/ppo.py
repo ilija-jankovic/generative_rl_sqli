@@ -26,8 +26,6 @@ def calculate_advantage(
     last_state,
     rewards
 ):
-    global T, gamma, value_model
-
     assert(len(rewards) == T)
     assert(terminal_timestep > initial_timestep)
 
@@ -63,8 +61,6 @@ def clipped_surrogate_loss(
     last_state,
     rewards
 ):
-    global T
-
     assert(len(y_old) == T)
     assert(len(y) == T)
 
@@ -80,8 +76,6 @@ def clipped_surrogate_loss(
     return tf.reduce_mean(minimums)
 
 def mse(y, rewards):
-    global T
-
     assert(len(y) == T)
     assert(len(rewards) == T)
 

@@ -85,6 +85,8 @@ def mse(y, rewards):
     assert(len(y) == T)
     assert(len(rewards) == T)
 
+    # Expected value from paper pg. 5 ((V^targ)_t) can be defined as (R(s,a)), as
+    # demonstrated by pi-tau from: https://ai.stackexchange.com/a/41896
     y_error = y - rewards
 
     return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))

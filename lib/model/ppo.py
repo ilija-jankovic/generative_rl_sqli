@@ -38,7 +38,7 @@ def calculate_advantage(
         advantage += pow(
                 gamma,
                 timestep_window + t - terminal_timestep
-            ) * rewards[t]
+            ) * rewards[t - initial_timestep]
 
     advantage += pow(gamma, timestep_window) * value_model(last_state)
 

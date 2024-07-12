@@ -6,7 +6,6 @@ PARALLEL_ACTORS = 1
 timestep = 0
 gamma = 0.999
 value_model = None
-target_value_model = None
 policy_model = None
 old_policy_model = None
 
@@ -80,7 +79,12 @@ def clipped_surrogate_loss(
 
     return tf.reduce_mean(minimums)
 
-def mse(y, y_target):
-    y_difference = y - y_target
+def mse(y, rewards):
+    global T
 
-    return tf.math.reduce_mean(tf.math.square(y_difference))
+    assert(len(y) == T)
+    assert(len(rewards) == T)
+
+    y_error = y - rewards
+
+    return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))

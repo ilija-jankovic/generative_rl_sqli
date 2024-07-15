@@ -176,7 +176,7 @@ class PPO:
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def run(self):
-        for ep in range(500):
+        for episode in range(500):
             states = [self.__create_empty_states()]
 
             while True:
@@ -218,7 +218,7 @@ class PPO:
 
                 done = True in done_flags
 
-                print(f'Average reward: ${np.mean(rewards)}, Episode ended: ${done}')
+                print(f'Episode: {episode}, Average reward: {np.mean(rewards)}, Episode ended: {done}')
 
                 self.actor_critic.update_old_actor_weights()
                 

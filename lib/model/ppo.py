@@ -7,7 +7,7 @@ from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 
 # T << episode length pg. 5.
-T = 10
+T = 64
 PARALLEL_ACTORS = 1
 
 class PPO:
@@ -183,16 +183,16 @@ class PPO:
                 rewards = []
                 done_flags = []
 
-                actions_old = []
+                action_probabilities_old = []
 
                 for i in range(T):
-                    action_batch = self.actor_critic.policy(
+                    action_batch, probabilities_batch = self.actor_critic.policy(
                         states[i],
                         PolicyType.OLD.value,
                         training=False,
                     )
 
-                    actions_old.append(action_batch)
+                    action_probabilities_old.append(probabilities_batch)
 
                     env_tuples = [
                         self.env.perform_action(action_batch[i], i)
@@ -203,18 +203,18 @@ class PPO:
                     rewards.append([env_tuple[1] for env_tuple in env_tuples])
                     done_flags.append([env_tuple[2] for env_tuple in env_tuples])
 
-                actions = [
+                action_probabilities = [
                     self.actor_critic.policy(
                         states[i],
                         PolicyType.NORMAL.value,
                         training=False,
-                    ) for i in range(T)
+                    )[1] for i in range(T)
                 ]
 
                 states = tf.convert_to_tensor(states)
                 rewards = tf.convert_to_tensor(rewards)
-                actions_old = tf.convert_to_tensor(actions_old)
-                actions = tf.convert_to_tensor(actions)
+                action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
+                action_probabilities = tf.convert_to_tensor(action_probabilities)
 
                 # Nested list entry check solution by Pavel Anossov from:
                 # https://stackoverflow.com/a/15057380
@@ -225,8 +225,8 @@ class PPO:
                 self.actor_critic.update_old_actor_weights()
                 
                 self.__learn(
-                    actions,
-                    actions_old,
+                    action_probabilities,
+                    action_probabilities_old,
                     states[:-1],
                     rewards,
                 )

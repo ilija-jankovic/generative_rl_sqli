@@ -104,10 +104,13 @@ class PPOActorCritic:
 
         indices = tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
         indices = tf.squeeze(indices)
-
+        
         embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
         
-        return indices, tf.gather(embeddings, indices)
+        chosen_embeddings = tf.gather(embeddings, indices)
+        chosen_probabilities = tf.gather(probabilities, indices, axis=1, batch_dims=1)
+        
+        return indices, chosen_embeddings, chosen_probabilities
 
     def __create_lstm_layer(self, units: int, return_tensors: bool = True):
         return tf.keras.layers.Bidirectional(
@@ -162,9 +165,16 @@ class PPOActorCritic:
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
         padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, c_padding]]))(state_c)
-        indices_output, embedding_output = tf.keras.layers.Lambda(self.get_embeddings_from_probabilities)((dense))
+        indices_output, embedding_output, probabilities_output = tf.keras.layers.Lambda(self.get_embeddings_from_probabilities)((dense))
 
-        return tf.keras.Model([input_lstm], [padded_state_c_output, indices_output, embedding_output])
+        return tf.keras.Model(
+            [input_lstm],
+            [
+                padded_state_c_output,
+                indices_output,
+                embedding_output,
+                probabilities_output,
+            ])
 
     def get_critic(self, device_count: int):
         batch_size = self.batch_size * device_count
@@ -197,7 +207,18 @@ class PPOActorCritic:
         return tf.reshape(input, [self.batch_size, -1, self.embedding_size])
 
     @tf.function
-    def concat_next_token_indicies(self, actions, action_index, action_index_float, embeddings, type: int, training: bool, rl_states, lstm_states):
+    def concat_next_token_indicies(
+        self, 
+        actions,
+        probabilities,
+        action_index,
+        action_index_float,
+        embeddings,
+        type: int,
+        training: bool,
+        rl_states,
+        lstm_states,
+    ):
         batch_size = tf.convert_to_tensor(self.batch_size, dtype=tf.int32)
 
         input = self.get_embedded_lstm_input(rl_states, embeddings, lstm_states)
@@ -210,7 +231,9 @@ class PPOActorCritic:
                 false_fn=lambda: self.actor_model_old(input, training=training))
 
         lstm_states = output[0]
-        indices = output[1]
+        chosen_indices = output[1]
+        chosen_embeddings = output[2]
+        chosen_probabilities = output[3]
 
         # action_index_float is the length of the action after incrementing, which
         # is then used in the below embedding average calculation.
@@ -218,17 +241,18 @@ class PPOActorCritic:
 
         # Adding to an average solution by Damien and Dan Dascalescu from:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
-        embeddings = embeddings + (output[2] - embeddings) / action_index_float
+        embeddings = embeddings + (chosen_embeddings - embeddings) / action_index_float
 
         action_indices = tf.range(0, batch_size, dtype=tf.int32)
         action_indices = tf.expand_dims(action_indices, axis=1)
         action_indices = tf.pad(action_indices, [[0, 0], [0, 1]], constant_values=action_index)
 
-        actions = tf.tensor_scatter_nd_update(actions, action_indices, indices)
+        actions = tf.tensor_scatter_nd_update(actions, action_indices, chosen_indices)
+        probabilities = tf.tensor_scatter_nd_update(probabilities, action_indices, chosen_probabilities)
 
         action_index = tf.add(action_index, 1)
         
-        return actions, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
+        return actions, probabilities, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
 
     @tf.function
     def policy(self, states, type: int, training: bool):
@@ -242,6 +266,7 @@ class PPOActorCritic:
         dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)
 
         actions = tf.fill([batch_size, action_size], dictionary_length)
+        probabilities = tf.zeros([batch_size, action_size], dtype=tf.float32)
         
         embeddings = tf.zeros([batch_size, self.embedding_size], dtype=tf.float32)
         lstm_states = tf.zeros([batch_size, ACTOR_LSTM_UNITS + ACTOR_LSTM_UNITS % self.embedding_size], dtype=tf.float32)
@@ -249,11 +274,13 @@ class PPOActorCritic:
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)
 
-        actions, *_ = tf.while_loop(
+        actions, probabilities, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, action_index, action_index_float, embeddings, type, training, states, lstm_states),
+            loop_vars=(actions, probabilities, action_index, action_index_float, embeddings, type, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 
-        return actions
+        action_likelihoods = tf.math.reduce_prod(probabilities, axis=-1, keepdims=True)
+
+        return actions, action_likelihoods

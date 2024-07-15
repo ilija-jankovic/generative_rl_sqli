@@ -216,7 +216,9 @@ class PPO:
                 actions_old = tf.convert_to_tensor(actions_old)
                 actions = tf.convert_to_tensor(actions)
 
-                done = True in done_flags
+                # Nested list entry check solution by Pavel Anossov from:
+                # https://stackoverflow.com/a/15057380
+                done = any(True in lst for lst in done_flags)
 
                 print(f'Episode: {episode}, Average reward: {np.mean(rewards)}, Episode ended: {done}')
 

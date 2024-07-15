@@ -108,7 +108,7 @@ class PPO:
 
         advantages = [
             self.calculate_advantages_batch(
-                self.timestep + t,
+                t,
                 self.timestep + T,
                 first_states,
                 last_states,

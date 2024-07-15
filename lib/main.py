@@ -2,6 +2,9 @@
 import sys
 import numpy as np
 import requests
+
+from model.ppo_actor_critic import PPOActorCritic
+from model.ppo import PPO
 from sql_parser.contextual_template_populator import ContextualTemplatePopulator
 from sql_parser.wikisql_parser import WikiSQLParser
 from sqlmap_runner import SqlmapRunner
@@ -212,6 +215,7 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
+    '''
     ddpg = DDPG(
         environment,
         encoded_payloads=encoded_payloads,
@@ -222,6 +226,20 @@ def main():
     print('Running DDPG...')
 
     ddpg.run(run_demonstrations=record_demonstrations)
+    '''
+
+    actor_critic = PPOActorCritic(
+        dictionary_length=len(environment.dictionary),
+        action_size=ACTION_SIZE,
+        state_size=STATE_SIZE,
+        embedding_size=EMBEDDING_DIM,
+        batch_size=BATCH_SIZE,
+        embeddings=embeddings,
+    )
+    
+    ppo = PPO(actor_critic, environment)
+    ppo.run()
+
 
 if __name__ == '__main__':
     main()

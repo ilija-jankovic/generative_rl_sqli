@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+from .enums.policy_type import PolicyType
+
 from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 
@@ -20,6 +22,9 @@ class PPO:
     env: Environment
 
     def __init__(self, actor_critic: PPOActorCritic, env: Environment):
+        # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
+        assert(actor_critic.batch_size <= PARALLEL_ACTORS * T)
+
         self.actor_critic = actor_critic
         self.env = env
 
@@ -135,36 +140,51 @@ class PPO:
         critic_grad = critic_optimizer.get_unscaled_gradients(critic_grad)
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
-    def interact(self):
+    def run(self):
         states = self.__create_empty_states()
 
         for ep in range(500):
             while True:
-                actions = [
-                    self.actor_critic.actor_model(states)
-                        for _ in range(T)
-                ]
+                states = [states]
+                rewards = []
+                done_flags = []
 
-                actions_old = [
-                    self.actor_critic.actor_model_old(states)
-                        for _ in range(T)
+                actions_old = []
+
+                for i in range(T):
+                    action_batch = self.actor_critic.policy(
+                        states[i],
+                        PolicyType.OLD.value,
+                        training=False,
+                    )
+
+                    actions_old.append(action_batch)
+
+                    env_tuples = [
+                        self.env.perform_action(action_batch[i], i)
+                            for i in range(self.actor_critic.batch_size)
+                    ]
+
+                    states.append([env_tuple[0] for env_tuple in env_tuples])
+                    rewards.append([env_tuple[1] for env_tuple in env_tuples])
+                    done_flags.append([env_tuple[2] for env_tuple in env_tuples])
+
+                actions = [
+                    self.actor_critic.policy(
+                        states[i],
+                        PolicyType.NORMAL.value,
+                        training=False,
+                    ) for i in range(T)
                 ]
 
                 actions = tf.convert_to_tensor(actions)
                 actions_old = tf.convert_to_tensor(actions_old)
 
-                env_tuples = [
-                    self.env.perform_action(actions_old[i], i)
-                        for i in range(T)
-                ]
-
-                states = [env_tuple[0] for env_tuple in env_tuples]
-                rewards = [env_tuple[1] for env_tuple in env_tuples]
-                done_flags = [env_tuple[2] for env_tuple in env_tuples]
-
                 done = True in done_flags
 
                 print(f'Average reward: ${np.mean(rewards)}, Episode ended: ${done}')
+
+                self.actor_critic.update_old_actor_weights()
                 
                 self.__learn(
                     actions,

@@ -34,7 +34,9 @@ class PPOActorCritic:
         #
         # HierarchicalCopyAllReduce for multi-GPU setup on single machine recommendation from:
         # https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
-        strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+        #strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+
+        strategy = tf.distribute.OneDeviceStrategy(device='/gpu:0')
 
         device_count = strategy.num_replicas_in_sync
         print('Number of devices: {}'.format(device_count))

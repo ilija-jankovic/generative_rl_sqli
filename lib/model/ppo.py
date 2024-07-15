@@ -177,10 +177,9 @@ class PPO:
 
     def run(self):
         for ep in range(500):
-            starting_states = self.__create_empty_states()
+            states = [self.__create_empty_states()]
 
             while True:
-                states = [starting_states]
                 rewards = []
                 done_flags = []
 
@@ -235,4 +234,4 @@ class PPO:
                 if done:
                     break
 
-                starting_states = [states[len(states) - 1]]
+                states = [tf.convert_to_tensor(states[len(states) - 1])]

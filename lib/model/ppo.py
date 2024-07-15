@@ -47,34 +47,28 @@ class PPO:
         assert(len(rewards) == T)
         assert(terminal_timestep > initial_timestep)
 
-        advantages = [
-            -tf.squeeze(
-                self.actor_critic.critic_model(first_states)
-            )
-        ]
-
+        advantages = -tf.squeeze(
+            self.actor_critic.critic_model(first_states)
+        )
+        
         timestep_window = terminal_timestep - initial_timestep
         for t in range(initial_timestep, terminal_timestep):
-            advantages.append(
-                tf.multiply(
+            advantages += tf.multiply(
                     pow(
                         self.gamma,
                         timestep_window + t - terminal_timestep
                     ),
-                    rewards[t - initial_timestep],
-                )
-            )
+                    tf.squeeze(rewards[t - initial_timestep]),
+                ),
 
-        advantages.append(
-            tf.multiply(
+        advantages += tf.multiply(
                 pow(self.gamma, timestep_window),
                 tf.squeeze(
                     self.actor_critic.critic_model(last_states)
                 ),
             )
-        )
 
-        return tf.convert_to_tensor(advantages)
+        return advantages
 
     def calculate_clipped_probability_ratios(self, probability_ratios, advantages):
         assert(len(probability_ratios) == T)
@@ -86,7 +80,10 @@ class PPO:
             1.0 + self.probability_ratio_clip_threshold
         )
 
-        return tf.minimum(probability_ratios * advantages, clipped * advantages)
+        return tf.minimum(
+            tf.multiply(probability_ratios, advantages),
+            tf.multiply(clipped, advantages),
+        )
 
     def clipped_surrogate_loss(
         self,
@@ -99,7 +96,11 @@ class PPO:
         assert(len(y_old) == T)
         assert(len(y) == T)
 
-        probability_ratios = y / y_old
+        probability_ratios = tf.math.divide_no_nan(
+            tf.cast(y, dtype=tf.float32),
+            tf.cast(y_old, dtype=tf.float32),
+        )
+
         advantages = [
             self.calculate_advantages_batch(
                 self.timestep + t,
@@ -109,7 +110,10 @@ class PPO:
                 rewards
             ) for t in range(self.timestep, self.timestep + T)
         ]
+
         advantages = tf.convert_to_tensor(advantages)
+        advantages = tf.squeeze(advantages)
+        advantages = tf.expand_dims(advantages, axis=-1)
 
         minimums = self.calculate_clipped_probability_ratios(probability_ratios, advantages)
 

@@ -229,7 +229,7 @@ class PPO:
                     rewards,
                 )
 
-                self.timestep += 1
+                self.timestep += T
 
                 if done:
                     break

@@ -50,7 +50,7 @@ class PPO:
         advantages = -tf.squeeze(
             self.actor_critic.critic_model(
                 first_states,
-                training=False
+                training=True
             ))
         
         timestep_window = terminal_timestep - initial_timestep
@@ -68,7 +68,7 @@ class PPO:
                 tf.squeeze(
                     self.actor_critic.critic_model(
                         last_states,
-                        training=False
+                        training=True
                     )
                 ),
             )
@@ -159,14 +159,14 @@ class PPO:
         actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
         actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
 
-        values = tf.convert_to_tensor([
-            self.actor_critic.critic_model(states, training=False)
-                for states in states
-        ])
-
-        values = tf.squeeze(values)
-
         with tf.GradientTape() as tape:
+            values = tf.convert_to_tensor([
+                self.actor_critic.critic_model(states, training=True)
+                    for states in states
+            ])
+
+            values = tf.squeeze(values)
+
             critic_loss = self.mse(values, rewards)
             critic_loss += tf.add_n(critic_model.losses)
             critic_loss = critic_optimizer.get_scaled_loss(critic_loss)

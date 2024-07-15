@@ -36,29 +36,45 @@ class PPO:
 
         return tf.convert_to_tensor(states)
 
-    def calculate_advantage(
+    def calculate_advantages_batch(
         self,
         initial_timestep,
         terminal_timestep,
-        first_state,
-        last_state,
+        first_states,
+        last_states,
         rewards
     ):
         assert(len(rewards) == T)
         assert(terminal_timestep > initial_timestep)
 
-        advantage = -self.actor_critic.critic_model(first_state)
+        advantages = [
+            -tf.squeeze(
+                self.actor_critic.critic_model(first_states)
+            )
+        ]
 
         timestep_window = terminal_timestep - initial_timestep
         for t in range(initial_timestep, terminal_timestep):
-            advantage += pow(
-                    self.gamma,
-                    timestep_window + t - terminal_timestep
-                ) * rewards[t - initial_timestep]
+            advantages.append(
+                tf.multiply(
+                    pow(
+                        self.gamma,
+                        timestep_window + t - terminal_timestep
+                    ),
+                    rewards[t - initial_timestep],
+                )
+            )
 
-        advantage += pow(self.gamma, timestep_window) * self.actor_critic.critic_model(last_state)
+        advantages.append(
+            tf.multiply(
+                pow(self.gamma, timestep_window),
+                tf.squeeze(
+                    self.actor_critic.critic_model(last_states)
+                ),
+            )
+        )
 
-        return tf.convert_to_tensor(advantage)
+        return tf.convert_to_tensor(advantages)
 
     def calculate_clipped_probability_ratios(self, probability_ratios, advantages):
         assert(len(probability_ratios) == T)
@@ -76,8 +92,8 @@ class PPO:
         self,
         y,
         y_old,
-        first_state,
-        last_state,
+        first_states,
+        last_states,
         rewards
     ):
         assert(len(y_old) == T)
@@ -85,11 +101,11 @@ class PPO:
 
         probability_ratios = y / y_old
         advantages = [
-            self.calculate_advantage(
+            self.calculate_advantages_batch(
                 self.timestep + t,
                 self.timestep + T,
-                first_state,
-                last_state,
+                first_states,
+                last_states,
                 rewards
             ) for t in range(self.timestep, self.timestep + T)
         ]
@@ -109,7 +125,7 @@ class PPO:
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
     
-    def __learn(self, y, y_old, first_state, last_state, rewards):
+    def __learn(self, y, y_old, first_states, last_states, rewards):
         actor_model = self.actor_critic.actor_model
         critic_model = self.actor_critic.critic_model
 
@@ -120,8 +136,8 @@ class PPO:
             actor_loss = self.clipped_surrogate_loss(
                 y,
                 y_old,
-                first_state,
-                last_state,
+                first_states,
+                last_states,
                 rewards
             )
             actor_loss += tf.add_n(actor_model.losses)
@@ -141,11 +157,11 @@ class PPO:
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def run(self):
-        states = self.__create_empty_states()
-
         for ep in range(500):
+            starting_states = self.__create_empty_states()
+
             while True:
-                states = [states]
+                states = [starting_states]
                 rewards = []
                 done_flags = []
 
@@ -177,8 +193,10 @@ class PPO:
                     ) for i in range(T)
                 ]
 
-                actions = tf.convert_to_tensor(actions)
+                states = tf.convert_to_tensor(states)
+                rewards = tf.convert_to_tensor(rewards)
                 actions_old = tf.convert_to_tensor(actions_old)
+                actions = tf.convert_to_tensor(actions)
 
                 done = True in done_flags
 
@@ -198,3 +216,5 @@ class PPO:
 
                 if done:
                     break
+
+                starting_states = [states[len(states) - 1]]

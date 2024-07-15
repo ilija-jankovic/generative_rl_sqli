@@ -183,9 +183,9 @@ class PPOActorCritic:
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
         dense = self.__create_hidden_dense_layer(16)(dense)
-        outputs = tf.keras.layers.Dense(1)(dense)
+        output = tf.keras.layers.Dense(1)(dense)
 
-        return tf.keras.Model([state_input], outputs)
+        return tf.keras.Model([state_input], output)
 
     @tf.function
     def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):

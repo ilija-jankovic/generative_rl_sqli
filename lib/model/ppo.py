@@ -176,7 +176,7 @@ class PPO:
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def run(self):
-        for episode in range(500):
+        for episode in range(1, 501):
             states = [self.__create_empty_states()]
 
             while True:

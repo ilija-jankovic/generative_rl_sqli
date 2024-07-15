@@ -48,8 +48,10 @@ class PPO:
         assert(terminal_timestep > initial_timestep)
 
         advantages = -tf.squeeze(
-            self.actor_critic.critic_model(first_states)
-        )
+            self.actor_critic.critic_model(
+                first_states,
+                training=False
+            ))
         
         timestep_window = terminal_timestep - initial_timestep
         for t in range(initial_timestep, terminal_timestep):
@@ -59,12 +61,15 @@ class PPO:
                         timestep_window + t - terminal_timestep
                     ),
                     tf.squeeze(rewards[t - initial_timestep]),
-                ),
+                )
 
         advantages += tf.multiply(
                 pow(self.gamma, timestep_window),
                 tf.squeeze(
-                    self.actor_critic.critic_model(last_states)
+                    self.actor_critic.critic_model(
+                        last_states,
+                        training=False
+                    )
                 ),
             )
 
@@ -125,11 +130,14 @@ class PPO:
 
         # Expected value from paper pg. 5 ((V^targ)_t) can be defined as (R(s_t,a_t)), as
         # demonstrated by pi-tau from: https://ai.stackexchange.com/a/41896
-        y_error = y - rewards
+        y_error = tf.cast(y, dtype=tf.float32) - rewards
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
     
-    def __learn(self, y, y_old, first_states, last_states, rewards):
+    def __learn(self, y, y_old, states, rewards):
+        assert(len(states) == T)
+        assert(len(rewards) == T)
+
         actor_model = self.actor_critic.actor_model
         critic_model = self.actor_critic.critic_model
 
@@ -140,8 +148,8 @@ class PPO:
             actor_loss = self.clipped_surrogate_loss(
                 y,
                 y_old,
-                first_states,
-                last_states,
+                states[0],
+                states[T-1],
                 rewards
             )
             actor_loss += tf.add_n(actor_model.losses)
@@ -151,8 +159,15 @@ class PPO:
         actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
         actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
 
+        values = tf.convert_to_tensor([
+            self.actor_critic.critic_model(states, training=False)
+                for states in states
+        ])
+
+        values = tf.squeeze(values)
+
         with tf.GradientTape() as tape:
-            critic_loss = self.mse(y, rewards)
+            critic_loss = self.mse(values, rewards)
             critic_loss += tf.add_n(critic_model.losses)
             critic_loss = critic_optimizer.get_scaled_loss(critic_loss)
 
@@ -211,8 +226,7 @@ class PPO:
                 self.__learn(
                     actions,
                     actions_old,
-                    states[0],
-                    states[T-1],
+                    states[:-1],
                     rewards,
                 )
 

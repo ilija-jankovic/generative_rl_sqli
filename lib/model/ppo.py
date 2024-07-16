@@ -122,7 +122,9 @@ class PPO:
 
         minimums = self.calculate_clipped_probability_ratios(probability_ratios, advantages)
 
-        return tf.reduce_mean(minimums)
+        # The goal of the policy is to maximise the surrogate objective (pg. 3, para. 1),
+        # and so our loss should negative this value.
+        return -tf.reduce_mean(minimums)
 
     def mse(self, y, rewards):
         assert(len(y) == T)
@@ -152,6 +154,7 @@ class PPO:
                 states[T-1],
                 rewards
             )
+            print(f'Unscaled actor loss: {actor_loss}')
             actor_loss += tf.add_n(actor_model.losses)
             actor_loss = actor_optimizer.get_scaled_loss(actor_loss)
 
@@ -168,6 +171,7 @@ class PPO:
             values = tf.squeeze(values)
 
             critic_loss = self.mse(values, rewards)
+            print(f'Unscaled critic loss: {critic_loss}')
             critic_loss += tf.add_n(critic_model.losses)
             critic_loss = critic_optimizer.get_scaled_loss(critic_loss)
 

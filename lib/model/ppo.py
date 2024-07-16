@@ -7,9 +7,13 @@ from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 
 # T << episode length pg. 5.
-T = 64
-PARALLEL_ACTORS = 1
+T = 16
 EPOCHS = 5
+MINIBATCH_SIZE = 16
+
+# M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
+# N = 1 as there are no parallel actors.
+assert(MINIBATCH_SIZE <= T)
 
 class PPO:
     timestep = 0
@@ -23,8 +27,7 @@ class PPO:
     env: Environment
 
     def __init__(self, actor_critic: PPOActorCritic, env: Environment):
-        # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
-        assert(actor_critic.batch_size <= PARALLEL_ACTORS * T)
+        assert(actor_critic.batch_size % MINIBATCH_SIZE == 0)
 
         self.actor_critic = actor_critic
         self.env = env
@@ -137,9 +140,23 @@ class PPO:
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
     
+    def __tf_shuffle_axis(self, value, axis, seed=None):
+        perm = list(range(tf.rank(value)))
+        perm[axis], perm[0] = perm[0], perm[axis]
+        value = tf.random.shuffle(tf.transpose(value, perm=perm), seed=seed)
+        value = tf.transpose(value, perm=perm)
+        return value
+    
     def __learn(self, y, y_old, states, rewards):
         assert(len(states) == T)
         assert(len(rewards) == T)
+
+        seed = np.random.randint(0, 9999999)
+
+        y = self.__tf_shuffle_axis(y, axis=1, seed=seed)
+        y_old = self.__tf_shuffle_axis(y_old, axis=1, seed=seed)
+        states = self.__tf_shuffle_axis(states, axis=1, seed=seed)
+        rewards = self.__tf_shuffle_axis(rewards, axis=1, seed=seed)
 
         actor_model = self.actor_critic.actor_model
         critic_model = self.actor_critic.critic_model
@@ -147,38 +164,50 @@ class PPO:
         actor_optimizer = self.actor_critic.actor_optimizer
         critic_optimizer = self.actor_critic.critic_optimizer
 
-        with tf.GradientTape() as tape:
-            actor_loss = self.clipped_surrogate_loss(
-                y,
-                y_old,
-                states[0],
-                states[T-1],
-                rewards
-            )
-            print(f'Unscaled actor loss: {actor_loss}')
-            actor_loss += tf.add_n(actor_model.losses)
-            actor_loss = actor_optimizer.get_scaled_loss(actor_loss)
+        minibatches = self.actor_critic.batch_size // MINIBATCH_SIZE
+        for minibatch in range(1, minibatches + 1):
+            print(f'Minibatch {minibatch}/{minibatches}...')
 
-        actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables, unconnected_gradients='zero')
-        actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
-        actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
+            from_batch_index = (minibatch - 1) * MINIBATCH_SIZE
+            to_batch_position = minibatch * MINIBATCH_SIZE
 
-        with tf.GradientTape() as tape:
-            values = tf.convert_to_tensor([
-                self.actor_critic.critic_model(states, training=True)
-                    for states in states
-            ])
+            y_minibatch = y[:, from_batch_index: to_batch_position]
+            y_old_minibatch = y_old[:, from_batch_index: to_batch_position]
+            states_minibatch = states[:, from_batch_index: to_batch_position]
+            rewards_minibatch = rewards[:, from_batch_index: to_batch_position]
 
-            values = tf.squeeze(values)
+            with tf.GradientTape() as tape:
+                actor_loss = self.clipped_surrogate_loss(
+                    y_minibatch,
+                    y_old_minibatch,
+                    states_minibatch[0],
+                    states_minibatch[T-1],
+                    rewards_minibatch
+                )
+                #print(f'Unscaled actor loss: {actor_loss}')
+                actor_loss += tf.add_n(actor_model.losses)
+                actor_loss = actor_optimizer.get_scaled_loss(actor_loss)
 
-            critic_loss = self.mse(values, rewards)
-            print(f'Unscaled critic loss: {critic_loss}')
-            critic_loss += tf.add_n(critic_model.losses)
-            critic_loss = critic_optimizer.get_scaled_loss(critic_loss)
+            actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables, unconnected_gradients='zero')
+            actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
+            actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
 
-        critic_grad = tape.gradient(critic_loss, critic_model.trainable_variables)
-        critic_grad = critic_optimizer.get_unscaled_gradients(critic_grad)
-        critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
+            with tf.GradientTape() as tape:
+                values = tf.convert_to_tensor([
+                    self.actor_critic.critic_model(states, training=True)
+                        for states in states_minibatch
+                ])
+
+                values = tf.squeeze(values)
+
+                critic_loss = self.mse(values, rewards_minibatch)
+                #print(f'Unscaled critic loss: {critic_loss}')
+                critic_loss += tf.add_n(critic_model.losses)
+                critic_loss = critic_optimizer.get_scaled_loss(critic_loss)
+
+            critic_grad = tape.gradient(critic_loss, critic_model.trainable_variables)
+            critic_grad = critic_optimizer.get_unscaled_gradients(critic_grad)
+            critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def run(self):
         for episode in range(1, 501):
@@ -231,7 +260,9 @@ class PPO:
 
                 self.actor_critic.update_old_actor_weights()
                 
-                for _ in range(EPOCHS):
+                for epoch in range(1, EPOCHS + 1):
+                    print(f'Epoch {epoch}/{EPOCHS}...')
+
                     self.__learn(
                         action_probabilities,
                         action_probabilities_old,

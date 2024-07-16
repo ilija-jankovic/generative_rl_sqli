@@ -42,9 +42,9 @@ class PPOActorCritic:
         print('Number of devices: {}'.format(device_count))
 
         with strategy.scope():
-            self.actor_model = self.get_actor(device_count)
-            self.actor_model_old = self.get_actor(device_count)
-            self.critic_model = self.get_critic(device_count)
+            self.actor_model = self.get_actor()
+            self.actor_model_old = self.get_actor()
+            self.critic_model = self.get_critic()
 
             self.actor_optimizer = tf.compat.v1.mixed_precision.enable_mixed_precision_graph_rewrite(
                 tf.keras.optimizers.Nadam(
@@ -134,16 +134,14 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
 
-    def get_actor(self, device_count: int):
+    def get_actor(self):
         c_padding = ACTOR_LSTM_UNITS % self.embedding_size
         c_size = math.ceil(ACTOR_LSTM_UNITS / self.embedding_size)
 
         # Input = RL state size + LSTM cell state size + single input for average embedding across action fragment.
         input_size = self.state_size + c_size + 1
 
-        batch_size = self.batch_size * device_count
-
-        input_lstm = tf.keras.layers.Input(shape=(input_size, self.embedding_size), batch_size=batch_size)
+        input_lstm = tf.keras.layers.Input(shape=(input_size, self.embedding_size))
 
         # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(input_lstm)
@@ -176,10 +174,8 @@ class PPOActorCritic:
                 probabilities_output,
             ])
 
-    def get_critic(self, device_count: int):
-        batch_size = self.batch_size * device_count
-
-        state_input = tf.keras.layers.Input(shape=(self.state_size, self.embedding_size), batch_size=batch_size)
+    def get_critic(self):
+        state_input = tf.keras.layers.Input(shape=(self.state_size, self.embedding_size))
 
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(state_input)
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(lstm_state)

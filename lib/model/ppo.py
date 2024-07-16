@@ -9,6 +9,7 @@ from .ppo_actor_critic import PPOActorCritic
 # T << episode length pg. 5.
 T = 64
 PARALLEL_ACTORS = 1
+EPOCHS = 5
 
 class PPO:
     timestep = 0
@@ -228,12 +229,13 @@ class PPO:
 
                 self.actor_critic.update_old_actor_weights()
                 
-                self.__learn(
-                    action_probabilities,
-                    action_probabilities_old,
-                    states[:-1],
-                    rewards,
-                )
+                for _ in range(EPOCHS):
+                    self.__learn(
+                        action_probabilities,
+                        action_probabilities_old,
+                        states[:-1],
+                        rewards,
+                    )
 
                 self.timestep += T
 

@@ -140,6 +140,8 @@ class PPO:
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
     
+    # Modified solution for shuffling along non-first axis by Faris Hijazi from:
+    # https://github.com/tensorflow/swift/issues/394#issuecomment-779729550
     def __tf_shuffle_axis(self, value, axis, seed=None):
         perm = list(range(tf.rank(value)))
         perm[axis], perm[0] = perm[0], perm[axis]

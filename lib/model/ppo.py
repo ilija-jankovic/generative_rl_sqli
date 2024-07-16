@@ -183,6 +183,8 @@ class PPO:
     def run(self):
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
+            
+            episodic_reward = 0
 
             while True:
                 rewards = []
@@ -225,7 +227,7 @@ class PPO:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
-                print(f'Episode: {episode}, Average reward: {np.mean(rewards)}, Episode ended: {done}')
+                episodic_reward += np.mean(rewards)
 
                 self.actor_critic.update_old_actor_weights()
                 
@@ -243,3 +245,5 @@ class PPO:
                     break
 
                 states = [tf.convert_to_tensor(states[len(states) - 1])]
+            
+            print(f'Episode: {episode}, Average reward: {episodic_reward}')

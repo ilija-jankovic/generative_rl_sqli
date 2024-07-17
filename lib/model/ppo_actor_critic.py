@@ -112,9 +112,8 @@ class PPOActorCritic:
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
 
-    def __create_lstm_layer(self, units: int, return_tensors: bool = True):
-        return tf.keras.layers.Bidirectional(
-            tf.keras.layers.LSTM(
+    def __create_lstm_layer(self, units: int, return_tensors: bool = True, bidirectional: bool = True):
+        lstm = tf.keras.layers.LSTM(
                 units,
                 return_state=return_tensors,
                 return_sequences=return_tensors,
@@ -123,7 +122,9 @@ class PPOActorCritic:
                 kernel_constraint=tf.keras.constraints.max_norm(3),
                 recurrent_constraint=tf.keras.constraints.max_norm(3),
                 bias_constraint=tf.keras.constraints.max_norm(3)
-            ))
+            )
+        
+        return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
 
     def __create_hidden_dense_layer(self, units: int):
         return tf.keras.layers.Dense(
@@ -143,13 +144,12 @@ class PPOActorCritic:
         input_lstm = tf.keras.layers.Input(shape=(input_size, self.embedding_size))
 
         # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(input_lstm)
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(lstm)
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
-        _ = lstm[0]
         state_h = lstm[1]
         state_c = lstm[2]
 
@@ -162,7 +162,6 @@ class PPOActorCritic:
             [
                 dense,
                 state_c,
-                _,
             ])
 
     def get_critic(self):

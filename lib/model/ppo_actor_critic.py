@@ -4,12 +4,12 @@ import tensorflow as tf
 
 from .enums.policy_type import PolicyType
     
-ACTOR_LEARNING_RATE = 0.0001
-CRITIC_LEARNING_RATE = 0.0001
+ACTOR_LEARNING_RATE = 0.000001
+CRITIC_LEARNING_RATE = 0.000002
 L2_WEIGHT = 0.0001
 
-ACTOR_LSTM_UNITS = 512
-CRITIC_LSTM_UNITS = 512
+ACTOR_LSTM_UNITS = 64
+CRITIC_LSTM_UNITS = 64
 
 class PPOActorCritic:
     dictionary_length: int
@@ -102,15 +102,15 @@ class PPOActorCritic:
         # Log probabilities as tf.random.categorical expects log probabilities.
         probabilities = tf.math.log(probabilities)
 
-        indices = tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
-        indices = tf.squeeze(indices)
+        chosen_indices = tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
+        chosen_indices = tf.squeeze(chosen_indices)
         
         embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
         
-        chosen_embeddings = tf.gather(embeddings, indices)
-        chosen_probabilities = tf.gather(probabilities, indices, axis=1, batch_dims=1)
+        chosen_embeddings = tf.gather(embeddings, chosen_indices)
+        chosen_probabilities = tf.gather(probabilities, chosen_indices, axis=1, batch_dims=1)
         
-        return indices, chosen_embeddings, chosen_probabilities
+        return chosen_indices, chosen_embeddings, chosen_probabilities
 
     def __create_lstm_layer(self, units: int, return_tensors: bool = True):
         return tf.keras.layers.Bidirectional(
@@ -135,7 +135,6 @@ class PPOActorCritic:
         )
 
     def get_actor(self):
-        c_padding = ACTOR_LSTM_UNITS % self.embedding_size
         c_size = math.ceil(ACTOR_LSTM_UNITS / self.embedding_size)
 
         # Input = RL state size + LSTM cell state size + single input for average embedding across action fragment.
@@ -145,33 +144,25 @@ class PPOActorCritic:
 
         # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(input_lstm)
-        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(lstm)
-        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS)(lstm)
-        lstm = list(map(lambda state: tf.keras.layers.BatchNormalization()(state), lstm))
 
         # Output of LSTM guide by Jason Brownlee from:
         # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
+        _ = lstm[0]
         state_h = lstm[1]
         state_c = lstm[2]
 
-        dense = self.__create_hidden_dense_layer(1024)(state_h)
-        dense = tf.keras.layers.BatchNormalization()(dense)
-        dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = tf.keras.layers.BatchNormalization()(dense)
+        dense = self.__create_hidden_dense_layer(128)(state_h)
+        dense = self.__create_hidden_dense_layer(128)(dense)
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
-
-        padded_state_c_output = tf.keras.layers.Lambda(lambda state_c: tf.pad(state_c, [[0, 0], [0, c_padding]]))(state_c)
-        indices_output, embedding_output, probabilities_output = tf.keras.layers.Lambda(self.get_embeddings_from_probabilities)((dense))
 
         return tf.keras.Model(
             [input_lstm],
             [
-                padded_state_c_output,
-                indices_output,
-                embedding_output,
-                probabilities_output,
+                dense,
+                state_c,
+                _,
             ])
 
     def get_critic(self):
@@ -181,32 +172,31 @@ class PPOActorCritic:
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(lstm_state)
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS, return_tensors=False)(lstm_state)
 
-        dense = self.__create_hidden_dense_layer(1024)(lstm_state)
-        dense = self.__create_hidden_dense_layer(1024)(dense)
-        dense = self.__create_hidden_dense_layer(512)(dense)
-        dense = self.__create_hidden_dense_layer(256)(dense)
+        dense = self.__create_hidden_dense_layer(128)(lstm_state)
         dense = self.__create_hidden_dense_layer(128)(dense)
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
         dense = self.__create_hidden_dense_layer(16)(dense)
+        dense = self.__create_hidden_dense_layer(8)(dense)
+        dense = self.__create_hidden_dense_layer(4)(dense)
+        dense = self.__create_hidden_dense_layer(2)(dense)
         output = tf.keras.layers.Dense(1)(dense)
 
         return tf.keras.Model([state_input], output)
 
-    @tf.function
-    def get_embedded_lstm_input(self, rl_states, embeddings, lstm_states):
-        embeddings = tf.reshape(embeddings, [self.batch_size, -1, self.embedding_size])
-        lstm_states = tf.reshape(lstm_states, [self.batch_size, -1, self.embedding_size])
+    def get_embedded_lstm_input(self, batch_size, rl_states, embeddings, lstm_states):
+        embeddings = tf.reshape(embeddings, [batch_size, -1, self.embedding_size])
+        lstm_states = tf.reshape(lstm_states, [batch_size, -1, self.embedding_size])
 
         input = tf.concat([rl_states, embeddings, lstm_states], axis=1)
 
-        return tf.reshape(input, [self.batch_size, -1, self.embedding_size])
+        return tf.reshape(input, [batch_size, -1, self.embedding_size])
 
-    @tf.function
     def concat_next_token_indicies(
         self, 
         actions,
         probabilities,
+        batch_size,
         action_index,
         action_index_float,
         embeddings,
@@ -215,9 +205,7 @@ class PPOActorCritic:
         rl_states,
         lstm_states,
     ):
-        batch_size = tf.convert_to_tensor(self.batch_size, dtype=tf.int32)
-
-        input = self.get_embedded_lstm_input(rl_states, embeddings, lstm_states)
+        input = self.get_embedded_lstm_input(batch_size, rl_states, embeddings, lstm_states)
 
         normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
 
@@ -226,10 +214,10 @@ class PPOActorCritic:
                 true_fn=lambda: self.actor_model(input, training=training),
                 false_fn=lambda: self.actor_model_old(input, training=training))
 
-        lstm_states = output[0]
-        chosen_indices = output[1]
-        chosen_embeddings = output[2]
-        chosen_probabilities = output[3]
+        chosen_indices, chosen_embeddings, chosen_probabilities = self.get_embeddings_from_probabilities(output[0])
+        
+        c_padding = ACTOR_LSTM_UNITS % self.embedding_size
+        lstm_states = tf.pad(output[1], [[0, 0], [0, c_padding]])
 
         # action_index_float is the length of the action after incrementing, which
         # is then used in the below embedding average calculation.
@@ -248,16 +236,20 @@ class PPOActorCritic:
 
         action_index = tf.add(action_index, 1)
         
-        return actions, probabilities, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
+        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
 
-    @tf.function
-    def policy(self, states, type: int, training: bool):
+    # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
+    # output is unknown. If this method is decorated with @tf.function, loose shape invariants
+    # must be defined in the TF while loop for field values corresponding to actor output
+    # values.
+    #
+    # The @tf.function is taken off this method as a workaround.
+    def policy(self, states, type: int, batch_size, training: bool):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.
 
         This enum cannot be passed directly due to `@tf.function` limitations.
         '''
-        batch_size = tf.constant(self.batch_size, dtype=tf.int32)
         action_size = tf.constant(self.action_size, dtype=tf.int32)
         dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)
 
@@ -273,7 +265,7 @@ class PPOActorCritic:
         actions, probabilities, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, probabilities, action_index, action_index_float, embeddings, type, training, states, lstm_states),
+            loop_vars=(actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, lstm_states),
             maximum_iterations=action_size,
         )
 

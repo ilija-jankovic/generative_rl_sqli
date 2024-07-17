@@ -1,3 +1,9 @@
+import os
+
+# Important to place before TF import, as stated by Matt Haythornthwaite
+# from: https://stackoverflow.com/a/64448286
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
 import tensorflow as tf
 import numpy as np
 

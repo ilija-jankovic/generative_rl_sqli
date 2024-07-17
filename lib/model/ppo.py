@@ -156,12 +156,13 @@ class PPO:
         value = tf.transpose(value, perm=perm)
         return value
     
-    def learn(self, y_old, states, rewards):
+    def learn(self, actions_old, y_old, states, rewards):
         tf.Assert(tf.equal(states.shape[0], T), [states])
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])        
 
         seed = np.random.randint(0, 9999999)
 
+        actions_old = self.__tf_shuffle_axis(actions_old, axis=1, seed=seed)
         y_old = self.__tf_shuffle_axis(y_old, axis=1, seed=seed)
         states = self.__tf_shuffle_axis(states, axis=1, seed=seed)
         rewards = self.__tf_shuffle_axis(rewards, axis=1, seed=seed)
@@ -179,6 +180,7 @@ class PPO:
             from_batch_index = (minibatch - 1) * MINIBATCH_SIZE
             to_batch_position = minibatch * MINIBATCH_SIZE
 
+            actions_old_minibatch = actions_old[:, from_batch_index: to_batch_position]
             y_old_minibatch = y_old[:, from_batch_index: to_batch_position]
             states_minibatch = states[:, from_batch_index: to_batch_position]
             rewards_minibatch = rewards[:, from_batch_index: to_batch_position]
@@ -190,6 +192,7 @@ class PPO:
                         PolicyType.NORMAL.value,
                         batch_size=MINIBATCH_SIZE,
                         training=True,
+                        actions_reference=actions_old_minibatch[i]
                     )[1] for i in range(T)
                 ]
 
@@ -235,6 +238,7 @@ class PPO:
                 rewards = []
                 done_flags = []
 
+                actions_old = []
                 action_probabilities_old = []
 
                 for i in range(T):
@@ -245,6 +249,7 @@ class PPO:
                         training=False,
                     )
 
+                    actions_old.append(action_batch)
                     action_probabilities_old.append(probabilities_batch)
 
                     env_tuples = [
@@ -265,17 +270,18 @@ class PPO:
                 done = any(True in lst for lst in done_flags)
 
                 episodic_reward += np.mean(rewards)
-
-                self.actor_critic.update_old_actor_weights()
-                
+ 
                 for epoch in range(1, EPOCHS + 1):
                     #print(f'Epoch {epoch}/{EPOCHS}...')
 
                     self.learn(
+                        actions_old=actions_old,
                         y_old=action_probabilities_old,
                         states=states[:-1],
                         rewards=rewards,
                     )
+
+                self.actor_critic.update_old_actor_weights()
 
                 self.timestep += T
 

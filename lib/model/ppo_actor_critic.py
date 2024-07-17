@@ -106,11 +106,14 @@ class PPOActorCritic:
         self.__init_models()
 
     @tf.function
-    def get_embeddings_from_probabilities(self, probabilities):
-        # Log probabilities as tf.random.categorical expects log probabilities.
-        probabilities = tf.math.log(probabilities)
-
-        chosen_indices = tf.random.categorical(probabilities, num_samples=1, dtype=tf.int32)
+    def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
+        chosen_indices = tf.cond(
+            tf.equal(use_chosen_indices, True),
+            true_fn=lambda: chosen_indices,
+        
+            # Log probabilities as tf.random.categorical expects log probabilities.
+            false_fn=lambda: tf.random.categorical(tf.math.log(probabilities), num_samples=1, dtype=tf.int32),
+        ) 
         chosen_indices = tf.squeeze(chosen_indices)
         
         embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
@@ -125,11 +128,6 @@ class PPOActorCritic:
                 units,
                 return_state=return_tensors,
                 return_sequences=return_tensors,
-                kernel_initializer=tf.keras.initializers.Orthogonal(),
-                kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
-                kernel_constraint=tf.keras.constraints.max_norm(3),
-                recurrent_constraint=tf.keras.constraints.max_norm(3),
-                bias_constraint=tf.keras.constraints.max_norm(3)
             )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
@@ -211,6 +209,7 @@ class PPOActorCritic:
         training: bool,
         rl_states,
         lstm_states,
+        actions_reference,
     ):
         input = self.get_embedded_lstm_input(batch_size, rl_states, embeddings, lstm_states)
 
@@ -220,9 +219,13 @@ class PPOActorCritic:
             tf.equal(type, normal_policy_id),
                 true_fn=lambda: self.actor_model(input, training=training),
                 false_fn=lambda: self.actor_model_old(input, training=training))
-
-        chosen_indices, chosen_embeddings, chosen_probabilities = self.get_embeddings_from_probabilities(output[0])
         
+        chosen_indices, chosen_embeddings, chosen_probabilities = tf.cond(
+            tf.equal(actions_reference.shape[0], tf.constant(0)),
+            true_fn=lambda: self.get_embeddings_from_probabilities(output[0], tf.fill([batch_size, 1], -1), False),
+            false_fn=lambda: self.get_embeddings_from_probabilities(output[0], actions_reference[:,action_index], True)
+        )
+
         c_padding = ACTOR_LSTM_UNITS % self.embedding_size
         lstm_states = tf.pad(output[1], [[0, 0], [0, c_padding]])
 
@@ -241,9 +244,9 @@ class PPOActorCritic:
         actions = tf.tensor_scatter_nd_update(actions, action_indices, chosen_indices)
         probabilities = tf.tensor_scatter_nd_update(probabilities, action_indices, chosen_probabilities)
 
-        action_index = tf.add(action_index, 1)
+        action_index =  tf.add(action_index, 1)
         
-        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states
+        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states, actions_reference
 
     # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
     # output is unknown. If this method is decorated with @tf.function, loose shape invariants
@@ -251,7 +254,7 @@ class PPOActorCritic:
     # values.
     #
     # The @tf.function is taken off this method as a workaround.
-    def policy(self, states, type: int, batch_size, training: bool):
+    def policy(self, states, type: int, batch_size, training: bool, actions_reference=tf.constant([])):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.
 
@@ -272,7 +275,7 @@ class PPOActorCritic:
         actions, probabilities, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, lstm_states),
+            loop_vars=(actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, lstm_states, actions_reference),
             maximum_iterations=action_size,
         )
 

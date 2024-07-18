@@ -12,12 +12,12 @@ import tensorflow as tf
 
 from .enums.policy_type import PolicyType
     
-ACTOR_LEARNING_RATE = 0.000001
-CRITIC_LEARNING_RATE = 0.000002
+ACTOR_LEARNING_RATE = 0.0001
+CRITIC_LEARNING_RATE = 0.0002
 L2_WEIGHT = 0.0001
 
-ACTOR_LSTM_UNITS = 64
-CRITIC_LSTM_UNITS = 64
+ACTOR_LSTM_UNITS = 256
+CRITIC_LSTM_UNITS = 256
 
 class PPOActorCritic:
     dictionary_length: int
@@ -105,7 +105,6 @@ class PPOActorCritic:
 
         self.__init_models()
 
-    @tf.function
     def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
         chosen_indices = tf.cond(
             tf.equal(use_chosen_indices, True),

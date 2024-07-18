@@ -1,10 +1,11 @@
 #!/usr/local/bin/python
 import sys
 import numpy as np
+import os
 import requests
 
 from model.ppo_actor_critic import PPOActorCritic
-from model.ppo import PPO
+from model.ppo import PPO, T
 from sql_parser.contextual_template_populator import ContextualTemplatePopulator
 from sql_parser.wikisql_parser import WikiSQLParser
 from sqlmap_runner import SqlmapRunner
@@ -15,8 +16,8 @@ from model.ddpg import DDPG
 from model.environment import Environment
 from model.payload_builder import PayloadBuilder
 from model.ddpg_hyperparameters import DDPGHyperparameters
+
 import tensorflow as tf
-import os
 
 import sql_parser.schema_parser as schema_parser
 
@@ -65,11 +66,11 @@ except:
 #
 #
 
-BATCH_SIZE = 4
+BATCH_SIZE = 128
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 20
+ACTION_SIZE = 10
 
 # TODO: Ensure states does not need to be larger than action size.
 #
@@ -77,12 +78,12 @@ ACTION_SIZE = 20
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = 40
+STATE_SIZE = 10
 
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=4ec657631913af91fad2f6cfd91c26fe; {flag}=d395771085aab05244a4fb8fd91bf4ee'
+COOKIE = 'pma_lang=en; PHPSESSID=8242bdb6d9297e9c6d38eef67ae76406; {flag}=9431c87f273e507e6040fcb07dcb4509'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -195,7 +196,7 @@ environment = Environment(
     payload_builder=payload_builder,
     action_size=ACTION_SIZE,
     state_size=STATE_SIZE,
-    frames_per_episode=BATCH_SIZE * 5,
+    frames_per_episode=T * BATCH_SIZE,
     embeddings=embeddings,
     columns=columns,
     tables=tables,

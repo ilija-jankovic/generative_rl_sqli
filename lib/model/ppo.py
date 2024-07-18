@@ -13,9 +13,9 @@ from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 
 # T << episode length pg. 5.
-T = 8
-EPOCHS = 5
-MINIBATCH_SIZE = 8
+T = 16
+EPOCHS = 3
+MINIBATCH_SIZE = 16
 
 # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
 # N = 1 as there are no parallel actors.
@@ -23,7 +23,7 @@ assert(MINIBATCH_SIZE <= T)
 
 class PPO:
     timestep = 0
-    gamma = 0.9999
+    gamma = 0.999
 
     # This value (epsilon) is based on best performing clipping strategy
     # in Table 1, pg. 7.
@@ -290,4 +290,4 @@ class PPO:
 
                 states = [tf.convert_to_tensor(states[len(states) - 1])]
             
-            print(episodic_reward)
+            print(f'Average episodic reward: {episodic_reward}')

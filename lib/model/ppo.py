@@ -31,12 +31,19 @@ class PPO:
 
     actor_critic: PPOActorCritic
     env: Environment
+    demonstration_actions: tf.Tensor
 
-    def __init__(self, actor_critic: PPOActorCritic, env: Environment):
+    def __init__(
+        self,
+        actor_critic: PPOActorCritic,
+        env: Environment,
+        demonstration_actions: tf.Tensor
+    ):
         assert(actor_critic.batch_size % MINIBATCH_SIZE == 0)
 
         self.actor_critic = actor_critic
         self.env = env
+        self.demonstration_actions = demonstration_actions
 
     def __create_empty_states(self):
         states = [
@@ -241,23 +248,30 @@ class PPO:
                 actions_old = []
                 action_probabilities_old = []
 
+                demonstrating = np.random.rand() < 2.0 / episode
+
                 for i in range(T):
+                    actions_reference = tf.random.shuffle(self.demonstration_actions)[:self.actor_critic.batch_size] \
+                        if demonstrating \
+                        else tf.constant([])
+
                     action_batch, probabilities_batch = self.actor_critic.policy(
                         states[i],
                         PolicyType.OLD.value,
                         batch_size=self.actor_critic.batch_size,
                         training=False,
+                        actions_reference=actions_reference,
                     )
 
                     actions_old.append(action_batch)
                     action_probabilities_old.append(probabilities_batch)
 
                     env_tuples = [
-                        self.env.perform_action(action_batch[i], i)
+                        self.env.perform_action(action_batch[i], i, demonstrating=demonstrating)
                             for i in range(self.actor_critic.batch_size)
                     ]
 
-                    states.append([env_tuple[0] for env_tuple in env_tuples])
+                    states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
                     rewards.append([env_tuple[1] for env_tuple in env_tuples])
                     done_flags.append([env_tuple[2] for env_tuple in env_tuples])
 

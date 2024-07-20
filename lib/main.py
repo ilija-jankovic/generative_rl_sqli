@@ -70,20 +70,23 @@ BATCH_SIZE = 128
 
 EMBEDDING_DIM = 128
 
-ACTION_SIZE = 10
+ACTION_SIZE = 32
+STATE_SIZE = 64
 
 # TODO: Ensure states does not need to be larger than action size.
-#
-# NOTE: Must be divisible by 2.
+# 
+# NOTE: State size must be divisible by 2.
+# NOTE: State size must be greater than action size.
 #
 # This is the case because an entire action is currently set as
 # the prefix of a state.
-STATE_SIZE = 10
+assert(STATE_SIZE % 2 == 0)
+assert(ACTION_SIZE < STATE_SIZE)
 
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=8242bdb6d9297e9c6d38eef67ae76406; {flag}=9431c87f273e507e6040fcb07dcb4509'
+COOKIE = 'pma_lang=en; PHPSESSID=b2a1639627c3bfe0678a545adf7863f5; {flag}=024d7f84fff11dd7e8d9c510137a2381'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -216,6 +219,8 @@ def print_decoded_injections():
         print(''.join(decoded))
 
 def main():
+    global encoded_payloads
+
     '''
     ddpg = DDPG(
         environment,
@@ -229,6 +234,19 @@ def main():
     ddpg.run(run_demonstrations=record_demonstrations)
     '''
 
+    dictionary_length = len(environment.dictionary)
+
+    # Take out empty tokens.
+    encoded_payloads = [[token for token in payload if token != dictionary_length - 1] for payload in encoded_payloads]
+
+    # Filter all payloads within action size.
+    encoded_payloads = list(filter(lambda payload: len(payload) <= ACTION_SIZE, encoded_payloads))
+
+    # Pad with empty token.
+    encoded_payloads = [[payload[i] if i < len(payload) else dictionary_length - 1 for i in range(ACTION_SIZE)] for payload in encoded_payloads]
+
+    demonstration_actions = tf.convert_to_tensor(encoded_payloads)
+
     actor_critic = PPOActorCritic(
         dictionary_length=len(environment.dictionary),
         action_size=ACTION_SIZE,
@@ -238,7 +256,12 @@ def main():
         embeddings=embeddings,
     )
     
-    ppo = PPO(actor_critic, environment)
+    ppo = PPO(
+        actor_critic,
+        environment,
+        demonstration_actions=demonstration_actions
+    )
+
     ppo.run()
 
 

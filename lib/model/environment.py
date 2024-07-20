@@ -195,7 +195,7 @@ class Environment():
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
 
     
-    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False):
+    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False, demonstrating: bool = False):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -218,10 +218,10 @@ class Environment():
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
 
-            #prefix = 'UNRECORDED' if ignore_episode else 'RECORDED'
+            prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
             
-            #print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
-            #print(payload)
+            print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
+            print(payload)
         else:
             reward = -1.0
 

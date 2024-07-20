@@ -19,6 +19,17 @@ L2_WEIGHT = 0.0001
 ACTOR_LSTM_UNITS = 256
 CRITIC_LSTM_UNITS = 256
 
+# Strategy to utilise multiple GPUs.
+#
+# HierarchicalCopyAllReduce for multi-GPU setup on single machine recommendation from:
+# https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
+#strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+
+strategy = tf.distribute.OneDeviceStrategy(device='/gpu:0')
+
+device_count = strategy.num_replicas_in_sync
+print('Number of devices: {}'.format(device_count))
+
 class PPOActorCritic:
     dictionary_length: int
     action_size: int
@@ -38,17 +49,6 @@ class PPOActorCritic:
         self.actor_model_old.set_weights(self.actor_model.get_weights())
 
     def __init_models(self):
-        # Strategy to utilise multiple GPUs.
-        #
-        # HierarchicalCopyAllReduce for multi-GPU setup on single machine recommendation from:
-        # https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
-        #strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-
-        strategy = tf.distribute.OneDeviceStrategy(device='/gpu:0')
-
-        device_count = strategy.num_replicas_in_sync
-        print('Number of devices: {}'.format(device_count))
-
         with strategy.scope():
             self.actor_model = self.get_actor()
             self.actor_model_old = self.get_actor()
@@ -276,6 +276,7 @@ class PPOActorCritic:
             body=self.concat_next_token_indicies,
             loop_vars=(actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, lstm_states, actions_reference),
             maximum_iterations=action_size,
+            shape_invariants=(actions.shape, probabilities.shape, tf.TensorShape([None]), action_index.shape, action_index_float.shape, embeddings.shape, tf.TensorShape([None]), tf.TensorShape([None]), states.shape, lstm_states.shape, actions_reference.shape)
         )
 
         action_likelihoods = tf.math.reduce_prod(probabilities, axis=-1, keepdims=True)

@@ -236,10 +236,14 @@ class PPO:
             critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def run(self):
+        epsilon = 1.0
+
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
             
             episodic_reward = 0
+                
+            demonstrating = np.random.rand() < epsilon
 
             while True:
                 rewards = []
@@ -303,5 +307,8 @@ class PPO:
                     break
 
                 states = [tf.convert_to_tensor(states[len(states) - 1])]
-            
-            print(f'Average episodic reward: {episodic_reward}')
+
+            print(f'Demonstrating: {demonstrating}')
+            print(f'Average non-demonstration reward: {episodic_reward}')
+
+            epsilon = max(epsilon*0.975, 0.2)

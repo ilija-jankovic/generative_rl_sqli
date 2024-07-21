@@ -117,6 +117,8 @@ class PPOActorCritic:
         
         embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
         
+        # TODO: Consider using tf.gather_nd for performance increase:
+        # https://github.com/matterport/Mask_RCNN/issues/749#issuecomment-1497595166
         chosen_embeddings = tf.gather(embeddings, chosen_indices)
         chosen_probabilities = tf.gather(probabilities, chosen_indices, axis=1, batch_dims=1)
         

@@ -211,19 +211,21 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        response, new_tokens = self.__inject_payload(payload, record_tokens=False)
+        response, new_tokens = self.__inject_payload(payload, record_tokens=True)
 
         new_tokens_count = len(new_tokens)
         
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
 
-            prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
+            self.__episode.extend_episode()
+
+            #prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
             
-            print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
-            print(payload)
+            #print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
+            #print(payload)
         else:
-            reward = -1.0
+            reward = 0.0
 
         # TODO: Add extend episode condition based on parameter.
         

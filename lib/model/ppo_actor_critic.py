@@ -192,9 +192,7 @@ class PPOActorCritic:
         embeddings = tf.reshape(embeddings, [batch_size, -1, self.embedding_size])
         lstm_states = tf.reshape(lstm_states, [batch_size, -1, self.embedding_size])
 
-        input = tf.concat([rl_states, embeddings, lstm_states], axis=1)
-
-        return tf.reshape(input, [batch_size, -1, self.embedding_size])
+        return tf.concat([rl_states, embeddings, lstm_states], axis=1)
 
     def concat_next_token_indicies(
         self, 

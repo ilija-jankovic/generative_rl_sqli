@@ -20,4 +20,4 @@ class EpisodeState:
         return self.__frames_since_last_episode >= self.__frames
     
     def extend_episode(self):
-        self.__frames += self.initial_frames + self.__frames_since_last_episode - self.__frames 
+        self.__frames += self.initial_frames

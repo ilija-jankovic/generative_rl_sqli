@@ -333,8 +333,6 @@ class PPO:
 
             #episode_ended = time.time()
             
-            print(f'Demonstrating: {demonstrating}')
-            print(f'Average non-demonstration reward: {episodic_reward}')
             #print(f'Episode length (seconds): {episode_ended - epsiode_started}\n')
 
             # Base epsilon dynamically on accuracy of non-demonstration actions?

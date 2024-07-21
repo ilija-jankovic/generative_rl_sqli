@@ -256,6 +256,7 @@ class PPO:
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
             
+            episodic_reward = 0.0
 
             #epsiode_started = time.time()
 
@@ -301,6 +302,7 @@ class PPO:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
+                episodic_reward += np.sum(rewards)
                 print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Demonstrating: {demonstrating}')
  
                 for epoch in range(1, EPOCHS + 1):

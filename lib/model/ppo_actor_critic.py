@@ -234,7 +234,7 @@ class PPOActorCritic:
 
         # Adding to an average solution by Damien and Dan Dascalescu from:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
-        embeddings = embeddings + (chosen_embeddings - embeddings) / action_index_float
+        embeddings = embeddings + tf.math.divide(chosen_embeddings - embeddings, action_index_float)
 
         action_indices = tf.range(0, batch_size, dtype=tf.int32)
         action_indices = tf.expand_dims(action_indices, axis=1)

@@ -256,11 +256,8 @@ class PPO:
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
             
-            episodic_reward = 0
-                
-            demonstrating = np.random.rand() < epsilon
 
-            epsiode_started = time.time()
+            #epsiode_started = time.time()
 
             while True:
                 rewards = []
@@ -268,6 +265,8 @@ class PPO:
 
                 actions_old = []
                 action_probabilities_old = []
+
+                demonstrating = np.random.rand() < epsilon
 
                 for i in range(T):
                     actions_reference = tf.random.shuffle(self.demonstration_actions)[:self.actor_critic.batch_size] \
@@ -302,7 +301,7 @@ class PPO:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
-                episodic_reward += np.mean(rewards)
+                print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Demonstrating: {demonstrating}')
  
                 for epoch in range(1, EPOCHS + 1):
                     #print(f'Epoch {epoch}/{EPOCHS}...')
@@ -330,7 +329,7 @@ class PPO:
 
                 states = [tf.convert_to_tensor(states[len(states) - 1])]
 
-            episode_ended = time.time()
+            #episode_ended = time.time()
             
             print(f'Demonstrating: {demonstrating}')
             print(f'Average non-demonstration reward: {episodic_reward}')

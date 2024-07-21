@@ -274,10 +274,33 @@ class PPOActorCritic:
         actions, probabilities, *_ = tf.while_loop(
             cond=lambda *_: True,
             body=self.concat_next_token_indicies,
-            loop_vars=(actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, lstm_states, actions_reference),
+            loop_vars=(
+                actions,
+                probabilities,
+                batch_size,
+                action_index,
+                action_index_float,
+                embeddings,
+                type,
+                training,
+                states,
+                lstm_states,
+                actions_reference
+            ),
             maximum_iterations=action_size,
-            shape_invariants=(actions.shape, probabilities.shape, tf.TensorShape([None]), action_index.shape, action_index_float.shape, embeddings.shape, tf.TensorShape([None]), tf.TensorShape([None]), states.shape, lstm_states.shape, actions_reference.shape)
-        )
+            shape_invariants=(
+                actions.shape,
+                probabilities.shape,
+                tf.TensorShape(None),
+                action_index.shape,
+                action_index_float.shape,
+                tf.TensorShape(None),
+                tf.TensorShape(None),
+                tf.TensorShape(None),
+                states.shape,
+                tf.TensorShape(None),
+                actions_reference.shape
+            ))
 
         action_likelihoods = tf.math.reduce_prod(probabilities, axis=-1, keepdims=True)
 

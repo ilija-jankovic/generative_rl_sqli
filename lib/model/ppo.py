@@ -207,10 +207,10 @@ class PPO:
         critic_optimizer = self.actor_critic.critic_optimizer
     
         with tf.GradientTape() as tape:
-            values = tf.convert_to_tensor([
-                self.actor_critic.critic_model(states, training=True)
-                    for states in states_minibatch
-            ])
+            values = tf.map_fn(
+                lambda states: self.actor_critic.critic_model(states, training=True),
+                states_minibatch
+            )
 
             values = tf.squeeze(values)
 

@@ -223,8 +223,8 @@ class Environment():
 
             #prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
             
-            #print(f'[{prefix}] Successful payload (unscaled reward: {reward}):')
-            #print(payload)
+            print(f'Successful payload (unscaled reward: {reward}):')
+            print(payload)
         else:
             reward = 0.0
 

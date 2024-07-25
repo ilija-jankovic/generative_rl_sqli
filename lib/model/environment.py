@@ -84,6 +84,7 @@ class Environment():
         self.__inject_payload('3', record_tokens=True)
         self.__inject_payload('4', record_tokens=True)
         self.__inject_payload('5', record_tokens=True)
+        self.__inject_payload('\'', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
@@ -195,7 +196,7 @@ class Environment():
         return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
 
     
-    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False, demonstrating: bool = False):
+    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.

@@ -1,6 +1,8 @@
 import os
 import time
 
+from .ppo_replay_buffers import PPOReplayBuffers
+
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -17,6 +19,13 @@ from .ppo_actor_critic import PPOActorCritic, strategy
 T = 16
 EPOCHS = 3
 MINIBATCH_SIZE = 16
+GAMMA = 0.999
+
+# This value (epsilon) is based on best performing clipping strategy
+# in Table 1, pg. 7.
+PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
+
+STARTING_PHI = 0.1
 
 # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
 # N = 1 as there are no parallel actors.
@@ -24,15 +33,13 @@ assert(MINIBATCH_SIZE <= T)
 
 class PPO:
     timestep = 0
-    gamma = 0.999
 
-    # This value (epsilon) is based on best performing clipping strategy
-    # in Table 1, pg. 7.
-    probability_ratio_clip_threshold = 0.2
+    rho = 0.3
+    phi = STARTING_PHI
 
     actor_critic: PPOActorCritic
+    buffers: PPOReplayBuffers
     env: Environment
-    demonstration_actions: tf.Tensor
 
     def __init__(
         self,
@@ -44,7 +51,36 @@ class PPO:
 
         self.actor_critic = actor_critic
         self.env = env
-        self.demonstration_actions = demonstration_actions
+
+        while True:
+            states = []
+            actions = []
+            rewards = []
+
+            for _ in range(T):
+                action = np.random.choice(demonstration_actions)
+                state, reward, _ = env.perform_action(action, ignore_episode=True)
+                
+                states.append(state)
+                actions.append(action)
+                rewards.append(reward)
+
+            if np.sum(rewards) > 0:
+                break
+
+        states = np.array(states)
+        actions = np.array(actions)
+        rewards = np.array(rewards)
+
+        self.buffers = PPOReplayBuffers(
+            state_size=env.state_size,
+            action_size=env.action_size,
+            successful_buffer_size=64,
+            unsuccessful_buffer_size=64,
+            demonstrated_successful_states=states,
+            demonstrated_successful_actions=actions,
+            demonstrated_successful_rewards=rewards,
+        )
 
     def __create_empty_states(self):
         states = [
@@ -75,14 +111,14 @@ class PPO:
         for t in range(initial_timestep, terminal_timestep):
             advantages += tf.multiply(
                     tf.pow(
-                        self.gamma,
+                        GAMMA,
                         timestep_window + t - terminal_timestep
                     ),
                     tf.squeeze(rewards[t - initial_timestep]),
                 )
 
         advantages += tf.multiply(
-                tf.pow(self.gamma, timestep_window),
+                tf.pow(GAMMA, timestep_window),
                 tf.squeeze(
                     self.actor_critic.critic_model(
                         last_states,
@@ -99,8 +135,8 @@ class PPO:
 
         clipped = tf.clip_by_value(
             probability_ratios,
-            1.0 - self.probability_ratio_clip_threshold,
-            1.0 + self.probability_ratio_clip_threshold
+            1.0 - PROBABILITY_RATIO_CLIP_THRESHOLD,
+            1.0 + PROBABILITY_RATIO_CLIP_THRESHOLD,
         )
 
         return tf.minimum(
@@ -119,10 +155,7 @@ class PPO:
         tf.Assert(tf.equal(y.shape[0], T), [y])
         tf.Assert(tf.equal(y_old.shape[0], T), [y_old])
 
-        probability_ratios = tf.math.divide_no_nan(
-            tf.cast(y, dtype=tf.float32),
-            tf.cast(y_old, dtype=tf.float32),
-        )
+        probability_ratios = tf.math.divide_no_nan(y, y_old)
 
         advantages = [
             self.calculate_advantages_batch(
@@ -251,8 +284,6 @@ class PPO:
             ])
 
     def run(self):
-        epsilon = 1.0
-
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
             
@@ -267,43 +298,109 @@ class PPO:
                 actions_old = []
                 action_probabilities_old = []
 
-                demonstrating = np.random.rand() < epsilon
+                # Demonstrations should give a probability of 1 as they should come from a
+                # separate policy which is definitionally constructed as such:
+                #
+                # Single demonstration PPO paper (pg. 3):
+                # 
+                # Policy = one of the below:
+                #
+                # πDR , if sampled from DR
+                # πDV , if sampled from DV
+                # πθ , if sampled from Env
+                rand = np.random.rand()
+                policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
+                    if rand < self.rho \
+                    else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
+                    if rand < self.rho + self.phi \
+                    else PolicyType.OLD
+                
+                if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
+                    probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size
+
+                    self.rho += probability_update
+                    self.phi -= probability_update
+
+                    # Account for floating point precision.
+                    if self.rho > 0.99999:
+                        self.rho = 1.0
+                    
+                    # Account for floating point precision.
+                    #
+                    # This one is particularly important to be set to zero if expected, as
+                    # the unsuccessful buffer should be empty if this probability is to reach
+                    # zero.
+                    if self.phi < 0.00001:
+                        self.phi = 0.0
+
+                trajectories = self.buffers.sample_successful_trajectories(
+                        batch_size=self.actor_critic.batch_size
+                    ) \
+                    if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
+                    else self.buffers.sample_unsuccessful_trajectories(
+                        batch_size=self.actor_critic.batch_size
+                    ) \
+                    if policy_type == PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
+                    else None
 
                 for i in range(T):
-                    actions_reference = tf.random.shuffle(self.demonstration_actions)[:self.actor_critic.batch_size] \
-                        if demonstrating \
-                        else tf.constant([])
-
                     action_batch, probabilities_batch = self.actor_critic.policy(
-                        states[i],
-                        PolicyType.OLD.value,
-                        batch_size=self.actor_critic.batch_size,
-                        training=False,
-                        actions_reference=actions_reference,
-                    )
-
+                            states[i],
+                            PolicyType.OLD.value,
+                            batch_size=self.actor_critic.batch_size,
+                            training=False,
+                        ) \
+                        if trajectories == None \
+                        else trajectories[1][:,i], \
+                        tf.convert_to_tensor(
+                            [1.0] * self.actor_critic.batch_size
+                        )
+                        
                     actions_old.append(action_batch)
                     action_probabilities_old.append(probabilities_batch)
 
-                    env_tuples = [
-                        self.env.perform_action(action_batch[i], i, demonstrating=demonstrating)
-                            for i in range(self.actor_critic.batch_size)
-                    ]
+                    if trajectories == None:
+                        env_tuples = [
+                            self.env.perform_action(action_batch[i], i)
+                                for i in range(self.actor_critic.batch_size)
+                        ]
 
-                    states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
-                    rewards.append([env_tuple[1] for env_tuple in env_tuples])
-                    done_flags.append([env_tuple[2] for env_tuple in env_tuples])
+                        states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
+                        rewards.append([env_tuple[1] for env_tuple in env_tuples])
+                        done_flags.append([env_tuple[2] for env_tuple in env_tuples])
+                    else:
+                        states.append(trajectories[0][:, i])
+                        rewards.append(trajectories[2][:, i])
+
+                states = tf.convert_to_tensor(states)
+                actions_old = tf.convert_to_tensor(actions_old)
+                rewards = tf.convert_to_tensor(rewards)
+
+                if policy_type == PolicyType.OLD:
+                    for i in range(self.actor_critic.batch_size):
+                        trajectory_reward = np.sum(rewards[i])
+                        if trajectory_reward > 0:
+                            self.buffers.record_successful_transitions(
+                                states[:, i],
+                                actions_old[:, i],
+                                rewards[:, i],
+                            )
+                        else:
+                            self.buffers.record_unsuccessful_transitions(
+                                states[:, i],
+                                actions_old[:, i],
+                                rewards[:, i],
+                                value_model=self.actor_critic.critic_model,
+                            )
 
                 action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
-                states = tf.convert_to_tensor(states)
-                rewards = tf.convert_to_tensor(rewards)
 
                 # Nested list entry check solution by Pavel Anossov from:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
                 episodic_reward += np.sum(rewards)
-                print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Demonstrating: {demonstrating}')
+                print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Policy Type: {policy_type.name}')
  
                 for epoch in range(1, EPOCHS + 1):
                     #print(f'Epoch {epoch}/{EPOCHS}...')
@@ -334,6 +431,3 @@ class PPO:
             #episode_ended = time.time()
             
             #print(f'Episode length (seconds): {episode_ended - epsiode_started}\n')
-
-            # Base epsilon dynamically on accuracy of non-demonstration actions?
-            epsilon = max(epsilon*0.975, 0.2)

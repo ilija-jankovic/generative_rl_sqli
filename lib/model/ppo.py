@@ -290,6 +290,24 @@ class PPO:
                 rewards_minibatch
             ])
 
+    def __anneal_probabilities(self):
+        probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size
+
+        self.rho += probability_update
+        self.phi -= probability_update
+
+        # Account for floating point precision.
+        if self.rho > 0.99999:
+            self.rho = 1.0
+        
+        # Account for floating point precision.
+        #
+        # This one is particularly important to be set to zero if expected, as
+        # the unsuccessful buffer should be empty if this probability is to reach
+        # zero.
+        if self.phi < 0.00001:
+            self.phi = 0.0
+
     def run(self):
         for episode in range(1, 501):
             states = [self.__create_empty_states()]
@@ -321,24 +339,6 @@ class PPO:
                     else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
                     if rand < self.rho + self.phi and not self.buffers.is_unsuccessful_buffer_empty() \
                     else PolicyType.OLD
-                
-                if self.phi > 0.0 and policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
-                    probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size
-
-                    self.rho += probability_update
-                    self.phi -= probability_update
-
-                    # Account for floating point precision.
-                    if self.rho > 0.99999:
-                        self.rho = 1.0
-                    
-                    # Account for floating point precision.
-                    #
-                    # This one is particularly important to be set to zero if expected, as
-                    # the unsuccessful buffer should be empty if this probability is to reach
-                    # zero.
-                    if self.phi < 0.00001:
-                        self.phi = 0.0
 
                 trajectories = self.buffers.sample_successful_trajectories(
                         batch_size=self.actor_critic.batch_size
@@ -387,12 +387,15 @@ class PPO:
                     for i in range(self.actor_critic.batch_size):
                         trajectory_reward = np.sum(rewards[:, i])
 
-                        if trajectory_reward > 0:
+                        if trajectory_reward > 0.0:
                             self.buffers.record_successful_transitions(
                                 states[:-1, i],
                                 actions_old[:, i],
                                 rewards[:, i],
                             )
+
+                            if self.phi > 0.0:
+                                self.__anneal_probabilities()
                         else:
                             self.buffers.record_unsuccessful_transitions(
                                 states[:-1, i],

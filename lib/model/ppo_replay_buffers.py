@@ -3,6 +3,8 @@ import numpy as np
 
 import model.ppo as ppo
 
+PRIORITY_EXPONENT = 0.3
+
 class PPOReplayBuffers:
     successful_buffer_size: int
     max_unsuccessful_buffer_size: int
@@ -122,8 +124,7 @@ class PPOReplayBuffers:
         priorities = tf.squeeze(priorities)
         priorities = tf.cast(priorities, dtype=tf.float64)
 
-        alpha = 0.3
-        altered_priorities = tf.pow(priorities, alpha)
+        altered_priorities = tf.pow(priorities, PRIORITY_EXPONENT)
         probabilites = tf.math.divide_no_nan(altered_priorities, tf.reduce_sum(altered_priorities))
 
         self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count] = np.array(probabilites)

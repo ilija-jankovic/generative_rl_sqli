@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from .ppo import T
+import model.ppo as ppo
 
 class PPOReplayBuffers:
     successful_buffer_size: int
@@ -10,7 +10,7 @@ class PPOReplayBuffers:
     __successful_states: np.ndarray
     __successful_actions: np.ndarray
     __successful_rewards: np.ndarray
-    __successful_transitions_count = 0
+    __successful_transitions_count = 1
 
     __unsuccessful_states: np.ndarray
     __unsuccessful_actions: np.ndarray
@@ -22,6 +22,7 @@ class PPOReplayBuffers:
         self,
         state_size: int,
         action_size: int,
+        embedding_size: int,
         successful_buffer_size: int,
         unsuccessful_buffer_size: int,
         demonstrated_successful_states: np.ndarray,
@@ -33,25 +34,28 @@ class PPOReplayBuffers:
         assert(successful_buffer_size > 0)
         assert(unsuccessful_buffer_size > 0)
 
-        assert(demonstrated_successful_states.shape[0] == T)
-        assert(demonstrated_successful_actions.shape[0] == T)
-        assert(demonstrated_successful_rewards.shape[0] == T)
+        assert(demonstrated_successful_states.shape[0] == ppo.T)
+        assert(demonstrated_successful_actions.shape[0] == ppo.T)
+        assert(demonstrated_successful_rewards.shape[0] == ppo.T)
 
         self.successful_buffer_size = successful_buffer_size
         self.max_unsuccessful_buffer_size = unsuccessful_buffer_size
 
-        self.__successful_states = np.full([successful_buffer_size, T, state_size], None)
-        self.__successful_actions = np.full([successful_buffer_size, T, action_size], None)
-        self.__successful_rewards = np.full([successful_buffer_size, T], None)
+        self.__successful_states = np.zeros([successful_buffer_size, ppo.T, state_size, embedding_size], dtype=np.float32)
+        self.__successful_actions = np.zeros([successful_buffer_size, ppo.T, action_size], dtype=np.int32)
+        self.__successful_rewards = np.zeros([successful_buffer_size, ppo.T], dtype=np.float32)
 
         self.__successful_states[0] = demonstrated_successful_states
         self.__successful_actions[0] = demonstrated_successful_actions
         self.__successful_rewards[0] = demonstrated_successful_rewards
 
-        self.__unsuccessful_states = np.full([unsuccessful_buffer_size, T, state_size], None)
-        self.__unsuccessful_actions = np.full([unsuccessful_buffer_size, T, action_size], None)
-        self.__unsuccessful_rewards = np.full([unsuccessful_buffer_size, T], None)
+        self.__unsuccessful_states = np.zeros([unsuccessful_buffer_size, ppo.T, state_size, embedding_size], dtype=np.float32)
+        self.__unsuccessful_actions = np.zeros([unsuccessful_buffer_size, ppo.T, action_size], dtype=np.int32)
+        self.__unsuccessful_rewards = np.zeros([unsuccessful_buffer_size, ppo.T], dtype=np.float32)
         self.__unsuccessful_probabilities = np.zeros([unsuccessful_buffer_size])
+
+    def is_unsuccessful_buffer_empty(self):
+        return self.__unsuccessful_transitions_count == 0
 
     def record_successful_transitions(
         self,
@@ -59,13 +63,13 @@ class PPOReplayBuffers:
         actions: tf.Tensor,
         rewards: tf.Tensor,
     ):
-        assert(states.shape[0] == T)
-        assert(actions.shape[0] == T)
-        assert(rewards.shape[0] == T)
+        assert(states.shape[0] == ppo.T)
+        assert(actions.shape[0] == ppo.T)
+        assert(rewards.shape[0] == ppo.T)
 
-        self.__successful_states = np.array(states) + self.__successful_states[:-1]
-        self.__successful_actions = np.array(actions) + self.__successful_actions[:-1]
-        self.__successful_rewards = np.array(rewards) + self.__successful_rewards[:-1]
+        self.__successful_states = np.insert(self.__successful_states[:-1], 0, states, axis=0)
+        self.__successful_actions = np.insert(self.__successful_actions[:-1], 0, actions, axis=0)
+        self.__successful_rewards = np.insert(self.__successful_rewards[:-1], 0, rewards, axis=0)
 
         self.__successful_transitions_count = min(
             self.__successful_transitions_count + 1,
@@ -81,6 +85,9 @@ class PPOReplayBuffers:
         self.__unsuccessful_rewards = self.__unsuccessful_rewards[:-1]
         self.__unsuccessful_probabilities = self.__unsuccessful_probabilities[:-1]
 
+        if self.__unsuccessful_transitions_count > self.__unsuccessful_states.shape[0]:
+            self.__unsuccessful_transitions_count -= 1
+
     def record_unsuccessful_transitions(
         self,
         states: tf.Tensor,
@@ -88,13 +95,13 @@ class PPOReplayBuffers:
         rewards: tf.Tensor,
         value_model: tf.keras.Model,
     ):
-        assert(states.shape[0] == T)
-        assert(actions.shape[0] == T)
-        assert(rewards.shape[0] == T)
+        assert(states.shape[0] == ppo.T)
+        assert(actions.shape[0] == ppo.T)
+        assert(rewards.shape[0] == ppo.T)
 
-        self.__unsuccessful_states = np.array(states) + self.__unsuccessful_states[:-1]
-        self.__unsuccessful_actions = np.array(actions) + self.__unsuccessful_actions[:-1]
-        self.__unsuccessful_rewards = np.array(rewards) + self.__unsuccessful_rewards[:-1]
+        self.__unsuccessful_states = np.insert(self.__unsuccessful_states[:-1], 0, states, axis=0)
+        self.__unsuccessful_actions = np.insert(self.__unsuccessful_actions[:-1], 0, actions, axis=0)
+        self.__unsuccessful_rewards = np.insert(self.__unsuccessful_rewards[:-1], 0, rewards, axis=0)
 
         self.__unsuccessful_transitions_count = min(
             self.__unsuccessful_transitions_count + 1,
@@ -105,17 +112,17 @@ class PPOReplayBuffers:
             self.__unsuccessful_states.shape[0],
         )
 
-        priorities = tf.reduce_max(
-            tf.map_fn(
-                lambda states: value_model(states, training=False),
-                self.__unsuccessful_states[:self.__unsuccessful_transitions_count],
-            ),
+        priorities = tf.reduce_max([
+            value_model(tf.convert_to_tensor(states), training=False)
+                for states in self.__unsuccessful_states[:self.__unsuccessful_transitions_count]
+            ],
             axis=1,
         )
 
         alpha = 0.3
         altered_priorities = tf.pow(priorities, alpha)
         probabilites = tf.divide(altered_priorities, tf.reduce_sum(altered_priorities))
+        probabilites = tf.squeeze(probabilites)
 
         self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count] = np.array(probabilites)
 
@@ -124,23 +131,9 @@ class PPOReplayBuffers:
 
         indices = np.random.choice(self.__successful_transitions_count, size=batch_size)
 
-        states = np.take_along_axis(
-            self.__successful_states,
-            indices=indices,
-            axis=0,
-        )
-
-        actions = np.take_along_axis(
-            self.__successful_actions,
-            indices=indices,
-            axis=0,
-        )
-
-        rewards = np.take_along_axis(
-            self.__successful_rewards,
-            indices=indices,
-            axis=0,
-        )
+        states = self.__successful_states[indices]
+        actions = self.__successful_actions[indices]
+        rewards = self.__successful_rewards[indices]
 
         return tf.convert_to_tensor(states), \
             tf.convert_to_tensor(actions), \
@@ -148,6 +141,7 @@ class PPOReplayBuffers:
     
     def sample_unsuccessful_trajectories(self, batch_size):
         assert(batch_size > 0)
+        assert(self.__unsuccessful_transitions_count > 0)
 
         indices = np.random.choice(
             self.__unsuccessful_transitions_count,
@@ -155,23 +149,9 @@ class PPOReplayBuffers:
             p=self.__unsuccessful_probabilities,
         )
 
-        states = np.take_along_axis(
-            self.__unsuccessful_states,
-            indices=indices,
-            axis=0,
-        )
-
-        actions = np.take_along_axis(
-            self.__unsuccessful_actions,
-            indices=indices,
-            axis=0,
-        )
-
-        rewards = np.take_along_axis(
-            self.__unsuccessful_rewards,
-            indices=indices,
-            axis=0,
-        )
+        states = self.__unsuccessful_states[indices]
+        actions = self.__unsuccessful_actions[indices]
+        rewards = self.__unsuccessful_rewards[indices]
 
         return tf.convert_to_tensor(states), \
             tf.convert_to_tensor(actions), \

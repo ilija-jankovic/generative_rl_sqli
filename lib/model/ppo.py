@@ -58,8 +58,14 @@ class PPO:
             rewards = []
 
             for _ in range(T):
-                action = np.random.choice(demonstration_actions)
-                state, reward, _ = env.perform_action(action, ignore_episode=True)
+                action_index = np.random.randint(len(demonstration_actions))
+                action = demonstration_actions[action_index]
+
+                state, reward, _ = env.perform_action(
+                    action,
+                    batch_index=0,
+                    ignore_episode=True
+                )
                 
                 states.append(state)
                 actions.append(action)
@@ -75,8 +81,9 @@ class PPO:
         self.buffers = PPOReplayBuffers(
             state_size=env.state_size,
             action_size=env.action_size,
-            successful_buffer_size=64,
-            unsuccessful_buffer_size=64,
+            embedding_size=env.embedding_size,
+            successful_buffer_size=4,
+            unsuccessful_buffer_size=4,
             demonstrated_successful_states=states,
             demonstrated_successful_actions=actions,
             demonstrated_successful_rewards=rewards,
@@ -312,10 +319,10 @@ class PPO:
                 policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
                     if rand < self.rho \
                     else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
-                    if rand < self.rho + self.phi \
+                    if rand < self.rho + self.phi and not self.buffers.is_unsuccessful_buffer_empty() \
                     else PolicyType.OLD
                 
-                if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
+                if self.phi > 0.0 and policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
                     probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size
 
                     self.rho += probability_update
@@ -344,15 +351,15 @@ class PPO:
                     else None
 
                 for i in range(T):
-                    action_batch, probabilities_batch = self.actor_critic.policy(
-                            states[i],
-                            PolicyType.OLD.value,
-                            batch_size=self.actor_critic.batch_size,
-                            training=False,
-                        ) \
-                        if trajectories == None \
-                        else trajectories[1][:,i], \
-                        tf.convert_to_tensor(
+                    if trajectories == None:
+                        action_batch, probabilities_batch = self.actor_critic.policy(
+                                states[i],
+                                PolicyType.OLD.value,
+                                batch_size=self.actor_critic.batch_size,
+                                training=False,
+                            )
+                    else:
+                        action_batch, probabilities_batch = trajectories[1][:,i], tf.convert_to_tensor(
                             [1.0] * self.actor_critic.batch_size
                         )
                         
@@ -361,8 +368,8 @@ class PPO:
 
                     if trajectories == None:
                         env_tuples = [
-                            self.env.perform_action(action_batch[i], i)
-                                for i in range(self.actor_critic.batch_size)
+                            self.env.perform_action(action_batch[batch_index], batch_index)
+                                for batch_index in range(self.actor_critic.batch_size)
                         ]
 
                         states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
@@ -378,16 +385,17 @@ class PPO:
 
                 if policy_type == PolicyType.OLD:
                     for i in range(self.actor_critic.batch_size):
-                        trajectory_reward = np.sum(rewards[i])
+                        trajectory_reward = np.sum(rewards[:, i])
+
                         if trajectory_reward > 0:
                             self.buffers.record_successful_transitions(
-                                states[:, i],
+                                states[:-1, i],
                                 actions_old[:, i],
                                 rewards[:, i],
                             )
                         else:
                             self.buffers.record_unsuccessful_transitions(
-                                states[:, i],
+                                states[:-1, i],
                                 actions_old[:, i],
                                 rewards[:, i],
                                 value_model=self.actor_critic.critic_model,

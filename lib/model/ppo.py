@@ -410,8 +410,14 @@ class PPO:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
-                episodic_reward += np.sum(rewards)
-                print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Policy Type: {policy_type.name}')
+                rollout_reward = np.sum(rewards)
+
+                if policy_type == PolicyType.OLD:
+                    episodic_reward += rollout_reward
+
+                    print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Policy Type: {policy_type.name}')
+                else:
+                    print(f'Episode {episode}, Trajectory playback reward: {rollout_reward}, Policy Type: {policy_type.name}')
  
                 for epoch in range(1, EPOCHS + 1):
                     #print(f'Epoch {epoch}/{EPOCHS}...')

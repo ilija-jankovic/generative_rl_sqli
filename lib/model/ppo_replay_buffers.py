@@ -119,10 +119,11 @@ class PPOReplayBuffers:
             axis=1,
         )
 
+        priorities = tf.squeeze(priorities)
+
         alpha = 0.3
         altered_priorities = tf.pow(priorities, alpha)
-        probabilites = tf.divide(altered_priorities, tf.reduce_sum(altered_priorities))
-        probabilites = tf.squeeze(probabilites)
+        probabilites = tf.math.divide_no_nan(altered_priorities, tf.reduce_sum(altered_priorities))
 
         self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count] = np.array(probabilites)
 

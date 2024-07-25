@@ -52,7 +52,7 @@ class PPOReplayBuffers:
         self.__unsuccessful_states = np.zeros([unsuccessful_buffer_size, ppo.T, state_size, embedding_size], dtype=np.float32)
         self.__unsuccessful_actions = np.zeros([unsuccessful_buffer_size, ppo.T, action_size], dtype=np.int32)
         self.__unsuccessful_rewards = np.zeros([unsuccessful_buffer_size, ppo.T], dtype=np.float32)
-        self.__unsuccessful_probabilities = np.zeros([unsuccessful_buffer_size])
+        self.__unsuccessful_probabilities = np.zeros([unsuccessful_buffer_size], dtype=np.float64)
 
     def is_unsuccessful_buffer_empty(self):
         return self.__unsuccessful_transitions_count == 0
@@ -120,6 +120,7 @@ class PPOReplayBuffers:
         )
 
         priorities = tf.squeeze(priorities)
+        priorities = tf.cast(priorities, dtype=tf.float64)
 
         alpha = 0.3
         altered_priorities = tf.pow(priorities, alpha)
@@ -144,10 +145,12 @@ class PPOReplayBuffers:
         assert(batch_size > 0)
         assert(self.__unsuccessful_transitions_count > 0)
 
+        probabilities = self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count]
+
         indices = np.random.choice(
             self.__unsuccessful_transitions_count,
             size=batch_size,
-            p=self.__unsuccessful_probabilities,
+            p=probabilities,
         )
 
         states = self.__unsuccessful_states[indices]

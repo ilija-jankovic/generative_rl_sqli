@@ -219,7 +219,8 @@ class Environment():
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
 
-            self.__episode.extend_episode()
+            if not ignore_episode:
+                self.__episode.extend_episode()
 
             #prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
             

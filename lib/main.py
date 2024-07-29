@@ -66,22 +66,15 @@ except:
 #
 #
 
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 
 EMBEDDING_DIM = 128
 
 ACTION_SIZE = 32
 STATE_SIZE = 64
 
-# TODO: Ensure states does not need to be larger than action size.
-# 
-# NOTE: State size must be divisible by 2.
-# NOTE: State size must be greater than action size.
-#
-# This is the case because an entire action is currently set as
-# the prefix of a state.
-assert(STATE_SIZE % 2 == 0)
-assert(ACTION_SIZE < STATE_SIZE)
+# NOTE: State needs a few tokens of leeway for sectioning.
+assert(STATE_SIZE >= 8)
 
 OPEN_URL = 'http://localhost/products.php?id='
 

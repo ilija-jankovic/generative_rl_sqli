@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from typing import List
 import re
@@ -30,6 +29,10 @@ class Environment():
 
     __attempted_payloads: List[str] = []
     __found_tokens: List[str] = []
+
+    # Most recent tokens at front.
+    __new_tokens: List[str] = []
+
     __episode: EpisodeState
 
     def __init__(
@@ -77,14 +80,11 @@ class Environment():
         self.__inject_initial_payloads()
 
     def __inject_initial_payloads(self):
-        self.__inject_payload('', record_tokens=True)
-        self.__inject_payload('random string', record_tokens=True)
         self.__inject_payload('1', record_tokens=True)
         self.__inject_payload('2', record_tokens=True)
         self.__inject_payload('3', record_tokens=True)
         self.__inject_payload('4', record_tokens=True)
         self.__inject_payload('5', record_tokens=True)
-        self.__inject_payload('\'', record_tokens=True)
 
         if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
             # Simulate empty action.
@@ -92,6 +92,7 @@ class Environment():
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
+        self.__new_tokens.clear()
 
     def __reset_payload_cache(self):
         self.__attempted_payloads.clear()
@@ -144,10 +145,18 @@ class Environment():
             resText1 = self.__filter_payload_from_text(res1.text, payload)
             resText2 = self.__filter_payload_from_text(res2.text, payload)
 
+            # Only uppercase considered as the dictionary and SQL is case insensitive.
+            resText1 = resText1.upper()
+            resText2 = resText2.upper()
+
             unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
         else:
             res2 = self.send_request_callback(payload)
+
             resText = self.__filter_payload_from_text(res2.text, payload)
+            
+            # Only uppercase considered as the dictionary and SQL is case insensitive.
+            resText = resText.upper()
 
             unique_tokens = self.__tokenize_text(resText)
 
@@ -155,6 +164,8 @@ class Environment():
 
         if record_tokens:
             self.__found_tokens += new_tokens
+        
+        self.__new_tokens = new_tokens + self.__new_tokens
 
         return res2, new_tokens
     
@@ -178,22 +189,59 @@ class Environment():
             self.__inject_initial_payloads()
 
         return episode_ended
+
+    def __string_to_indices(self, data: str, max_size: int):
+        dictionary_length = len(self.dictionary)
+
+        indexed_data: List[int] = []
+
+        # Prioritise dictionary indices.
+        #
+        # Fall back to shifted ASCII indices.
+        while len(data) > 0 and len(indexed_data) < max_size:
+            appended = False
+
+            for i, token in enumerate(self.dictionary):
+                if data.startswith(token):
+                    indexed_data.append(i)
+
+                    data = data.removeprefix(token)
+                    appended = True
+
+                    break
+
+            if appended:
+                continue
+            
+            # Append ASCII code shifted by max dictionary index.
+            indexed_data.append(ord(data[0]) + dictionary_length)
+
+            data = data[1:]
+
+        return indexed_data
     
-    # TODO: Add table and column names from response to state definition.
-    def __create_state(self, action: np.ndarray, data: str, new_tokens: List[str]):
-        res_size = self.state_size - self.action_size
+    def __create_state(self, data: str, new_tokens_count: int):
+        new_token_indices: List[int] = []
 
-        embeddings = [self.embeddings[i.numpy()] if i.numpy() > 0.0 and i.numpy() < len(self.dictionary) else [0.0] * self.embedding_size for i in action]
+        for token in self.__new_tokens:
+            max_new_tokens_size = self.state_size // 2 - 2 - len(new_token_indices)
+            if max_new_tokens_size <= 0:
+                break
 
-        res_section_size = res_size // 2
+            new_token_indices.extend(self.__string_to_indices(token, max_size=max_new_tokens_size))
+        
+        state = [new_tokens_count, -1, *new_token_indices, -1]
+        max_data_tokens_size = self.state_size - len(state)
+        
+        data_indices = self.__string_to_indices(data, max_size=max_data_tokens_size)
 
-        res_data = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embedding_size for char in data[:res_section_size]]
-        res_new_tokens = [self.embeddings[self.dictionary.index(char)] if char in self.dictionary else [0.0] * self.embedding_size for char in new_tokens[:res_section_size]]
+        state.extend(data_indices)
 
-        res_data += [[0.0] * self.embedding_size] * (res_section_size - len(res_data))
-        res_new_tokens += [[0.0] * self.embedding_size] * (res_section_size - len(res_new_tokens))
+        # Pad state until self.state_size is reached.
+        if(len(state) < self.state_size):
+            state.extend([-1] * (self.state_size - len(state)))
 
-        return tf.convert_to_tensor(embeddings + res_data + res_new_tokens, dtype=tf.float32)
+        return tf.convert_to_tensor(state, dtype=tf.int16)
 
     
     def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False):
@@ -237,7 +285,9 @@ class Environment():
             self.__record_payload(payload)
             done = self.__update_episode()
 
-        state = self.create_empty_state(index=batch_index) if done else self.__create_state(action, response.text, new_tokens)
+        state = self.create_empty_state(index=batch_index) \
+            if done \
+            else self.__create_state(response.text, new_tokens_count)
 
         return state, reward, done
 

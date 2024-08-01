@@ -121,6 +121,9 @@ class PPOReplayBuffers:
         )
 
         priorities = tf.squeeze(priorities)
+
+        # Casting to greater floating point precision reduces risk of probabilities
+        # adding to a number too far from NumPy's tolerance from one.
         priorities = tf.cast(priorities, dtype=tf.float64)
 
         altered_priorities = tf.pow(priorities, PRIORITY_EXPONENT)

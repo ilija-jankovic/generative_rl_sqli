@@ -71,7 +71,11 @@ BATCH_SIZE = 32
 EMBEDDING_DIM = 128
 
 ACTION_SIZE = 32
-STATE_SIZE = 64
+STATE_SIZE = 128
+
+# NOTE: State size must be a multiple of embedding size to avoid padding
+# when passing to LSTM input.
+assert(STATE_SIZE % EMBEDDING_DIM == 0)
 
 # NOTE: State needs a few tokens of leeway for sectioning.
 assert(STATE_SIZE >= 8)

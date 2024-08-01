@@ -106,13 +106,18 @@ class Environment():
     def __payload_attempted(self, payload: str):
         return payload in self.__attempted_payloads
 
-    def create_empty_state(self, index: int):
+    def create_empty_state(self):
         '''
         Creates a state filled with index.
 
         Used to start off each branch of a batch in different directions.
         '''
-        return tf.fill((self.state_size, self.embedding_size), float(index))
+
+        # Floating point type as the state is expected to be concatenated
+        # with other inputs which are floating point in the policy model.
+        #
+        # The combined tensor must be of the same type.
+        return tf.zeros((self.state_size,), dtype=tf.float32)
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -205,7 +210,8 @@ class Environment():
                 if data.startswith(token):
                     indexed_data.append(i)
 
-                    data = data.removeprefix(token)
+                    # Remove token from prefix.
+                    data = data[len(token):]
                     appended = True
 
                     break
@@ -241,10 +247,10 @@ class Environment():
         if(len(state) < self.state_size):
             state.extend([-1] * (self.state_size - len(state)))
 
-        return tf.convert_to_tensor(state, dtype=tf.int16)
+        return tf.convert_to_tensor(state, dtype=tf.float32)
 
     
-    def perform_action(self, action: np.ndarray, batch_index: int, ignore_episode: bool = False):
+    def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -285,7 +291,7 @@ class Environment():
             self.__record_payload(payload)
             done = self.__update_episode()
 
-        state = self.create_empty_state(index=batch_index) \
+        state = self.create_empty_state() \
             if done \
             else self.__create_state(response.text, new_tokens_count)
 

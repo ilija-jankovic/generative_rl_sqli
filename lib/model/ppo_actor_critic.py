@@ -143,10 +143,12 @@ class PPOActorCritic:
         )
 
     def get_actor(self):
+        assert(self.state_size % self.embedding_size == 0)
+
         c_size = math.ceil(ACTOR_LSTM_UNITS / self.embedding_size)
 
         # Input = RL state size + LSTM cell state size + single input for average embedding across action fragment.
-        input_size = self.state_size + c_size + 1
+        input_size = self.state_size // self.embedding_size + c_size + 1
 
         input_lstm = tf.keras.layers.Input(shape=(input_size, self.embedding_size))
 
@@ -172,7 +174,7 @@ class PPOActorCritic:
             ])
 
     def get_critic(self):
-        state_input = tf.keras.layers.Input(shape=(self.state_size, self.embedding_size))
+        state_input = tf.keras.layers.Input(shape=(self.state_size, 1))
 
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(state_input)
         lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(lstm_state)
@@ -191,6 +193,7 @@ class PPOActorCritic:
         return tf.keras.Model([state_input], output)
 
     def get_embedded_lstm_input(self, batch_size, rl_states, embeddings, lstm_states):
+        rl_states = tf.reshape(rl_states, [batch_size, -1, self.embedding_size])
         embeddings = tf.reshape(embeddings, [batch_size, -1, self.embedding_size])
         lstm_states = tf.reshape(lstm_states, [batch_size, -1, self.embedding_size])
 

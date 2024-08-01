@@ -63,7 +63,6 @@ class PPO:
 
                 state, reward, _ = env.perform_action(
                     action,
-                    batch_index=0,
                     ignore_episode=True
                 )
                 
@@ -81,7 +80,6 @@ class PPO:
         self.buffers = PPOReplayBuffers(
             state_size=env.state_size,
             action_size=env.action_size,
-            embedding_size=env.embedding_size,
             successful_buffer_size=64,
             unsuccessful_buffer_size=64,
             demonstrated_successful_states=states,
@@ -90,12 +88,7 @@ class PPO:
         )
 
     def __create_empty_states(self):
-        states = [
-            self.env.create_empty_state(index=i)
-                for i in range(self.actor_critic.batch_size)
-        ]
-
-        return tf.convert_to_tensor(states)
+        return tf.repeat([self.env.create_empty_state()], [self.actor_critic.batch_size], axis=0)
 
     def calculate_advantages_batch(
         self,
@@ -368,7 +361,7 @@ class PPO:
 
                     if trajectories == None:
                         env_tuples = [
-                            self.env.perform_action(action_batch[batch_index], batch_index)
+                            self.env.perform_action(action_batch[batch_index])
                                 for batch_index in range(self.actor_critic.batch_size)
                         ]
 

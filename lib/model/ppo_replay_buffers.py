@@ -24,7 +24,6 @@ class PPOReplayBuffers:
         self,
         state_size: int,
         action_size: int,
-        embedding_size: int,
         successful_buffer_size: int,
         unsuccessful_buffer_size: int,
         demonstrated_successful_states: np.ndarray,
@@ -43,7 +42,7 @@ class PPOReplayBuffers:
         self.successful_buffer_size = successful_buffer_size
         self.max_unsuccessful_buffer_size = unsuccessful_buffer_size
 
-        self.__successful_states = np.zeros([successful_buffer_size, ppo.T, state_size, embedding_size], dtype=np.float32)
+        self.__successful_states = np.zeros([successful_buffer_size, ppo.T, state_size], dtype=np.float32)
         self.__successful_actions = np.zeros([successful_buffer_size, ppo.T, action_size], dtype=np.int32)
         self.__successful_rewards = np.zeros([successful_buffer_size, ppo.T], dtype=np.float32)
 
@@ -51,7 +50,7 @@ class PPOReplayBuffers:
         self.__successful_actions[0] = demonstrated_successful_actions
         self.__successful_rewards[0] = demonstrated_successful_rewards
 
-        self.__unsuccessful_states = np.zeros([unsuccessful_buffer_size, ppo.T, state_size, embedding_size], dtype=np.float32)
+        self.__unsuccessful_states = np.zeros([unsuccessful_buffer_size, ppo.T, state_size], dtype=np.float32)
         self.__unsuccessful_actions = np.zeros([unsuccessful_buffer_size, ppo.T, action_size], dtype=np.int32)
         self.__unsuccessful_rewards = np.zeros([unsuccessful_buffer_size, ppo.T], dtype=np.float32)
         self.__unsuccessful_probabilities = np.zeros([unsuccessful_buffer_size], dtype=np.float64)

@@ -21,6 +21,9 @@ EPOCHS = 3
 MINIBATCH_SIZE = 16
 GAMMA = 0.999
 
+SUCCESSFUL_BUFFER_SIZE = 64
+UNSUCCESSFUL_BUFFER_SIZE = 64
+
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7.
 PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
@@ -80,8 +83,8 @@ class PPO:
         self.buffers = PPOReplayBuffers(
             state_size=env.state_size,
             action_size=env.action_size,
-            successful_buffer_size=64,
-            unsuccessful_buffer_size=64,
+            successful_buffer_size=SUCCESSFUL_BUFFER_SIZE,
+            unsuccessful_buffer_size=UNSUCCESSFUL_BUFFER_SIZE,
             demonstrated_successful_states=states,
             demonstrated_successful_actions=actions,
             demonstrated_successful_rewards=rewards,

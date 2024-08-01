@@ -247,9 +247,13 @@ class Environment():
         if(len(state) < self.state_size):
             state.extend([-1] * (self.state_size - len(state)))
 
+        # Floating point type as the state is expected to be concatenated
+        # with other inputs which are floating point in the policy model.
+        #
+        # The combined tensor must be of the same type.
         return tf.convert_to_tensor(state, dtype=tf.float32)
 
-    
+
     def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,

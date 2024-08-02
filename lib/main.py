@@ -103,6 +103,9 @@ data_service = SQLDataService()
 schema = data_service.load_schema()
 
 columns = schema_parser.get_column_tokens_from_schema(schema)
+
+# NON-SYSTEM TABLE NAMES ARE CASE SENSITIVE!!!!!
+# Column names are probably too.
 tables = schema_parser.get_table_tokens_from_schema(schema)
 
 sql_tokens = data_service.load_sql_tokens()
@@ -117,8 +120,6 @@ data_service.save_contextual_payloads(payloads)
 payloads += data_service.load_payload_files(domain_name='localhost')
 
 dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
-
-dictionary = [token.upper() for token in dictionary]
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.

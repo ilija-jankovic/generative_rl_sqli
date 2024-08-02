@@ -10,6 +10,7 @@ from .episode_state import EpisodeState
 
 class Environment():
     dictionary: List[str]
+    dictionary_uppercase: List[str]
     payload_builder: PayloadBuilder
 
     action_size: int
@@ -61,6 +62,7 @@ class Environment():
                 raise Exception('All embeddings must be of the same length')
             
         self.dictionary = dictionary
+        self.dictionary_uppercase = [token.upper() for token in dictionary]
         self.payload_builder = payload_builder
 
         self.action_size = action_size
@@ -196,7 +198,8 @@ class Environment():
         return episode_ended
 
     def __string_to_indices(self, data: str, max_size: int):
-        dictionary_length = len(self.dictionary)
+        dictionary_length = len(self.dictionary_uppercase)
+        data = data.upper()
 
         indexed_data: List[int] = []
 
@@ -206,7 +209,7 @@ class Environment():
         while len(data) > 0 and len(indexed_data) < max_size:
             appended = False
 
-            for i, token in enumerate(self.dictionary):
+            for i, token in enumerate(self.dictionary_uppercase):
                 if data.startswith(token):
                     indexed_data.append(i)
 

@@ -43,7 +43,6 @@ tf.config.optimizer.set_jit(True)
 args = sys.argv[1:]
 
 run_sqlmap = '--no-run-sqlmap' not in args
-record_demonstrations = '--no-demonstrations' not in args
 use_cache = '--from-cache' in args
 double_requests = '--no-double-requests' not in args
 profile = '--profile' in args
@@ -164,13 +163,6 @@ headers.update({'cookie': COOKIE})
 
 payload_builder = PayloadBuilder(dictionary, '', '')
 
-if record_demonstrations:
-    print('Filtering unformatted payloads...')
-    encoded_payloads = token_parser.parse(payloads, required_prefix=payload_builder.prefix, required_suffix=payload_builder.suffix)
-    print('Payloads filtered.')
-else:
-    encoded_payloads = []
-
 params = DDPGHyperparameters(
     gamma=0.999,
     tau=0.001,
@@ -207,43 +199,34 @@ environment = Environment(
                                         
 state: np.ndarray
 
-def print_decoded_injections():
+def print_decoded_injections(encoded_payloads):
     '''
     Use to verify that the predefined encoded injection list is correctly
     encoded.
     '''
+    print('DEMONSTRATION PAYLOADS:')
     for injection in encoded_payloads:
         decoded = [dictionary[i] for i in injection]
         print(''.join(decoded))
 
 def main():
-    global encoded_payloads
-
-    '''
-    ddpg = DDPG(
-        environment,
-        encoded_payloads=encoded_payloads,
-        params=params,
-        profile=profile
-    )
-
-    print('Running DDPG...')
-
-    ddpg.run(run_demonstrations=record_demonstrations)
-    '''
-
     dictionary_length = len(environment.dictionary)
 
-    # Take out empty tokens.
-    encoded_payloads = [[token for token in payload if token != dictionary_length - 1] for payload in encoded_payloads]
+    with open(f'{os.path.dirname(__file__)}/../injections_demonstration.txt', 'r') as f:
+        payloads = f.read().splitlines()
+    f.close()
 
-    # Filter all payloads within action size.
-    encoded_payloads = list(filter(lambda payload: len(payload) <= ACTION_SIZE, encoded_payloads))
+    encoded_demonstration = token_parser.parse(payloads)
+
+    for encoded_payload in encoded_demonstration:
+        assert(len(encoded_payload) <= ACTION_SIZE)
 
     # Pad with empty token.
-    encoded_payloads = [[payload[i] if i < len(payload) else dictionary_length - 1 for i in range(ACTION_SIZE)] for payload in encoded_payloads]
+    encoded_demonstration = [[payload[i] if i < len(payload) else dictionary_length - 1 for i in range(ACTION_SIZE)] for payload in encoded_demonstration]
 
-    demonstration_actions = tf.convert_to_tensor(encoded_payloads)
+    print_decoded_injections(encoded_demonstration)
+    
+    demonstration_actions = tf.convert_to_tensor(encoded_demonstration)
 
     actor_critic = PPOActorCritic(
         dictionary_length=len(environment.dictionary),

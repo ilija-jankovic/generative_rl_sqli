@@ -21,7 +21,7 @@ Based on solution by [user14653986](https://stackoverflow.com/a/64872998).
 Run from root of project with minimal options for debugging (requires generated embeddings):
 
 ```sh
-python lib\main.py --no-run-sqlmap --no-demonstrations --from-cache --no-double-requests
+python lib\main.py --no-run-sqlmap --from-cache --no-double-requests
 ```
 
 Enable profiling with the `--profile` flag. For example:

@@ -16,7 +16,7 @@ from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic, strategy
 
 # T << episode length pg. 5.
-T = 16
+T = 20
 EPOCHS = 3
 MINIBATCH_SIZE = 16
 GAMMA = 0.999
@@ -51,6 +51,7 @@ class PPO:
         demonstration_actions: tf.Tensor
     ):
         assert(actor_critic.batch_size % MINIBATCH_SIZE == 0)
+        assert(T <= len(demonstration_actions))
 
         self.actor_critic = actor_critic
         self.env = env
@@ -60,9 +61,8 @@ class PPO:
             actions = []
             rewards = []
 
-            for _ in range(T):
-                action_index = np.random.randint(len(demonstration_actions))
-                action = demonstration_actions[action_index]
+            for i in range(T):
+                action = demonstration_actions[i]
 
                 state, reward, _ = env.perform_action(
                     action,

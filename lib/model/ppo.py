@@ -404,14 +404,15 @@ class PPO:
                 # https://stackoverflow.com/a/15057380
                 done = any(True in lst for lst in done_flags)
 
-                rollout_reward = np.sum(rewards)
-
                 if policy_type == PolicyType.OLD:
+                    rollout_reward = np.sum(rewards)
                     episodic_reward += rollout_reward
 
                     print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Policy Type: {policy_type.name}')
                 else:
-                    print(f'Episode {episode}, Trajectory playback reward: {rollout_reward}, Policy Type: {policy_type.name}')
+                    # TODO: Display mean rollout reward as buffer replay does not interact with episodes,
+                    # making same trajectories lead to same reward.
+                    print(f'Episode {episode}, Mean trajectory playback reward: {np.mean(rewards)}, Policy Type: {policy_type.name}')
  
                 for epoch in range(1, EPOCHS + 1):
                     #print(f'Epoch {epoch}/{EPOCHS}...')

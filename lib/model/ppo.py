@@ -166,6 +166,7 @@ class PPO:
             ) for t in range(self.timestep, self.timestep + T)
         ]
 
+        advantages = tf.cast(advantages, dtype=tf.float64)
         advantages = tf.squeeze(advantages)
         advantages = tf.expand_dims(advantages, axis=-1)
 
@@ -351,8 +352,9 @@ class PPO:
                                 training=False,
                             )
                     else:
-                        action_batch, probabilities_batch = trajectories[1][:,i], tf.convert_to_tensor(
-                            [1.0] * self.actor_critic.batch_size
+                        action_batch, probabilities_batch = trajectories[1][:,i], tf.ones(
+                            [self.actor_critic.batch_size, 1],
+                            dtype=tf.float64,
                         )
                         
                     actions_old.append(action_batch)

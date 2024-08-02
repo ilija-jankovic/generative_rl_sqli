@@ -120,6 +120,8 @@ class PPOActorCritic:
         # TODO: Consider using tf.gather_nd for performance increase:
         # https://github.com/matterport/Mask_RCNN/issues/749#issuecomment-1497595166
         chosen_embeddings = tf.gather(embeddings, chosen_indices)
+
+        probabilities = tf.cast(probabilities, dtype=tf.float64)
         chosen_probabilities = tf.gather(probabilities, chosen_indices, axis=1, batch_dims=1)
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
@@ -266,7 +268,7 @@ class PPOActorCritic:
         dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)
 
         actions = tf.fill([batch_size, action_size], dictionary_length)
-        probabilities = tf.zeros([batch_size, action_size], dtype=tf.float32)
+        probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
         embeddings = tf.zeros([batch_size, self.embedding_size], dtype=tf.float32)
         lstm_states = tf.zeros([batch_size, ACTOR_LSTM_UNITS + ACTOR_LSTM_UNITS % self.embedding_size], dtype=tf.float32)

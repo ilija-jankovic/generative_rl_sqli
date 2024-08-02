@@ -46,11 +46,7 @@ class SQLDataService:
         return data
     
     def load_schema(self) -> Dict[str, str]:
-        schema = self.__load_json('../../schema.json')
-
-        # Modification of JSON case solution by bumblebee:
-        # https://stackoverflow.com/questions/62014675/how-to-lowercase-all-keys-in-json-dict-with-python
-        return {key.upper():value for key, value in schema.items()}
+        return self.__load_json('../../schema.json')
 
     def load_payload_files(self, domain_name: str):
         payloads: List[str] = []

@@ -56,25 +56,21 @@ class PPO:
         self.actor_critic = actor_critic
         self.env = env
 
-        while True:
-            states = []
-            actions = []
-            rewards = []
+        states = []
+        actions = []
+        rewards = []
 
-            for i in range(T):
-                action = demonstration_actions[i]
+        for i in range(T):
+            action = demonstration_actions[i]
 
-                state, reward, _ = env.perform_action(
-                    action,
-                    ignore_episode=True
-                )
-                
-                states.append(state)
-                actions.append(action)
-                rewards.append(reward)
+            state, reward, _ = env.perform_action(
+                action,
+                ignore_episode=True
+            )
 
-            if np.sum(rewards) > 0:
-                break
+            states.append(state)
+            actions.append(action)
+            rewards.append(reward)
 
         states = np.array(states)
         actions = np.array(actions)

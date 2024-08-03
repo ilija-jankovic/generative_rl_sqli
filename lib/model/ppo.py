@@ -430,7 +430,8 @@ class PPO:
 
             self.actor_critic.update_old_actor_weights()
 
-            self.timestep += T
+            if policy_type == PolicyType.OLD:
+                self.timestep += T
 
             if policy_type == PolicyType.OLD:
                 print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')

@@ -185,18 +185,24 @@ params = DDPGHyperparameters(
     # TODO: Add extend epsiode parameter.
 )
 
-environment = Environment(
-    payload_builder=payload_builder,
-    action_size=ACTION_SIZE,
-    state_size=STATE_SIZE,
-    frames_per_episode=T * BATCH_SIZE,
-    embeddings=embeddings,
-    columns=columns,
-    tables=tables,
-    double_requests=double_requests,
-    send_request_callback= lambda payload:
-        requests.get(OPEN_URL + payload, headers=headers))
-                                        
+environments = [
+    Environment(
+        payload_builder=payload_builder,
+        action_size=ACTION_SIZE,
+        state_size=STATE_SIZE,
+        frames_per_episode=T * 3,
+        embeddings=embeddings,
+        columns=columns,
+        tables=tables,
+        double_requests=double_requests,
+        send_request_callback= lambda payload:
+            requests.get(OPEN_URL + payload, headers=headers))
+            for _ in range(BATCH_SIZE + 1)
+]
+
+demonstration_environment = environments[0]
+environments = environments[1:]
+
 state: np.ndarray
 
 def print_decoded_injections(encoded_payloads):
@@ -210,7 +216,7 @@ def print_decoded_injections(encoded_payloads):
         print(''.join(decoded))
 
 def main():
-    dictionary_length = len(environment.dictionary)
+    dictionary_length = len(dictionary)
 
     with open(f'{os.path.dirname(__file__)}/../injections_demonstration.txt', 'r') as f:
         payloads = f.read().splitlines()
@@ -229,7 +235,7 @@ def main():
     demonstration_actions = tf.convert_to_tensor(encoded_demonstration)
 
     actor_critic = PPOActorCritic(
-        dictionary_length=len(environment.dictionary),
+        dictionary_length=len(dictionary),
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         embedding_size=EMBEDDING_DIM,
@@ -239,7 +245,8 @@ def main():
     
     ppo = PPO(
         actor_critic,
-        environment,
+        environments=environments,
+        demonstration_environment=demonstration_environment,
         demonstration_actions=demonstration_actions
     )
 

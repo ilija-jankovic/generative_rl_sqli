@@ -1,5 +1,5 @@
 import os
-import time
+from typing import List
 
 from .ppo_replay_buffers import PPOReplayBuffers
 
@@ -42,19 +42,23 @@ class PPO:
 
     actor_critic: PPOActorCritic
     buffers: PPOReplayBuffers
-    env: Environment
+    environments: List[Environment]
 
     def __init__(
         self,
         actor_critic: PPOActorCritic,
-        env: Environment,
+        environments: List[Environment],
+        demonstration_environment: Environment,
         demonstration_actions: tf.Tensor
     ):
         assert(actor_critic.batch_size % MINIBATCH_SIZE == 0)
         assert(T <= len(demonstration_actions))
+        assert(len(environments) == actor_critic.batch_size)
+        assert(len(environments) == len(set(environments)))
+        assert(demonstration_environment not in environments)
 
         self.actor_critic = actor_critic
-        self.env = env
+        self.environments = environments
 
         states = []
         actions = []
@@ -63,10 +67,7 @@ class PPO:
         for i in range(T):
             action = demonstration_actions[i]
 
-            state, reward, _ = env.perform_action(
-                action,
-                ignore_episode=True
-            )
+            state, reward, _ = demonstration_environment.perform_action(action)
 
             states.append(state)
             actions.append(action)
@@ -77,8 +78,8 @@ class PPO:
         rewards = np.array(rewards)
 
         self.buffers = PPOReplayBuffers(
-            state_size=env.state_size,
-            action_size=env.action_size,
+            state_size=demonstration_environment.state_size,
+            action_size=demonstration_environment.action_size,
             successful_buffer_size=SUCCESSFUL_BUFFER_SIZE,
             unsuccessful_buffer_size=UNSUCCESSFUL_BUFFER_SIZE,
             demonstrated_successful_states=states,
@@ -87,7 +88,10 @@ class PPO:
         )
 
     def __create_empty_states(self):
-        return tf.repeat([self.env.create_empty_state()], [self.actor_critic.batch_size], axis=0)
+        return tf.convert_to_tensor([
+            self.environments[batch_index].create_empty_state()
+                for batch_index in range(self.actor_critic.batch_size)
+        ])
 
     def calculate_advantages_batch(
         self,
@@ -302,144 +306,135 @@ class PPO:
             self.phi = 0.0
 
     def run(self):
-        for episode in range(1, 501):
-            states = [self.__create_empty_states()]
+        states = [self.__create_empty_states()]
+
+        # TODO: Record total epsiodic rewards for individual environments.
+        '''
+        episodes = [
+            1 for _ in range(self.actor_critic.batch_size)
+        ]    
+        episodic_rewards = [
             
-            episodic_reward = 0.0
+        ]
+        '''
 
-            #epsiode_started = time.time()
+        while True:
+            rewards = []
+            done_flags = []
 
-            while True:
-                rewards = []
-                done_flags = []
+            actions_old = []
+            action_probabilities_old = []
 
-                actions_old = []
-                action_probabilities_old = []
+            # Demonstrations should give a probability of 1 as they should come from a
+            # separate policy which is definitionally constructed as such:
+            #
+            # Single demonstration PPO paper (pg. 3):
+            # 
+            # Policy = one of the below:
+            #
+            # πDR , if sampled from DR
+            # πDV , if sampled from DV
+            # πθ , if sampled from Env
+            rand = np.random.rand()
+            policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
+                if rand < self.rho \
+                else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
+                if rand < self.rho + self.phi and not self.buffers.is_unsuccessful_buffer_empty() \
+                else PolicyType.OLD
 
-                # Demonstrations should give a probability of 1 as they should come from a
-                # separate policy which is definitionally constructed as such:
-                #
-                # Single demonstration PPO paper (pg. 3):
-                # 
-                # Policy = one of the below:
-                #
-                # πDR , if sampled from DR
-                # πDV , if sampled from DV
-                # πθ , if sampled from Env
-                rand = np.random.rand()
-                policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-                    if rand < self.rho \
-                    else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
-                    if rand < self.rho + self.phi and not self.buffers.is_unsuccessful_buffer_empty() \
-                    else PolicyType.OLD
+            trajectories = self.buffers.sample_successful_trajectories(
+                    batch_size=self.actor_critic.batch_size
+                ) \
+                if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
+                else self.buffers.sample_unsuccessful_trajectories(
+                    batch_size=self.actor_critic.batch_size
+                ) \
+                if policy_type == PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
+                else None
 
-                trajectories = self.buffers.sample_successful_trajectories(
-                        batch_size=self.actor_critic.batch_size
-                    ) \
-                    if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-                    else self.buffers.sample_unsuccessful_trajectories(
-                        batch_size=self.actor_critic.batch_size
-                    ) \
-                    if policy_type == PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
-                    else None
-
-                for i in range(T):
-                    if trajectories == None:
-                        action_batch, probabilities_batch = self.actor_critic.policy(
-                                states[i],
-                                PolicyType.OLD.value,
-                                batch_size=self.actor_critic.batch_size,
-                                training=False,
-                            )
-                    else:
-                        action_batch, probabilities_batch = trajectories[1][:,i], tf.ones(
-                            [self.actor_critic.batch_size, 1],
-                            dtype=tf.float64,
+            for i in range(T):
+                if trajectories == None:
+                    action_batch, probabilities_batch = self.actor_critic.policy(
+                            states[i],
+                            PolicyType.OLD.value,
+                            batch_size=self.actor_critic.batch_size,
+                            training=False,
                         )
-                        
-                    actions_old.append(action_batch)
-                    action_probabilities_old.append(probabilities_batch)
-
-                    if trajectories == None:
-                        env_tuples = [
-                            self.env.perform_action(action_batch[batch_index])
-                                for batch_index in range(self.actor_critic.batch_size)
-                        ]
-
-                        states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
-                        rewards.append([env_tuple[1] for env_tuple in env_tuples])
-                        done_flags.append([env_tuple[2] for env_tuple in env_tuples])
-                    else:
-                        states.append(trajectories[0][:, i])
-                        rewards.append(trajectories[2][:, i])
-
-                states = tf.convert_to_tensor(states)
-                actions_old = tf.convert_to_tensor(actions_old)
-                rewards = tf.convert_to_tensor(rewards)
-
-                if policy_type == PolicyType.OLD:
-                    for i in range(self.actor_critic.batch_size):
-                        trajectory_reward = np.sum(rewards[:, i])
-
-                        if trajectory_reward > 0.0:
-                            self.buffers.record_successful_transitions(
-                                states[:-1, i],
-                                actions_old[:, i],
-                                rewards[:, i],
-                            )
-
-                            if self.phi > 0.0:
-                                self.__anneal_probabilities()
-                        else:
-                            self.buffers.record_unsuccessful_transitions(
-                                states[:-1, i],
-                                actions_old[:, i],
-                                rewards[:, i],
-                                value_model=self.actor_critic.critic_model,
-                            )
-
-                action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
-
-                # Nested list entry check solution by Pavel Anossov from:
-                # https://stackoverflow.com/a/15057380
-                done = any(True in lst for lst in done_flags)
-
-                if policy_type == PolicyType.OLD:
-                    rollout_reward = np.sum(rewards)
-                    episodic_reward += rollout_reward
-
-                    print(f'Episode {episode}, Total episodic reward: {episodic_reward}, Policy Type: {policy_type.name}')
                 else:
-                    # TODO: Display mean rollout reward as buffer replay does not interact with episodes,
-                    # making same trajectories lead to same reward.
-                    print(f'Episode {episode}, Mean trajectory playback reward: {np.mean(rewards)}, Policy Type: {policy_type.name}')
- 
-                for epoch in range(1, EPOCHS + 1):
-                    #print(f'Epoch {epoch}/{EPOCHS}...')
-
-                    seed = np.random.randint(0, 9999999)
-
-                    actions_old_shuffled = self.__tf_shuffle_axis(actions_old, axis=1, seed=seed)
-                    action_probabilities_old_shuffed = self.__tf_shuffle_axis(action_probabilities_old, axis=1, seed=seed)
-                    states_shuffled = self.__tf_shuffle_axis(states[:-1], axis=1, seed=seed)
-                    rewards_shuffled = self.__tf_shuffle_axis(rewards, axis=1, seed=seed)
-
-                    self.learn(
-                        actions_old=actions_old_shuffled,
-                        y_old=action_probabilities_old_shuffed,
-                        states=states_shuffled,
-                        rewards=rewards_shuffled,
+                    action_batch, probabilities_batch = trajectories[1][:,i], tf.ones(
+                        [self.actor_critic.batch_size, 1],
+                        dtype=tf.float64,
                     )
+                    
+                actions_old.append(action_batch)
+                action_probabilities_old.append(probabilities_batch)
 
-                self.actor_critic.update_old_actor_weights()
+                if trajectories == None:
+                    env_tuples = [
+                        self.environments[batch_index].perform_action(action_batch[batch_index])
+                            for batch_index in range(self.actor_critic.batch_size)
+                    ]
 
-                self.timestep += T
+                    states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
+                    rewards.append([env_tuple[1] for env_tuple in env_tuples])
+                    done_flags.append([env_tuple[2] for env_tuple in env_tuples])
+                else:
+                    states.append(trajectories[0][:, i])
+                    rewards.append(trajectories[2][:, i])
 
-                if done:
-                    break
+            states = tf.convert_to_tensor(states)
+            actions_old = tf.convert_to_tensor(actions_old)
+            rewards = tf.convert_to_tensor(rewards)
 
-                states = [tf.convert_to_tensor(states[len(states) - 1])]
+            if policy_type == PolicyType.OLD:
+                for i in range(self.actor_critic.batch_size):
+                    trajectory_reward = np.sum(rewards[:, i])
 
-            #episode_ended = time.time()
-            
-            #print(f'Episode length (seconds): {episode_ended - epsiode_started}\n')
+                    if trajectory_reward > 0.0:
+                        self.buffers.record_successful_transitions(
+                            states[:-1, i],
+                            actions_old[:, i],
+                            rewards[:, i],
+                        )
+
+                        if self.phi > 0.0:
+                            self.__anneal_probabilities()
+                    else:
+                        # TODO: Ensure nothing added to unsuccessful transitions buffer when phi = 0
+                        # as unsuccessful buffer unused at this point.
+                        self.buffers.record_unsuccessful_transitions(
+                            states[:-1, i],
+                            actions_old[:, i],
+                            rewards[:, i],
+                            value_model=self.actor_critic.critic_model,
+                        )
+
+            action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
+
+            mean_batch_rollout_reward = np.mean(rewards)
+
+            for _ in range(1, EPOCHS + 1):
+                seed = np.random.randint(0, 9999999)
+
+                actions_old_shuffled = self.__tf_shuffle_axis(actions_old, axis=1, seed=seed)
+                action_probabilities_old_shuffed = self.__tf_shuffle_axis(action_probabilities_old, axis=1, seed=seed)
+                states_shuffled = self.__tf_shuffle_axis(states[:-1], axis=1, seed=seed)
+                rewards_shuffled = self.__tf_shuffle_axis(rewards, axis=1, seed=seed)
+
+                self.learn(
+                    actions_old=actions_old_shuffled,
+                    y_old=action_probabilities_old_shuffed,
+                    states=states_shuffled,
+                    rewards=rewards_shuffled,
+                )
+
+            self.actor_critic.update_old_actor_weights()
+
+            self.timestep += T
+
+            if policy_type == PolicyType.OLD:
+                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
+            else:
+                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
+
+            states = [tf.convert_to_tensor(states[len(states) - 1])]

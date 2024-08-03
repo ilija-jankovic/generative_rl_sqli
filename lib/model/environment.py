@@ -257,7 +257,7 @@ class Environment():
         return tf.convert_to_tensor(state, dtype=tf.float32)
 
 
-    def perform_action(self, action: np.ndarray, ignore_episode: bool = False):
+    def perform_action(self, action: tf.Tensor):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -280,28 +280,18 @@ class Environment():
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
 
-            if not ignore_episode:
-                self.__episode.extend_episode()
+            self.__episode.extend_episode()
 
-            #prefix = 'DEMONSTRATING' if demonstrating else 'NOT DEMONSTRATING'
-            
             print(f'Successful payload (unscaled reward: {reward}):')
             print(payload)
         else:
             reward = 0.0
 
-        # TODO: Add extend episode condition based on parameter.
-        
-        if ignore_episode:
-            done = False
-        else:
-            self.__record_payload(payload)
-            done = self.__update_episode()
+        self.__record_payload(payload)
+        done = self.__update_episode()
 
         state = self.create_empty_state() \
             if done \
             else self.__create_state(response.text, new_tokens_count)
 
         return state, reward, done
-
-

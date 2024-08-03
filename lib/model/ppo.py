@@ -28,16 +28,20 @@ UNSUCCESSFUL_BUFFER_SIZE = 2 ** 19
 # in Table 1, pg. 7.
 PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
 
-STARTING_PHI = 0.1
+STARTING_RHO = 0.45
+STARTING_PHI = 0.05
 
 # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
 # N = 1 as there are no parallel actors.
 assert(MINIBATCH_SIZE <= T)
 
+# Assert some chance for actor interaction with environments.
+assert(STARTING_RHO + STARTING_PHI <= 0.8)
+
 class PPO:
     timestep = 0
 
-    rho = 0.3
+    rho = STARTING_RHO
     phi = STARTING_PHI
 
     actor_critic: PPOActorCritic

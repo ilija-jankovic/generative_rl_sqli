@@ -438,4 +438,4 @@ class PPO:
             else:
                 print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
 
-            states = [tf.convert_to_tensor(states[len(states) - 1])]
+            states = [states[len(states) - 1]]

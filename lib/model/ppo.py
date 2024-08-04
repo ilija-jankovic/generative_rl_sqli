@@ -442,4 +442,4 @@ class PPO:
             else:
                 print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
 
-            states = [states[len(states) - 1]]
+            states = states[-1:]

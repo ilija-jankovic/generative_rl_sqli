@@ -105,6 +105,7 @@ class PPOActorCritic:
 
         self.__init_models()
 
+    @tf.function
     def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
         chosen_indices = tf.cond(
             tf.equal(use_chosen_indices, True),
@@ -144,6 +145,7 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
 
+    # Pass state through MLP and/or have multiple inputs concatenated.
     def get_actor(self):
         assert(self.state_size % self.embedding_size == 0)
 
@@ -194,6 +196,7 @@ class PPOActorCritic:
 
         return tf.keras.Model([state_input], output)
 
+    @tf.function
     def get_embedded_lstm_input(self, batch_size, rl_states, embeddings, lstm_states):
         rl_states = tf.reshape(rl_states, [batch_size, -1, self.embedding_size])
         embeddings = tf.reshape(embeddings, [batch_size, -1, self.embedding_size])

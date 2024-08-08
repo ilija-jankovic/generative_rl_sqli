@@ -19,7 +19,6 @@ DROPOUT = 0.2
 GAUSSIAN_DENSE = 0.1
 
 ACTOR_LSTM_UNITS = 256
-CRITIC_LSTM_UNITS = 256
 
 # Strategy to utilise multiple GPUs.
 #
@@ -107,7 +106,6 @@ class PPOActorCritic:
 
         self.__init_models()
 
-    @tf.function
     def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
         chosen_indices = tf.cond(
             tf.equal(use_chosen_indices, True),
@@ -177,29 +175,9 @@ class PPOActorCritic:
 
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_embedding)
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, return_tensors=False, bidirectional=False)(lstm)
 
-        # Output of LSTM guide by Jason Brownlee from:
-        # https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
-        state_h = lstm[1]
-        state_c = lstm[2]
-
-        # Previous cell state input.
-        input_c = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,],)
-
-        dense_c = self.__create_hidden_dense_layer(128)(input_c)
-        dense_c = self.__create_dropout()(dense_c)
-        dense_c = self.__create_gaussian()(dense_c)
-
-        dense_c = self.__create_hidden_dense_layer(128)(dense_c)
-        dense_c = self.__create_dropout()(dense_c)
-        dense_c = self.__create_gaussian()(dense_c)
-
-        dense_c = self.__create_hidden_dense_layer(128)(dense_c)
-        dense_c = self.__create_dropout()(dense_c)
-        dense_c = self.__create_gaussian()(dense_c)
-
-        concat = tf.keras.layers.Concatenate()([dense_rl_state, state_h, dense_c,])
+        concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
         dense = self.__create_hidden_dense_layer(128)(concat)
         dense = self.__create_dropout()(dense)
@@ -212,8 +190,8 @@ class PPOActorCritic:
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
         return tf.keras.Model(
-            [input_rl_state, input_embedding, input_c,],
-            [dense, state_c,]
+            [input_rl_state, input_embedding,],
+            [dense,]
         )
 
     def get_critic(self):
@@ -241,23 +219,22 @@ class PPOActorCritic:
         embeddings,
         type: int,
         training: bool,
-        rl_states,
-        lstm_states,
+        states,
         actions_reference,
     ):
-        input = (rl_states, embeddings, lstm_states)
+        input = (states, embeddings,)
 
         normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
 
-        output = tf.cond(
+        one_hot_probabilities = tf.cond(
             tf.equal(type, normal_policy_id),
                 true_fn=lambda: self.actor_model(input, training=training),
                 false_fn=lambda: self.actor_model_old(input, training=training))
         
         chosen_indices, chosen_embeddings, chosen_probabilities = tf.cond(
             tf.equal(actions_reference.shape[0], tf.constant(0)),
-            true_fn=lambda: self.get_embeddings_from_probabilities(output[0], tf.fill([batch_size, 1], -1), False),
-            false_fn=lambda: self.get_embeddings_from_probabilities(output[0], actions_reference[:,action_index], True)
+            true_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, tf.fill([batch_size, 1], -1), False),
+            false_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, actions_reference[:,action_index], True)
         )
 
         # action_index_float is the length of the action after incrementing, which
@@ -279,7 +256,7 @@ class PPOActorCritic:
 
         action_index =  tf.add(action_index, 1)
         
-        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, rl_states, lstm_states, actions_reference
+        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, actions_reference
 
     # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
     # output is unknown. If this method is decorated with @tf.function, loose shape invariants
@@ -300,7 +277,6 @@ class PPOActorCritic:
         probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
         embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, ACTOR_LSTM_UNITS], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)
@@ -318,7 +294,6 @@ class PPOActorCritic:
                 type,
                 training,
                 states,
-                lstm_states,
                 actions_reference
             ),
             maximum_iterations=action_size,
@@ -332,7 +307,6 @@ class PPOActorCritic:
                 tf.TensorShape(None),
                 tf.TensorShape(None),
                 states.shape,
-                tf.TensorShape(None),
                 actions_reference.shape
             ))
 

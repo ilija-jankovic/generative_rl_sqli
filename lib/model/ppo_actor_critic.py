@@ -145,19 +145,17 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
 
-    # Pass state through MLP and/or have multiple inputs concatenated.
     def get_actor(self):
-        assert(self.state_size % self.embedding_size == 0)
+        input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        c_size = math.ceil(ACTOR_LSTM_UNITS / self.embedding_size)
+        dense_rl_state = tf.keras.layers.Dense(128)(input_rl_state)
+        dense_rl_state = tf.keras.layers.Dense(128)(dense_rl_state)
+        dense_rl_state = tf.keras.layers.Dense(128)(dense_rl_state)
 
-        # Input = RL state size + LSTM cell state size + single input for average embedding across action fragment.
-        input_size = self.state_size // self.embedding_size + c_size + 1
+        # Average embedding input.
+        input_embedding = tf.keras.layers.Input(shape=[1, self.embedding_size,],)
 
-        input_lstm = tf.keras.layers.Input(shape=(input_size, self.embedding_size))
-
-        # Add normalisation tf.keras.layers between perturbed tf.keras.layers (pg. 3).
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_embedding)
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
 
@@ -166,25 +164,28 @@ class PPOActorCritic:
         state_h = lstm[1]
         state_c = lstm[2]
 
-        dense = self.__create_hidden_dense_layer(128)(state_h)
+        # Previous cell state input.
+        input_c = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,],)
+
+        dense_c = tf.keras.layers.Dense(128)(input_c)
+        dense_c = tf.keras.layers.Dense(128)(dense_c)
+        dense_c = tf.keras.layers.Dense(128)(dense_c)
+
+        concat = tf.keras.layers.Concatenate()([dense_rl_state, state_h, dense_c,])
+
+        dense = self.__create_hidden_dense_layer(128)(concat)
         dense = self.__create_hidden_dense_layer(128)(dense)
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
         return tf.keras.Model(
-            [input_lstm],
-            [
-                dense,
-                state_c,
-            ])
+            [input_rl_state, input_embedding, input_c,],
+            [dense, state_c,]
+        )
 
     def get_critic(self):
-        state_input = tf.keras.layers.Input(shape=(self.state_size, 1))
+        input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(state_input)
-        lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS)(lstm_state)
-        lstm_state = self.__create_lstm_layer(CRITIC_LSTM_UNITS, return_tensors=False)(lstm_state)
-
-        dense = self.__create_hidden_dense_layer(128)(lstm_state)
+        dense = self.__create_hidden_dense_layer(128)(input_rl_state)
         dense = self.__create_hidden_dense_layer(128)(dense)
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
@@ -194,15 +195,7 @@ class PPOActorCritic:
         dense = self.__create_hidden_dense_layer(2)(dense)
         output = tf.keras.layers.Dense(1)(dense)
 
-        return tf.keras.Model([state_input], output)
-
-    @tf.function
-    def get_embedded_lstm_input(self, batch_size, rl_states, embeddings, lstm_states):
-        rl_states = tf.reshape(rl_states, [batch_size, -1, self.embedding_size])
-        embeddings = tf.reshape(embeddings, [batch_size, -1, self.embedding_size])
-        lstm_states = tf.reshape(lstm_states, [batch_size, -1, self.embedding_size])
-
-        return tf.concat([rl_states, embeddings, lstm_states], axis=1)
+        return tf.keras.Model([input_rl_state,], output)
 
     def concat_next_token_indicies(
         self, 
@@ -218,7 +211,7 @@ class PPOActorCritic:
         lstm_states,
         actions_reference,
     ):
-        input = self.get_embedded_lstm_input(batch_size, rl_states, embeddings, lstm_states)
+        input = (rl_states, embeddings, lstm_states)
 
         normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
 
@@ -233,12 +226,11 @@ class PPOActorCritic:
             false_fn=lambda: self.get_embeddings_from_probabilities(output[0], actions_reference[:,action_index], True)
         )
 
-        c_padding = ACTOR_LSTM_UNITS % self.embedding_size
-        lstm_states = tf.pad(output[1], [[0, 0], [0, c_padding]])
-
         # action_index_float is the length of the action after incrementing, which
         # is then used in the below embedding average calculation.
         action_index_float = tf.add(action_index_float, 1.0)
+
+        chosen_embeddings = tf.reshape(chosen_embeddings, [batch_size, 1, self.embedding_size])
 
         # Adding to an average solution by Damien and Dan Dascalescu from:
         # https://math.stackexchange.com/questions/22348/how-to-add-and-subtract-values-from-an-average
@@ -273,8 +265,8 @@ class PPOActorCritic:
         actions = tf.fill([batch_size, action_size], dictionary_length)
         probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
-        embeddings = tf.zeros([batch_size, self.embedding_size], dtype=tf.float32)
-        lstm_states = tf.zeros([batch_size, ACTOR_LSTM_UNITS + ACTOR_LSTM_UNITS % self.embedding_size], dtype=tf.float32)
+        embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float32)
+        lstm_states = tf.zeros([batch_size, ACTOR_LSTM_UNITS], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
         action_index_float = tf.constant(0.0, dtype=tf.float32)

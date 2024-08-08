@@ -242,7 +242,7 @@ class PPO:
         actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables)
         actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
         actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
-        
+
     def train_critic(self, states_minibatch, rewards_minibatch):
         critic_model = self.actor_critic.critic_model
         critic_optimizer = self.actor_critic.critic_optimizer

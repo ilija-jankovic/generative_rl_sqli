@@ -122,14 +122,20 @@ class PPOReplayBuffers:
 
         priorities = tf.squeeze(priorities)
 
-        # Casting to greater floating point precision reduces risk of probabilities
-        # adding to a number too far from NumPy's tolerance from one.
+        # Casting to greater floating point precision matches probabilities type, which can contain
+        # very low probabilities.
         priorities = tf.cast(priorities, dtype=tf.float64)
 
         altered_priorities = tf.pow(priorities, PRIORITY_EXPONENT)
         probabilites = tf.math.divide_no_nan(altered_priorities, tf.reduce_sum(altered_priorities))
 
-        self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count] = np.array(probabilites)
+        # Ensure probabilities add to NumPy's tolerance of deviance from one.
+        #
+        # Inspired by Divakar's solution from:
+        # https://stackoverflow.com/a/43644348
+        probabilites = tf.divide(probabilites, tf.reduce_sum(probabilites))
+
+        self.__unsuccessful_probabilities[:self.__unsuccessful_transitions_count] = np.array(probabilites, dtype=np.float64)
 
     def sample_successful_trajectories(self, batch_size):
         assert(batch_size > 0)

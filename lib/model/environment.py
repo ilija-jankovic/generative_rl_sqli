@@ -117,23 +117,11 @@ class Environment():
         return text.replace(payload, '')
     
     def __tokenize_text(self, text: str):
-        '''
-        Tokenizes based on the [Postgres manual](https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS):
+        unique_tokens = set()
+        for token in re.split('[^a-zA-Z]+', text):
+            unique_tokens.add(token)
 
-        "SQL identifiers and key words must begin with a letter (a-z, but also letters with
-        diacritical marks and non-Latin letters) or an underscore (_). Subsequent characters
-        in an identifier or key word can be letters, underscores, digits (0-9), or dollar 
-        signs ($)."
-
-        Dollar signs are not considered in tokenization as they "are not allowed in
-        identifiers according to the letter of the SQL standard".
-
-        Modification of Regex solution by user330315 and Darren Cook from:
-        https://stackoverflow.com/a/4978062
-        '''
-        tokens: List[str] = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', text)
-
-        return set(tokens)
+        return unique_tokens
     
     def __filter_non_matching_text(self, text1: str, text2: str):
         tokens1 = list(self.__tokenize_text(text1))

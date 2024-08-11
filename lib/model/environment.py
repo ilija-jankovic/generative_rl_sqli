@@ -117,8 +117,11 @@ class Environment():
         return text.replace(payload, '')
     
     def __tokenize_text(self, text: str):
+        '''
+        Tokenizes by splitting across all empty/whitespace characters in `text`.
+        '''
         unique_tokens = set()
-        for token in re.split('[^a-zA-Z]+', text):
+        for token in re.split('[^!-~]*', text):
             unique_tokens.add(token)
 
         return unique_tokens

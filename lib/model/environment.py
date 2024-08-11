@@ -16,9 +16,6 @@ class Environment():
     action_size: int
     state_size: int
 
-    columns: List[str]
-    tables: List[str]
-
     send_request_callback: Callable[[str], Response]
 
     embeddings: List[List[float]]
@@ -43,8 +40,6 @@ class Environment():
             action_size: int,
             state_size: int,
             frames_per_episode: int,
-            columns: List[str],
-            tables: List[str],
             double_requests: bool,
             send_request_callback: Callable[[str], Response]
         ):
@@ -70,9 +65,6 @@ class Environment():
 
         self.embeddings = embeddings
         self.embedding_size = len(embeddings[0])
-
-        self.columns = columns
-        self.tables = tables
 
         self.double_requests = double_requests
         

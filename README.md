@@ -38,6 +38,12 @@ tensorboard --logdir tensorboard_log
 
 Make sure to open the TensorBoard `localhost` URL through Google Chrome. [Known issue](https://github.com/tensorflow/tensorboard/issues/2874).
 
+Run reinforcement learning environment tests:
+
+```sh
+python -m unittest test\environment.py
+```
+
 **SQL List**
 
 This list contains a number of entries which the agent can use to build queries which which to view data with. 

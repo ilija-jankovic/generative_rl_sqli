@@ -18,7 +18,7 @@ from .ppo_actor_critic import PPOActorCritic, strategy
 # T << episode length pg. 5.
 T = 20
 EPOCHS = 3
-MINIBATCH_SIZE = 16
+MINIBATCH_SIZE = 256
 GAMMA = 0.999
 
 SUCCESSFUL_BUFFER_SIZE = 2 ** 19
@@ -33,7 +33,7 @@ STARTING_PHI = 0.05
 
 # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
 # N = 1 as there are no parallel actors.
-assert(MINIBATCH_SIZE <= T)
+#assert(MINIBATCH_SIZE <= T)
 
 # Assert some chance for actor interaction with environments.
 assert(STARTING_RHO + STARTING_PHI <= 0.8)

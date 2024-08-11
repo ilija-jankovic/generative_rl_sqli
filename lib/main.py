@@ -65,7 +65,7 @@ except:
 #
 #
 
-BATCH_SIZE = 32
+BATCH_SIZE = 512
 
 EMBEDDING_DIM = 128
 
@@ -78,7 +78,7 @@ assert(STATE_SIZE >= 8)
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=b2a1639627c3bfe0678a545adf7863f5; {flag}=024d7f84fff11dd7e8d9c510137a2381'
+COOKIE = 'pma_lang=en; PHPSESSID=699a57e6fb16c56f9aea7540c13ffa22; {flag}=45fbc6d3e05ebd93369ce542e8f2322d'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -188,8 +188,6 @@ environments = [
         state_size=STATE_SIZE,
         frames_per_episode=T * 3,
         embeddings=embeddings,
-        columns=columns,
-        tables=tables,
         double_requests=double_requests,
         send_request_callback= lambda payload:
             requests.get(OPEN_URL + payload, headers=headers))

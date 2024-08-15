@@ -6,6 +6,7 @@ async-timeout==4.0.3
 asynctest==0.13.0
 attrs==23.1.0
 Automat==22.10.0
+beautifulsoup4==4.12.3
 cachetools==4.2.4
 certifi==2024.2.2
 charset-normalizer==3.3.2
@@ -32,6 +33,7 @@ Jinja2==3.1.2
 keras==2.10.0
 Keras-Preprocessing==1.1.2
 libclang==18.1.1
+lxml==5.3.0
 Markdown==3.4.4
 MarkupSafe==2.1.5
 multidict==6.0.4
@@ -53,7 +55,9 @@ requests==2.31.0
 requests-oauthlib==2.0.0
 rsa==4.9
 six==1.16.0
+soupsieve==2.4.1
 sqltree==0.3.0
+tdqm==0.0.1
 tensorboard==2.10.0
 tensorboard-data-server==0.6.1
 tensorboard-plugin-profile==2.8.0

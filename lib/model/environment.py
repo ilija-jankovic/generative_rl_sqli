@@ -4,6 +4,7 @@ import re
 from requests import Response
 from typing import Callable
 import tensorflow as tf
+from bs4 import BeautifulSoup
 
 from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
@@ -143,6 +144,14 @@ class Environment():
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
+
+    def __strip_lxml(self, text: str):
+        '''
+        Strip HTML and XML tags and recover text.
+
+        Text instances are separated with a space.
+        '''
+        return BeautifulSoup(text, "lxml").get_text(separator=' ')
     
     def __tokenize_text(self, text: str):
         '''
@@ -174,6 +183,9 @@ class Environment():
                 self.__filter_payload_from_text(res1.text, data)
             resText2 = res2.text if is_expected else \
                 self.__filter_payload_from_text(res2.text, data)
+            
+            resText1 = self.__strip_lxml(resText1)
+            resText2 = self.__strip_lxml(resText2)
 
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText1 = resText1.upper()
@@ -188,9 +200,11 @@ class Environment():
             resText = res2.text if is_expected else \
                 self.__filter_payload_from_text(res2.text, data)
             
+            resText = self.__strip_lxml(resText)
+            
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText = resText.upper()
-
+            
             resTokens = self.__tokenize_text(resText)
 
         new_tokens: List[str] = []

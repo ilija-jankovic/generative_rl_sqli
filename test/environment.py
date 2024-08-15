@@ -85,5 +85,15 @@ class TestEnvironment(unittest.TestCase):
             'consecutively returned.'
         )
 
+    def test_one_new_token_buffer(self):
+        self.__set_response_body('privateToken')
+        state = self.__perform_dummy_action()
+
+        self.assertEqual(
+            state[2], 1,
+            'New private token \'privateToken\' is tokenized to index 1 in ' +
+            'the dictionary.'
+        )
+
 if __name__ == '__main__':
     unittest.main()

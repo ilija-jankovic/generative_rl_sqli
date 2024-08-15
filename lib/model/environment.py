@@ -74,14 +74,11 @@ class Environment():
         self.__inject_initial_payloads()
 
     def __inject_initial_payloads(self):
-        # Do not filter payload as full caching of public response data is desired.
-        # Expected input is technically not a payload, but the functionality of this
-        # injection method is required.
-        self.__inject_payload('1', filter_payload=False)
-        self.__inject_payload('2', filter_payload=False)
-        self.__inject_payload('3', filter_payload=False)
-        self.__inject_payload('4', filter_payload=False)
-        self.__inject_payload('5', filter_payload=False)
+        self.__send_request('1', is_expected=True)
+        self.__send_request('2', is_expected=True)
+        self.__send_request('3', is_expected=True)
+        self.__send_request('4', is_expected=True)
+        self.__send_request('5', is_expected=True)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
@@ -135,18 +132,20 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __inject_payload(self, payload: str, filter_payload: bool = True):
+    def __send_request(self, data: str, is_expected: bool = False):
         '''
         Returns new tokens found after filtering responses.
         '''
         if self.double_requests:
-            res1 = self.send_request_callback(payload)
-            res2 = self.send_request_callback(payload)
+            res1 = self.send_request_callback(data)
+            res2 = self.send_request_callback(data)
 
-            resText1 = self.__filter_payload_from_text(res1.text, payload) \
-                if filter_payload else res1.text
-            resText2 = self.__filter_payload_from_text(res2.text, payload) \
-                if filter_payload else res2.text
+            # Do not filter data from response if expected as full caching of public response
+            # data is desired.
+            resText1 = res1.text if is_expected else \
+                self.__filter_payload_from_text(res1.text, data)
+            resText2 = res2.text if is_expected else \
+                self.__filter_payload_from_text(res2.text, data)
 
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText1 = resText1.upper()
@@ -154,10 +153,12 @@ class Environment():
 
             unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
         else:
-            res2 = self.send_request_callback(payload)
+            res2 = self.send_request_callback(data)
 
-            resText = self.__filter_payload_from_text(res2.text, payload) \
-                if filter_payload else res2.text
+            # Do not filter data from response if expected as full caching of public response
+            # data is desired.
+            resText = res2.text if is_expected else \
+                self.__filter_payload_from_text(res2.text, data)
             
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText = resText.upper()
@@ -166,8 +167,9 @@ class Environment():
 
         new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
         self.__found_tokens += new_tokens
-        
-        self.__new_tokens = new_tokens + self.__new_tokens
+
+        if(not is_expected):
+            self.__new_tokens = new_tokens + self.__new_tokens
 
         return res2, new_tokens
     
@@ -268,7 +270,7 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        response, new_tokens = self.__inject_payload(payload)
+        response, new_tokens = self.__send_request(payload)
 
         new_tokens_count = len(new_tokens)
         

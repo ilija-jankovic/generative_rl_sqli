@@ -37,7 +37,7 @@ class TestEnvironment(unittest.TestCase):
             ),
             embeddings=[[0.0], [0.1], [0.2]],
             action_size=ACTION_SIZE,
-            state_size=8,
+            state_size=10,
             frames_per_episode=5,
             double_requests=False,
             send_request_callback=lambda _: self.__response
@@ -94,6 +94,29 @@ class TestEnvironment(unittest.TestCase):
             'New private token \'privateToken\' is tokenized to index 1 in ' +
             'the dictionary.'
         )
+
+    def test_three_new_tokens_buffer(self):
+        self.__set_response_body('privateToken a b')
+        state = self.__perform_dummy_action()
+
+        self.assertEqual(
+            state[2], 1,
+            'Third newest private token \'privateToken\' is tokenized to index 1 in ' +
+            'the dictionary.'
+        )
+
+        self.assertEqual(
+            state[3], ord('A') + dictionary_size,
+            'Second newest private token \'a\' is tokenized to index ASCII code of \'A\' ' +
+            'plus dictionary size.'
+        )
+
+        self.assertEqual(
+            state[4], ord('B') + dictionary_size,
+            'Newest private token \'b\' is tokenized to index ASCII code of \'B\' ' +
+            'plus dictionary size.'
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -118,7 +118,7 @@ class Environment():
     
     def __tokenize_text(self, text: str):
         '''
-        Tokenizes by splitting across all empty/whitespace characters in `text`.
+        Tokenizes by matching all visible ASCII characters.
         '''
         unique_tokens = set()
         for token in re.findall(r'[!-~]+', text):

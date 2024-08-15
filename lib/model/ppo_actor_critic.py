@@ -264,11 +264,12 @@ class PPOActorCritic:
     # values.
     #
     # The @tf.function is taken off this method as a workaround.
-    def policy(self, states, type: int, batch_size, training: bool, actions_reference=tf.constant([])):
+    def policy(self, states, type: int, batch_size, training: bool, actions_reference: tf.Tensor):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.
-
-        This enum cannot be passed directly due to `@tf.function` limitations.
+        
+        Setting `action_reference` to `tf.constant([])` marks as no action reference.
+        This ensures tokens are stochastically chosen instead of following the reference.
         '''
         action_size = tf.constant(self.action_size, dtype=tf.int32)
         dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)

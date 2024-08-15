@@ -359,11 +359,12 @@ class PPO:
             for i in range(T):
                 if trajectories == None:
                     action_batch, probabilities_batch = self.actor_critic.policy(
-                            states[i],
-                            PolicyType.OLD.value,
-                            batch_size=self.actor_critic.batch_size,
-                            training=False,
-                        )
+                        states[i],
+                        PolicyType.OLD.value,
+                        batch_size=self.actor_critic.batch_size,
+                        training=False,
+                        actions_reference=tf.constant([]),
+                    )
                 else:
                     action_batch, probabilities_batch = trajectories[1][:,i], tf.ones(
                         [self.actor_critic.batch_size, 1],

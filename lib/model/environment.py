@@ -121,7 +121,7 @@ class Environment():
         Tokenizes by splitting across all empty/whitespace characters in `text`.
         '''
         unique_tokens = set()
-        for token in re.split('[^!-~]*', text):
+        for token in re.findall(r'[!-~]+', text):
             unique_tokens.add(token)
 
         return unique_tokens

@@ -9,8 +9,13 @@ from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
 class Environment():
-    dictionary: List[str]
-    dictionary_uppercase: List[str]
+    dictionary_upper: List[str]
+
+    '''
+    Specially sorted version of `dictionary_upper` which handles subset cases of tokens.
+    '''
+    dictionary_upper_tokenizer: List[str]
+
     payload_builder: PayloadBuilder
 
     action_size: int
@@ -32,6 +37,23 @@ class Environment():
     __new_tokens: List[str]
 
     __episode: EpisodeState
+
+    def __init_tokenizer_dictionary(self, dictionary_upper: List[str]):
+        '''
+        Since tokens may be a subset of each other, longer ones must be prioritied
+        during this tokenization.
+
+        `dictionary_upper_tokenizer` is expected to have two layers of sorting: first by
+        negative length, then by alphabetical order (for the case of multiple tokens
+        of the same length existing).
+        '''
+
+        # Second condition prioritises alphabetically, as stated by Johannes from:
+        # https://stackoverflow.com/a/44835987
+        self.dictionary_upper_tokenizer = sorted(
+            self.dictionary_upper,
+            key=lambda token: (-len(token), token)
+        )
 
     def __init__(
             self,
@@ -56,8 +78,14 @@ class Environment():
             if len(embedding) != len(embeddings[0]):
                 raise Exception('All embeddings must be of the same length')
             
-        self.dictionary = dictionary
-        self.dictionary_uppercase = [token.upper() for token in dictionary]
+        self.dictionary_upper = [token.upper() for token in dictionary]
+        self.__init_tokenizer_dictionary(self.dictionary_upper)
+
+        assert(
+            len(set(self.dictionary_upper)) ==
+            len(set(self.dictionary_upper_tokenizer))
+        )
+
         self.payload_builder = payload_builder
 
         self.action_size = action_size
@@ -202,7 +230,7 @@ class Environment():
         return episode_ended
 
     def __string_to_indices(self, data: str, max_size: int):
-        dictionary_length = len(self.dictionary_uppercase)
+        dictionary_length = len(self.dictionary_upper)
         data = data.upper()
 
         indexed_data: List[int] = []
@@ -213,9 +241,10 @@ class Environment():
         while len(data) > 0 and len(indexed_data) < max_size:
             appended = False
 
-            for i, token in enumerate(self.dictionary_uppercase):
+            for token in self.dictionary_upper_tokenizer:
                 if data.startswith(token):
-                    indexed_data.append(i)
+                    index = self.dictionary_upper.index(token)
+                    indexed_data.append(index)
 
                     # Remove token from prefix.
                     data = data[len(token):]

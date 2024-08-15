@@ -74,15 +74,14 @@ class Environment():
         self.__inject_initial_payloads()
 
     def __inject_initial_payloads(self):
-        self.__inject_payload('1', record_tokens=True)
-        self.__inject_payload('2', record_tokens=True)
-        self.__inject_payload('3', record_tokens=True)
-        self.__inject_payload('4', record_tokens=True)
-        self.__inject_payload('5', record_tokens=True)
-
-        if len(self.payload_builder.prefix) > 0 or len(self.payload_builder.suffix) > 0:
-            # Simulate empty action.
-            self.__inject_payload(self.payload_builder.prefix + self.payload_builder.suffix, record_tokens=True)
+        # Do not filter payload as full caching of public response data is desired.
+        # Expected input is technically not a payload, but the functionality of this
+        # injection method is required.
+        self.__inject_payload('1', filter_payload=False)
+        self.__inject_payload('2', filter_payload=False)
+        self.__inject_payload('3', filter_payload=False)
+        self.__inject_payload('4', filter_payload=False)
+        self.__inject_payload('5', filter_payload=False)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
@@ -136,7 +135,7 @@ class Environment():
             if token in tokens1 and token in tokens2:
                 yield token
 
-    def __inject_payload(self, payload: str, record_tokens: bool):
+    def __inject_payload(self, payload: str, filter_payload: bool = True):
         '''
         Returns new tokens found after filtering responses.
         '''
@@ -155,7 +154,8 @@ class Environment():
         else:
             res2 = self.send_request_callback(payload)
 
-            resText = self.__filter_payload_from_text(res2.text, payload)
+            resText = self.__filter_payload_from_text(res2.text, payload) \
+                if filter_payload else res2.text
             
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText = resText.upper()
@@ -163,9 +163,7 @@ class Environment():
             unique_tokens = self.__tokenize_text(resText)
 
         new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
-
-        if record_tokens:
-            self.__found_tokens += new_tokens
+        self.__found_tokens += new_tokens
         
         self.__new_tokens = new_tokens + self.__new_tokens
 
@@ -268,7 +266,7 @@ class Environment():
 
         payload = self.get_payload(action)
 
-        response, new_tokens = self.__inject_payload(payload, record_tokens=True)
+        response, new_tokens = self.__inject_payload(payload)
 
         new_tokens_count = len(new_tokens)
         

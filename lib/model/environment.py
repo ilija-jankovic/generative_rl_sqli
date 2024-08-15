@@ -233,14 +233,10 @@ class Environment():
     def __create_state(self, data: str):
         total_new_tokens_count = len(self.__new_tokens)
 
-        new_token_indices: List[int] = []
+        new_tokens = ''.join(self.__new_tokens)
 
-        for token in self.__new_tokens:
-            max_new_tokens_size = self.state_size // 2 - 2 - len(new_token_indices)
-            if max_new_tokens_size <= 0:
-                break
-
-            new_token_indices.extend(self.__string_to_indices(token, max_size=max_new_tokens_size))
+        max_new_tokens_size = self.state_size // 2 - 2
+        new_token_indices = self.__string_to_indices(new_tokens, max_size=max_new_tokens_size)
         
         state = [total_new_tokens_count, -1, *new_token_indices, -1]
         max_data_tokens_size = self.state_size - len(state)

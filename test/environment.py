@@ -51,25 +51,32 @@ class TestEnvironment(unittest.TestCase):
         return state
 
     def test_one_new_token_count(self):
+        '''
+        State counts one new token after private token returned.
+        '''
+
         self.__set_response_body('privateToken')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[0], 1,
-            'State counts one new token after private token returned.'
-        )
+        self.assertEqual(state[0], 1)
 
     def test_three_new_tokens_count(self):
+        '''
+        State counts three new tokens after three unique private tokens
+        returned.
+        '''
+        
         self.__set_response_body('privateToken privateToken2 privateToken3')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[0], 3,
-            'State counts three new tokens after three unique private tokens ' +
-            'returned.'
-        )
+        self.assertEqual(state[0], 3)
 
     def test_three_consecutive_tokens_count(self):
+        '''
+        State counts three new tokens after three unique private tokens
+        consecutively returned.
+        '''
+
         self.__set_response_body('privateToken')
         state = self.__perform_dummy_action()
 
@@ -79,45 +86,39 @@ class TestEnvironment(unittest.TestCase):
         self.__set_response_body('privateToken3')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[0], 3,
-            'State counts three new tokens after three unique private tokens ' +
-            'consecutively returned.'
-        )
+        self.assertEqual(state[0], 3)
 
     def test_one_new_token_buffer(self):
+        '''
+        New private token 'privateToken' is tokenized to index 1 in the
+        dictionary.
+        '''
+
         self.__set_response_body('privateToken')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[2], 1,
-            'New private token \'privateToken\' is tokenized to index 1 in ' +
-            'the dictionary.'
-        )
+        self.assertEqual(state[2], 1)
 
     def test_three_new_tokens_buffer(self):
+        '''
+        Three new private tokens are stored in reverse order with ASCII
+        offsets for indices of non-dictionary tokens.
+        '''
+
         self.__set_response_body('privateToken a b')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[2], ord('B') + dictionary_size,
-            'Newest private token \'b\' is tokenized to index ASCII code of \'B\' ' +
-            'plus dictionary size.'
-        )
-
-        self.assertEqual(
-            state[3], ord('A') + dictionary_size,
-            'Second newest private token \'a\' is tokenized to index ASCII code of \'A\' ' +
-            'plus dictionary size.'
-        )
-
-        self.assertEqual(
-            state[4], 1,
-            'Third newest private token \'privateToken\' is tokenized to index 1 in ' +
-            'the dictionary.'
-        )
+        self.assertEqual(state[2], ord('B') + dictionary_size)
+        self.assertEqual(state[3], ord('A') + dictionary_size)
+        self.assertEqual(state[4], 1)
 
     def test_three_consecutive_new_tokens_buffer(self):
+        '''
+        Three new private tokens from consecutive requests are stored in
+        reverse order with ASCII offsets for indices of non-dictionary
+        tokens.
+        '''
+
         self.__set_response_body('privateToken')
         state = self.__perform_dummy_action()
 
@@ -127,23 +128,9 @@ class TestEnvironment(unittest.TestCase):
         self.__set_response_body('b')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(
-            state[2], ord('B') + dictionary_size,
-            'Newest private token \'b\' is tokenized to index ASCII code of \'B\' ' +
-            'plus dictionary size.'
-        )
-
-        self.assertEqual(
-            state[3], ord('A') + dictionary_size,
-            'Second newest private token \'a\' is tokenized to index ASCII code of \'A\' ' +
-            'plus dictionary size.'
-        )
-
-        self.assertEqual(
-            state[4], 1,
-            'Third newest private token \'privateToken\' is tokenized to index 1 in ' +
-            'the dictionary.'
-        )
+        self.assertEqual(state[2], ord('B') + dictionary_size)
+        self.assertEqual(state[3], ord('A') + dictionary_size)
+        self.assertEqual(state[4], 1)
 
 
 if __name__ == '__main__':

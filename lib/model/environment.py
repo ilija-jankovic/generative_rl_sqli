@@ -226,7 +226,9 @@ class Environment():
 
         return indexed_data
     
-    def __create_state(self, data: str, new_tokens_count: int):
+    def __create_state(self, data: str):
+        total_new_tokens_count = len(self.__new_tokens)
+
         new_token_indices: List[int] = []
 
         for token in self.__new_tokens:
@@ -236,7 +238,7 @@ class Environment():
 
             new_token_indices.extend(self.__string_to_indices(token, max_size=max_new_tokens_size))
         
-        state = [new_tokens_count, -1, *new_token_indices, -1]
+        state = [total_new_tokens_count, -1, *new_token_indices, -1]
         max_data_tokens_size = self.state_size - len(state)
         
         data_indices = self.__string_to_indices(data, max_size=max_data_tokens_size)
@@ -289,6 +291,6 @@ class Environment():
 
         state = self.create_empty_state() \
             if done \
-            else self.__create_state(response.text, new_tokens_count)
+            else self.__create_state(response.text)
 
         return state, reward, done

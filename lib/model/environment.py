@@ -25,11 +25,11 @@ class Environment():
 
     double_requests: bool
 
-    __attempted_payloads: List[str] = []
-    __found_tokens: List[str] = []
+    __attempted_payloads: List[str]
+    __found_tokens: List[str]
 
     # Most recent tokens at front.
-    __new_tokens: List[str] = []
+    __new_tokens: List[str]
 
     __episode: EpisodeState
 
@@ -67,6 +67,10 @@ class Environment():
         self.embedding_size = len(embeddings[0])
 
         self.double_requests = double_requests
+
+        self.__attempted_payloads = []
+        self.__found_tokens = []
+        self.__new_tokens = []
         
         self.send_request_callback = send_request_callback
         self.__episode = EpisodeState(frames_per_episode)

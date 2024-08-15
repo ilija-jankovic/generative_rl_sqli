@@ -101,7 +101,7 @@ class TestEnvironment(unittest.TestCase):
 
         self.assertEqual(
             state[2], 1,
-            'Third newest private token \'privateToken\' is tokenized to index 1 in ' +
+            'Newest private token \'privateToken\' is tokenized to index 1 in ' +
             'the dictionary.'
         )
 
@@ -113,6 +113,10 @@ class TestEnvironment(unittest.TestCase):
 
         self.assertEqual(
             state[4], ord('B') + dictionary_size,
+            'Third newest private token \'b\' is tokenized to index ASCII code of \'B\' ' +
+            'plus dictionary size.'
+        )
+
             'Newest private token \'b\' is tokenized to index ASCII code of \'B\' ' +
             'plus dictionary size.'
         )

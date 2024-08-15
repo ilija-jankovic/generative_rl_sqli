@@ -143,8 +143,10 @@ class Environment():
             res1 = self.send_request_callback(payload)
             res2 = self.send_request_callback(payload)
 
-            resText1 = self.__filter_payload_from_text(res1.text, payload)
-            resText2 = self.__filter_payload_from_text(res2.text, payload)
+            resText1 = self.__filter_payload_from_text(res1.text, payload) \
+                if filter_payload else res1.text
+            resText2 = self.__filter_payload_from_text(res2.text, payload) \
+                if filter_payload else res2.text
 
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText1 = resText1.upper()

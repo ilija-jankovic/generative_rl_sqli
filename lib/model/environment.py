@@ -120,15 +120,11 @@ class Environment():
         '''
         Tokenizes by matching all visible ASCII characters.
         '''
-        unique_tokens = set()
-        for token in re.findall(r'[!-~]+', text):
-            unique_tokens.add(token)
-
-        return unique_tokens
+        return re.findall(r'[!-~]+', text)
     
     def __filter_non_matching_text(self, text1: str, text2: str):
-        tokens1 = list(self.__tokenize_text(text1))
-        tokens2 = list(self.__tokenize_text(text2))
+        tokens1 = self.__tokenize_text(text1)
+        tokens2 = self.__tokenize_text(text2)
 
         combined = tokens1 + tokens2
 
@@ -155,7 +151,7 @@ class Environment():
             resText1 = resText1.upper()
             resText2 = resText2.upper()
 
-            unique_tokens = list(self.__filter_non_matching_text(resText1, resText2))
+            resTokens = self.__filter_non_matching_text(resText1, resText2)
         else:
             res2 = self.send_request_callback(data)
 
@@ -167,13 +163,20 @@ class Environment():
             # Only uppercase considered as the dictionary and SQL is case insensitive.
             resText = resText.upper()
 
-            unique_tokens = self.__tokenize_text(resText)
+            resTokens = self.__tokenize_text(resText)
 
-        new_tokens = list(set(unique_tokens) - set(self.__found_tokens))
-        self.__found_tokens += new_tokens
+        new_tokens: List[str] = []
 
-        if(not is_expected):
-            self.__new_tokens = new_tokens + self.__new_tokens
+        # Avoid sets for token processing, as their order is non-deterministic.
+        # This is undesirable for tests, as well as consistency for the agent.
+        for token in resTokens:
+            if token not in self.__found_tokens:
+                self.__found_tokens.append(token)
+
+                if(not is_expected):
+                    new_tokens.insert(0, token)
+
+        self.__new_tokens = new_tokens + self.__new_tokens
 
         return res2, new_tokens
     

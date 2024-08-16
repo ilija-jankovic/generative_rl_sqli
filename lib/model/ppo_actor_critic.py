@@ -137,21 +137,21 @@ class PPOActorCritic:
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
 
-    def __create_hidden_dense_layer(self, units: int):
+    def __create_hidden_dense_layer(self, units: int, activation: str='relu'):
         return tf.keras.layers.Dense(
             units,
+            activation=activation,
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
-    
 
     def get_actor(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        dense_rl_state = self.__create_hidden_dense_layer(128)(input_rl_state)
-        dense_rl_state = self.__create_hidden_dense_layer(128)(dense_rl_state)
-        dense_rl_state = self.__create_hidden_dense_layer(128)(dense_rl_state)
+        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(input_rl_state)
+        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(dense_rl_state)
+        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(dense_rl_state)
 
         # Average embedding input.
         input_embedding = tf.keras.layers.Input(shape=[1, self.embedding_size,],)

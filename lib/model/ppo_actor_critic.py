@@ -104,6 +104,7 @@ class PPOActorCritic:
 
         self.__init_models()
 
+    @tf.function
     def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
         chosen_indices = tf.cond(
             tf.equal(use_chosen_indices, True),

@@ -15,8 +15,6 @@ from .enums.policy_type import PolicyType
 ACTOR_LEARNING_RATE = 0.0001
 CRITIC_LEARNING_RATE = 0.0002
 L2_WEIGHT = 0.0001
-DROPOUT = 0.2
-GAUSSIAN_DENSE = 0.1
 
 ACTOR_LSTM_UNITS = 256
 
@@ -135,7 +133,6 @@ class PPOActorCritic:
             units,
             return_state=return_tensors,
             return_sequences=return_tensors,
-            dropout=DROPOUT,
         )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
@@ -143,32 +140,18 @@ class PPOActorCritic:
     def __create_hidden_dense_layer(self, units: int):
         return tf.keras.layers.Dense(
             units,
-            activation='relu',
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3)
         )
     
-    def __create_dropout(self):
-        return tf.keras.layers.Dropout(DROPOUT)
-    
-    def __create_gaussian(self):
-        return tf.keras.layers.GaussianNoise(GAUSSIAN_DENSE)
 
     def get_actor(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense_rl_state = self.__create_hidden_dense_layer(128)(input_rl_state)
-        dense_rl_state = self.__create_dropout()(dense_rl_state)
-        dense_rl_state = self.__create_gaussian()(dense_rl_state)
-
         dense_rl_state = self.__create_hidden_dense_layer(128)(dense_rl_state)
-        dense_rl_state = self.__create_dropout()(dense_rl_state)
-        dense_rl_state = self.__create_gaussian()(dense_rl_state)
-
         dense_rl_state = self.__create_hidden_dense_layer(128)(dense_rl_state)
-        dense_rl_state = self.__create_dropout()(dense_rl_state)
-        dense_rl_state = self.__create_gaussian()(dense_rl_state)
 
         # Average embedding input.
         input_embedding = tf.keras.layers.Input(shape=[1, self.embedding_size,],)
@@ -180,19 +163,11 @@ class PPOActorCritic:
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
         dense = self.__create_hidden_dense_layer(128)(concat)
-        dense = self.__create_dropout()(dense)
-        dense = self.__create_gaussian()(dense)
-
         dense = self.__create_hidden_dense_layer(128)(dense)
-        dense = self.__create_dropout()(dense)
-        dense = self.__create_gaussian()(dense)
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
-        return tf.keras.Model(
-            [input_rl_state, input_embedding,],
-            [dense,]
-        )
+        return tf.keras.Model([input_rl_state, input_embedding,], dense)
 
     def get_critic(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])

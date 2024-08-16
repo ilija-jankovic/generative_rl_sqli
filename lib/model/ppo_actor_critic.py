@@ -149,9 +149,17 @@ class PPOActorCritic:
     def get_actor(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(input_rl_state)
-        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(dense_rl_state)
-        dense_rl_state = self.__create_hidden_dense_layer(128, activation='tanh')(dense_rl_state)
+        dense_rl_state = self.__create_hidden_dense_layer(
+            ACTOR_LSTM_UNITS, activation='tanh',
+        )(input_rl_state)
+
+        dense_rl_state = self.__create_hidden_dense_layer(
+            ACTOR_LSTM_UNITS, activation='tanh',
+        )(dense_rl_state)
+
+        dense_rl_state = self.__create_hidden_dense_layer(
+            ACTOR_LSTM_UNITS, activation='tanh',
+        )(dense_rl_state)
 
         # Average embedding input.
         input_embedding = tf.keras.layers.Input(shape=[1, self.embedding_size,],)

@@ -362,7 +362,7 @@ class PPO:
                         states[i],
                         PolicyType.OLD.value,
                         batch_size=self.actor_critic.batch_size,
-                        training=True,
+                        training=False,
                         actions_reference=tf.constant([]),
                     )
                 else:

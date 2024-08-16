@@ -279,7 +279,7 @@ class PPOActorCritic:
                 tf.TensorShape(None),
                 action_index.shape,
                 action_index_float.shape,
-                tf.TensorShape(None),
+                embeddings.shape,
                 tf.TensorShape(None),
                 tf.TensorShape(None),
                 states.shape,

@@ -179,10 +179,8 @@ class Environment():
 
             # Do not filter data from response if expected as full caching of public response
             # data is desired.
-            resText1 = res1.text if is_expected else \
-                self.__filter_payload_from_text(res1.text, data)
-            resText2 = res2.text if is_expected else \
-                self.__filter_payload_from_text(res2.text, data)
+            resText1 = self.__filter_payload_from_text(res1.text, data)
+            resText2 = self.__filter_payload_from_text(res2.text, data)
             
             resText1 = self.__strip_lxml(resText1)
             resText2 = self.__strip_lxml(resText2)
@@ -195,11 +193,7 @@ class Environment():
         else:
             res2 = self.send_request_callback(data)
 
-            # Do not filter data from response if expected as full caching of public response
-            # data is desired.
-            resText = res2.text if is_expected else \
-                self.__filter_payload_from_text(res2.text, data)
-            
+            resText = self.__filter_payload_from_text(res2.text, data)
             resText = self.__strip_lxml(resText)
             
             # Only uppercase considered as the dictionary and SQL is case insensitive.

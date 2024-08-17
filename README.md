@@ -14,8 +14,21 @@ You may need to set the XLA flag to point to CUDA before running this program. A
 ```sh
 set XLA_FLAGS=--xla_gpu_cuda_data_dir="/mnt/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4"
 ```
-
 Based on solution by [user14653986](https://stackoverflow.com/a/64872998).
+
+**ADDITIONAL TENSORFLOW ERROR CONSIDERATION**
+Potential required activation script (assuming use of Anaconda) if CuDNN path not found.
+Solution by Leigh (Gwyki) and Shayan Shahrokhi (sh-shahrokhi) from:
+https://github.com/tensorflow/tensorflow/issues/63362#issuecomment-1988827544
+
+```sh
+NVIDIA_DIR=$(dirname $(dirname $(python -c "import nvidia.cudnn;print(nvidia.cudnn.__file__)")))
+for dir in $NVIDIA_DIR/*; do
+    if [ -d "$dir/lib" ]; then
+        export LD_LIBRARY_PATH="$dir/lib:$LD_LIBRARY_PATH"
+    fi
+done
+```
 
 **Useful Commands**
 

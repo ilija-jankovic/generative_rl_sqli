@@ -37,6 +37,17 @@ os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 # https://keras.io/guides/distributed_training_with_tensorflow/
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
+
+# Print GPU devices visible to TensorFlow based on official guide:
+# https://www.tensorflow.org/api_docs/python/tf/config/experimental/get_device_details
+print('Visible GPU devices:')
+
+gpu_devices = tf.config.list_physical_devices('GPU')
+for device in gpu_devices:
+  details = tf.config.experimental.get_device_details(device)
+  print(details.get('device_name', 'Unknown GPU'))
+
+
 tf.config.optimizer.set_jit(True)
 
 # TODO: Use argparse instead.

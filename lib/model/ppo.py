@@ -225,7 +225,6 @@ class PPO:
                     states_minibatch[i],
                     PolicyType.NORMAL.value,
                     batch_size=MINIBATCH_SIZE,
-                    training=True,
                     actions_reference=actions_old_minibatch[i],
                     use_actions_reference=True,
                 )[1] for i in range(T)
@@ -368,7 +367,6 @@ class PPO:
                         states[i],
                         PolicyType.OLD.value,
                         batch_size=self.actor_critic.batch_size,
-                        training=False,
                         actions_reference=tf.fill([self.actor_critic.batch_size, self.actor_critic.action_size,], -1),
                         use_actions_reference=False,
                     )

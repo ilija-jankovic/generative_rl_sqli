@@ -197,7 +197,6 @@ class PPOActorCritic:
         action_index_float,
         embeddings,
         type: int,
-        training: bool,
         states,
         actions_reference,
         use_actions_reference,
@@ -208,8 +207,8 @@ class PPOActorCritic:
 
         one_hot_probabilities = tf.cond(
             tf.equal(type, normal_policy_id),
-                true_fn=lambda: self.actor_model(input, training=training),
-                false_fn=lambda: self.actor_model_old(input, training=training))
+                true_fn=lambda: self.actor_model(input, training=True),
+                false_fn=lambda: self.actor_model_old(input, training=False))
         
         chosen_indices, chosen_embeddings, chosen_probabilities = tf.cond(
             tf.equal(use_actions_reference, True),
@@ -236,7 +235,7 @@ class PPOActorCritic:
 
         action_index =  tf.add(action_index, 1)
         
-        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, actions_reference, use_actions_reference
+        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, states, actions_reference, use_actions_reference
 
     # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
     # output is unknown. If this method is decorated with @tf.function, loose shape invariants
@@ -249,7 +248,6 @@ class PPOActorCritic:
         states,
         type: int,
         batch_size,
-        training: bool,
         actions_reference: tf.Tensor,
         use_actions_reference: bool,
     ):
@@ -260,9 +258,8 @@ class PPOActorCritic:
         This setting chooses tokens stochastically instead of following the reference.
         '''
         action_size = tf.constant(self.action_size, dtype=tf.int32)
-        dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)
 
-        actions = tf.fill([batch_size, action_size], dictionary_length)
+        actions = tf.fill([batch_size, action_size], -1)
         probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
         embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float32)
@@ -281,7 +278,6 @@ class PPOActorCritic:
                 action_index_float,
                 embeddings,
                 type,
-                training,
                 states,
                 actions_reference,
                 use_actions_reference,

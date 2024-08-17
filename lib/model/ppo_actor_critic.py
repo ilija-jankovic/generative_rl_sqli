@@ -186,6 +186,7 @@ class PPOActorCritic:
 
         return tf.keras.Model([input_rl_state,], output)
 
+    @tf.function
     def concat_next_token_indicies(
         self, 
         actions,
@@ -235,12 +236,7 @@ class PPOActorCritic:
         
         return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, states, actions_reference, use_actions_reference
 
-    # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
-    # output is unknown. If this method is decorated with @tf.function, loose shape invariants
-    # must be defined in the TF while loop for field values corresponding to actor output
-    # values.
-    #
-    # The @tf.function is taken off this method as a workaround.
+    @tf.function
     def policy(
         self,
         states,

@@ -41,8 +41,8 @@ class PPOActorCritic:
     actor_model_old: tf.keras.Model
     critic_model: tf.keras.Model
 
-    actor_optimizer: tf.compat.v1.mixed_precision.MixedPrecisionLossScaleOptimizer
-    critic_optimizer: tf.compat.v1.mixed_precision.MixedPrecisionLossScaleOptimizer
+    actor_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
+    critic_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
 
     def update_old_actor_weights(self):
         self.actor_model_old.set_weights(self.actor_model.get_weights())
@@ -53,14 +53,11 @@ class PPOActorCritic:
             self.actor_model_old = self.get_actor()
             self.critic_model = self.get_critic()
 
-            self.actor_optimizer = tf.compat.v1.mixed_precision.enable_mixed_precision_graph_rewrite(
+            self.actor_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
                 tf.keras.optimizers.Nadam(
                     ACTOR_LEARNING_RATE,
-                    clipvalue=0.5,
-                    clipnorm=1.0,
                     beta_1=0.999,
                     beta_2=0.999,
-                    decay=0.001
                 ))
 
             # Mixed precision gives significant performance increase:
@@ -71,13 +68,11 @@ class PPOActorCritic:
             #
             # Optimisers inside strategy:
             # https://www.tensorflow.org/tutorials/distribute/custom_training#training_loop
-            self.critic_optimizer = tf.compat.v1.mixed_precision.enable_mixed_precision_graph_rewrite(
+            self.critic_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
                 tf.keras.optimizers.Nadam(
                     CRITIC_LEARNING_RATE,
-                    clipvalue=0.5,
-                    clipnorm=1.0,
                     beta_1=0.999,
-                    beta_2=0.999
+                    beta_2=0.999,
                 ))
             
             self.update_old_actor_weights()
@@ -112,7 +107,7 @@ class PPOActorCritic:
         
             # Log probabilities as tf.random.categorical expects log probabilities.
             false_fn=lambda: tf.random.categorical(tf.math.log(probabilities), num_samples=1, dtype=tf.int32),
-        ) 
+        )
         chosen_indices = tf.squeeze(chosen_indices)
         
         embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
@@ -126,14 +121,14 @@ class PPOActorCritic:
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
 
-    def __create_lstm_layer(self, units: int, return_tensors: bool = True, bidirectional: bool = True):
+    def __create_lstm_layer(self, units: int, return_sequences: bool = True, bidirectional: bool = True):
         '''
         Creates LTSM (or Bidirectional LSTM) with dropout.
         '''
         lstm = tf.keras.layers.LSTM(
             units,
-            return_state=return_tensors,
-            return_sequences=return_tensors,
+            return_sequences=return_sequences,
+            return_state=False,
         )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
@@ -167,7 +162,7 @@ class PPOActorCritic:
 
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_embedding)
         lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm)
-        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, return_tensors=False, bidirectional=False)(lstm)
+        lstm = self.__create_lstm_layer(ACTOR_LSTM_UNITS, return_sequences=False, bidirectional=False)(lstm)
 
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 

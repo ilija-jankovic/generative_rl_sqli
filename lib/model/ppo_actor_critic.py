@@ -25,9 +25,7 @@ ACTOR_LSTM_UNITS = 256
 #strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
 
 strategy = tf.distribute.OneDeviceStrategy(device='/gpu:0')
-
 device_count = strategy.num_replicas_in_sync
-print('Number of devices: {}'.format(device_count))
 
 class PPOActorCritic:
     dictionary_length: int

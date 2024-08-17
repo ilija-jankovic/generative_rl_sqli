@@ -292,18 +292,7 @@ class PPOActorCritic:
                 use_actions_reference,
             ),
             maximum_iterations=action_size,
-            shape_invariants=(
-                actions.shape,
-                probabilities.shape,
-                tf.TensorShape(None),
-                action_index.shape,
-                action_index_float.shape,
-                embeddings.shape,
-                tf.TensorShape(None),
-                tf.TensorShape(None),
-                states.shape,
-                actions_reference.shape
-            ))
+        )
 
         action_likelihoods = tf.math.reduce_prod(probabilities, axis=-1, keepdims=True)
 

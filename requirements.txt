@@ -37,7 +37,7 @@ botocore @ file:///croot/botocore_1714460531862/work
 Bottleneck @ file:///croot/bottleneck_1707864210935/work
 Brotli @ file:///croot/brotli-split_1714483155106/work
 cachetools==5.4.0
-certifi @ file:///croot/certifi_1720453481653/work/certifi
+certifi==2024.7.4
 cffi @ file:///croot/cffi_1714483155441/work
 chardet @ file:///work/ci_py311/chardet_1676830276092/work
 charset-normalizer==3.3.2
@@ -94,14 +94,14 @@ google-auth==2.33.0
 google-auth-oauthlib==1.2.1
 google-pasta==0.2.0
 greenlet @ file:///croot/greenlet_1702059959679/work
-grpcio==1.65.4
+grpcio==1.65.5
 gviz-api==1.10.0
-h5py @ file:///croot/h5py_1715094721489/work
+h5py==3.11.0
 HeapDict @ file:///Users/ktietz/demo/mc3/conda-bld/heapdict_1630598515714/work
 holoviews @ file:///croot/holoviews_1718294635592/work
 hvplot @ file:///croot/hvplot_1715090436541/work
 hyperlink @ file:///tmp/build/80754af9/hyperlink_1610130746837/work
-idna @ file:///croot/idna_1714398848350/work
+idna==3.7
 imagecodecs @ file:///croot/imagecodecs_1695064943445/work
 imageio @ file:///croot/imageio_1707247282708/work
 imagesize @ file:///work/ci_py311/imagesize_1676830829500/work
@@ -160,13 +160,13 @@ locket @ file:///work/ci_py311/locket_1676827274546/work
 lxml==5.3.0
 lz4 @ file:///croot/lz4_1686057876374/work
 Markdown==3.7
-markdown-it-py @ file:///croot/markdown-it-py_1684279902645/work
+markdown-it-py==3.0.0
 MarkupSafe==2.1.5
 matplotlib @ file:///croot/matplotlib-suite_1713336378214/work
 matplotlib-inline @ file:///work/ci_py311/matplotlib-inline_1676823841154/work
 mccabe @ file:///opt/conda/conda-bld/mccabe_1644221741721/work
 mdit-py-plugins @ file:///work/ci_py311/mdit-py-plugins_1676837111662/work
-mdurl @ file:///work/ci_py311/mdurl_1676827289376/work
+mdurl==0.1.2
 menuinst @ file:///croot/menuinst_1723567589013/work
 mistune @ file:///work/ci_py311/mistune_1676823683049/work
 mkl-fft @ file:///croot/mkl_fft_1695058164594/work
@@ -194,10 +194,22 @@ notebook @ file:///croot/notebook_1717630758219/work
 notebook_shim @ file:///croot/notebook-shim_1699455894279/work
 numba @ file:///croot/numba_1711986258266/work
 numexpr @ file:///croot/numexpr_1696515281613/work
-numpy @ file:///croot/numpy_and_numpy_base_1708638617955/work/dist/numpy-1.26.4-cp311-cp311-linux_x86_64.whl#sha256=5f96f274d410a1682519282ae769c877d32fdbf171aa8badec7bf5e1d3a1748a
+numpy==1.26.4
 numpydoc @ file:///croot/numpydoc_1718279157024/work
+nvidia-cublas-cu12==12.3.4.1
+nvidia-cuda-cupti-cu12==12.3.101
+nvidia-cuda-nvcc-cu12==12.3.107
+nvidia-cuda-nvrtc-cu12==12.3.107
+nvidia-cuda-runtime-cu12==12.3.101
+nvidia-cudnn-cu12==8.9.7.29
+nvidia-cufft-cu12==11.0.12.1
+nvidia-curand-cu12==10.3.4.107
+nvidia-cusolver-cu12==11.5.4.101
+nvidia-cusparse-cu12==12.2.0.103
 nvidia-dali-cuda120==1.40.0
+nvidia-nccl-cu12==2.19.3
 nvidia-nvimgcodec-cu12==0.3.0.5
+nvidia-nvjitlink-cu12==12.3.101
 oauthlib==3.2.2
 openpyxl @ file:///croot/openpyxl_1714158863747/work
 opt-einsum==3.3.0
@@ -244,7 +256,7 @@ pydocstyle @ file:///work/ci_py311/pydocstyle_1677708708066/work
 pyerfa @ file:///croot/pyerfa_1717700762709/work
 pyflakes @ file:///croot/pyflakes_1708962956225/work
 pygame==2.6.0
-Pygments @ file:///croot/pygments_1684279966437/work
+Pygments==2.18.0
 pylint @ file:///work/ci_py311/pylint_1676920998643/work
 pylint-venv @ file:///croot/pylint-venv_1709837612550/work
 pyls-spyder==0.4.0
@@ -284,7 +296,7 @@ requests-file @ file:///Users/ktietz/demo/mc3/conda-bld/requests-file_1629455781
 requests-oauthlib==2.0.0
 rfc3339-validator @ file:///croot/rfc3339-validator_1683077044675/work
 rfc3986-validator @ file:///croot/rfc3986-validator_1683058983515/work
-rich @ file:///croot/rich_1684282154404/work
+rich==13.7.1
 rope @ file:///croot/rope_1708963153974/work
 rpds-py @ file:///croot/rpds-py_1698945930462/work
 rsa==4.9
@@ -300,7 +312,7 @@ SecretStorage @ file:///work/ci_py311_2/secretstorage_1679339060489/work
 Send2Trash @ file:///croot/send2trash_1699371139552/work
 service-identity @ file:///Users/ktietz/demo/mc3/conda-bld/service_identity_1629460757137/work
 sip @ file:///croot/sip_1698675935381/work
-six @ file:///tmp/build/80754af9/six_1644875935023/work
+six==1.16.0
 smart-open @ file:///work/ci_py311/smart_open_1676842848397/work
 smmap @ file:///tmp/build/80754af9/smmap_1611694433573/work
 sniffio @ file:///croot/sniffio_1705431295498/work
@@ -334,6 +346,10 @@ tensorboard-plugin-wit==1.8.1
 tensorflow==2.17.0
 tensorflow-estimator==2.15.0
 tensorflow-io-gcs-filesystem==0.37.1
+tensorrt==10.3.0
+tensorrt-cu12==10.3.0
+tensorrt-cu12-bindings==10.3.0
+tensorrt-cu12-libs==10.3.0
 termcolor==2.4.0
 terminado @ file:///work/ci_py311/terminado_1677696151350/work
 terminaltables==3.1.10
@@ -359,13 +375,13 @@ uc-micro-py @ file:///work/ci_py311/uc-micro-py_1676828889155/work
 ujson @ file:///croot/ujson_1717597529825/work
 unicodedata2 @ file:///croot/unicodedata2_1713212950228/work
 Unidecode @ file:///tmp/build/80754af9/unidecode_1614712377438/work
-urllib3 @ file:///croot/urllib3_1718912636303/work
+urllib3==2.2.2
 w3lib @ file:///croot/w3lib_1708639924738/work
 watchdog @ file:///croot/watchdog_1717166512516/work
 wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
 webencodings==0.5.1
 websocket-client @ file:///croot/websocket-client_1715878298792/work
-Werkzeug @ file:///croot/werkzeug_1716533313107/work
+Werkzeug==3.0.3
 whatthepatch @ file:///work/ci_py311/whatthepatch_1677708379946/work
 widgetsnbextension @ file:///croot/widgetsnbextension_1710960037596/work
 wrapt==1.16.0

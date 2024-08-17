@@ -205,6 +205,7 @@ class PPOActorCritic:
         training: bool,
         states,
         actions_reference,
+        use_actions_reference,
     ):
         input = (states, embeddings,)
 
@@ -216,9 +217,9 @@ class PPOActorCritic:
                 false_fn=lambda: self.actor_model_old(input, training=training))
         
         chosen_indices, chosen_embeddings, chosen_probabilities = tf.cond(
-            tf.equal(actions_reference.shape[0], tf.constant(0)),
-            true_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, tf.fill([batch_size, 1], -1), False),
-            false_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, actions_reference[:,action_index], True)
+            tf.equal(use_actions_reference, True),
+            true_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, actions_reference[:,action_index], True),
+            false_fn=lambda: self.get_embeddings_from_probabilities(one_hot_probabilities, tf.fill([batch_size, 1], -1), False)
         )
 
         # action_index_float is the length of the action after incrementing, which
@@ -240,7 +241,7 @@ class PPOActorCritic:
 
         action_index =  tf.add(action_index, 1)
         
-        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, actions_reference
+        return actions, probabilities, batch_size, action_index, action_index_float, embeddings, type, training, states, actions_reference, use_actions_reference
 
     # TODO/NOTE: Since batch size can be variable for actor, the shape returned from actor
     # output is unknown. If this method is decorated with @tf.function, loose shape invariants
@@ -248,12 +249,20 @@ class PPOActorCritic:
     # values.
     #
     # The @tf.function is taken off this method as a workaround.
-    def policy(self, states, type: int, batch_size, training: bool, actions_reference: tf.Tensor):
+    def policy(
+        self,
+        states,
+        type: int,
+        batch_size,
+        training: bool,
+        actions_reference: tf.Tensor,
+        use_actions_reference: bool,
+    ):
         '''
         `type` is expected to be the enumerated value of a `PolicyType`.
         
-        Setting `action_reference` to `tf.constant([])` marks as no action reference.
-        This ensures tokens are stochastically chosen instead of following the reference.
+        Setting `use_actions_reference` to `True` ignores action reference.
+        This setting chooses tokens stochastically instead of following the reference.
         '''
         action_size = tf.constant(self.action_size, dtype=tf.int32)
         dictionary_length = tf.constant(self.dictionary_length - 1, dtype=tf.int32)
@@ -279,7 +288,8 @@ class PPOActorCritic:
                 type,
                 training,
                 states,
-                actions_reference
+                actions_reference,
+                use_actions_reference,
             ),
             maximum_iterations=action_size,
             shape_invariants=(

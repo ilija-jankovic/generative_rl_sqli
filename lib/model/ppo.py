@@ -241,10 +241,9 @@ class PPO:
             )
 
             #print(f'Unscaled actor loss: {actor_loss}')
-            actor_loss = actor_optimizer.get_scaled_loss(actor_loss)
+            actor_loss = actor_optimizer.scale_loss(actor_loss)
 
         actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables)
-        actor_grad = actor_optimizer.get_unscaled_gradients(actor_grad)
         actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
 
     @tf.function
@@ -262,10 +261,9 @@ class PPO:
 
             critic_loss = self.mse(values, rewards_minibatch)
             #print(f'Unscaled critic loss: {critic_loss}')
-            critic_loss = self.actor_critic.critic_optimizer.get_scaled_loss(critic_loss)
+            critic_loss = self.actor_critic.critic_optimizer.scale_loss(critic_loss)
 
         critic_grad = tape.gradient(critic_loss, critic_model.trainable_variables)
-        critic_grad = critic_optimizer.get_unscaled_gradients(critic_grad)
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
     def learn(self, actions_old, y_old, states, rewards):

@@ -5,6 +5,20 @@ Recommended Python `3.11.9` (no higher given TensorFlow [installation instructio
 If running on Windows, use WSL 2 as TensorFlow version used is higher than 2.10 - the maximum supporting
 GPU support on Windows.
 
+**Running on WSL2**
+
+Following [this guide](https://github.com/jeffheaton/t81_558_deep_learning/blob/master/install/tensorflow-install-march-2023.ipynb)
+by Jeff Heaton, the Anaconda environment can be set up to detect GPU as follows:
+
+```sh
+pip install cudatoolkit, cudnn
+```
+
+```sh
+mkdir -p $CONDA_PREFIX/etc/conda/activate.d
+echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+```
+
 **XLA**
 
 XLA is uesd for this project, which requires CUDA.
@@ -12,7 +26,7 @@ XLA is uesd for this project, which requires CUDA.
 You may need to set the XLA flag to point to CUDA before running this program. An example of how to achieve this is as follows:
 
 ```sh
-set XLA_FLAGS=--xla_gpu_cuda_data_dir="/mnt/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4"
+set XLA_FLAGS=--xla_gpu_cuda_data_dir="/usr/local/cuda-12.6/"
 ```
 Based on solution by [user14653986](https://stackoverflow.com/a/64872998).
 

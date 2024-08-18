@@ -327,7 +327,7 @@ class PPO:
         '''
 
         while True:
-            start_seconds = time.time()
+            total_seconds = time.time()
 
             rewards = []
             done_flags = []
@@ -345,7 +345,10 @@ class PPO:
             # πDR , if sampled from DR
             # πDV , if sampled from DV
             # πθ , if sampled from Env
-            rand = np.random.rand()
+
+            exploration_seconds = time.time()
+
+            rand = 1.0#np.random.rand()
             policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
                 if rand < self.rho \
                 else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
@@ -420,9 +423,10 @@ class PPO:
                             value_model=self.actor_critic.critic_model,
                         )
 
-            action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
+            exploration_seconds = time.time() - exploration_seconds
+            learning_seconds = time.time()
 
-            mean_batch_rollout_reward = np.mean(rewards)
+            action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
 
             for _ in range(1, EPOCHS + 1):
                 seed = np.random.randint(0, 9999999)
@@ -445,13 +449,14 @@ class PPO:
                 self.timestep += T
 
             states = [states[-1]]
-
-            end_seconds = time.time()
-
-            learning_iteration_seconds = end_seconds - start_seconds
+            
+            learning_seconds = time.time() - learning_seconds
+            total_seconds = time.time() - total_seconds
+            
+            mean_batch_rollout_reward = np.mean(rewards)
 
             if policy_type == PolicyType.OLD:
-                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {learning_iteration_seconds}')
+                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {total_seconds}, Exploration Time (s): {exploration_seconds}, Learning Time (s): {learning_seconds}')
             else:
-                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {learning_iteration_seconds}')
+                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {total_seconds}, Exploration Time (s): {exploration_seconds}, Learning Time (s): {learning_seconds}')
 

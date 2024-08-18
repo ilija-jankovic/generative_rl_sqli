@@ -21,8 +21,8 @@ EPOCHS = 3
 MINIBATCH_SIZE = 256
 GAMMA = 0.999
 
-SUCCESSFUL_BUFFER_SIZE = 2 ** 19
-UNSUCCESSFUL_BUFFER_SIZE = 2 ** 19
+SUCCESSFUL_BUFFER_SIZE = 4096
+UNSUCCESSFUL_BUFFER_SIZE = 4096
 
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7.

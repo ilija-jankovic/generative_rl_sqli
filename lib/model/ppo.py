@@ -348,7 +348,7 @@ class PPO:
 
             exploration_seconds = time.time()
 
-            rand = 1.0#np.random.rand()
+            rand = np.random.rand()
             policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
                 if rand < self.rho \
                 else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \

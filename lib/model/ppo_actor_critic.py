@@ -127,6 +127,7 @@ class PPOActorCritic:
             units,
             return_sequences=return_sequences,
             return_state=False,
+            unroll=True,
         )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm

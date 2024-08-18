@@ -283,16 +283,16 @@ class PPO:
             states_minibatch = states[:, from_batch_index: to_batch_position]
             rewards_minibatch = rewards[:, from_batch_index: to_batch_position]
 
+            strategy.run(self.train_critic, [
+                states_minibatch,
+                rewards_minibatch
+            ])
+
             strategy.run(self.train_actor, [
                 states_minibatch,
                 actions_old_minibatch,
                 y_old_minibatch,
                 rewards_minibatch,
-            ])
-
-            strategy.run(self.train_critic, [
-                states_minibatch,
-                rewards_minibatch
             ])
 
     def __anneal_probabilities(self):

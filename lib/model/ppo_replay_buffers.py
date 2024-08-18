@@ -74,7 +74,7 @@ class PPOReplayBuffers:
 
         self.__successful_transitions_count = min(
             self.__successful_transitions_count + 1,
-            self.__successful_transitions_count,
+            self.successful_buffer_size,
         )
 
         if self.__unsuccessful_states.shape[0] == 0:

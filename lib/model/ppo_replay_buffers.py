@@ -5,8 +5,14 @@ import model.ppo as ppo
 
 PRIORITY_EXPONENT = 0.3
 
+DEMONSRATION_PROBABILITY = 0.1
+
 class PPOReplayBuffers:
     successful_buffer_size: int
+
+    '''
+    Maximum unsuccessful buffer size as this buffer can decrease in size.
+    '''
     max_unsuccessful_buffer_size: int
 
     __successful_states: np.ndarray
@@ -32,7 +38,8 @@ class PPOReplayBuffers:
     ):
         assert(state_size > 0)
         assert(action_size > 0)
-        assert(successful_buffer_size > 0)
+        
+        assert successful_buffer_size > 1, 'Successful buffer size accounts for reserved demonstration index.'
         assert(unsuccessful_buffer_size > 0)
 
         assert(demonstrated_successful_states.shape[0] == ppo.T)
@@ -46,6 +53,7 @@ class PPOReplayBuffers:
         self.__successful_actions = np.zeros([successful_buffer_size, ppo.T, action_size], dtype=np.int32)
         self.__successful_rewards = np.zeros([successful_buffer_size, ppo.T], dtype=np.float32)
 
+        # Index 0 of successful injections reserved for demonstration.
         self.__successful_states[0] = demonstrated_successful_states
         self.__successful_actions[0] = demonstrated_successful_actions
         self.__successful_rewards[0] = demonstrated_successful_rewards
@@ -68,9 +76,10 @@ class PPOReplayBuffers:
         assert(actions.shape[0] == ppo.T)
         assert(rewards.shape[0] == ppo.T)
 
-        self.__successful_states = np.insert(self.__successful_states[:-1], 0, states, axis=0)
-        self.__successful_actions = np.insert(self.__successful_actions[:-1], 0, actions, axis=0)
-        self.__successful_rewards = np.insert(self.__successful_rewards[:-1], 0, rewards, axis=0)
+        # Append at index 1 to never rid of demonstration.
+        self.__successful_states = np.insert(self.__successful_states[:-1], 1, states, axis=0)
+        self.__successful_actions = np.insert(self.__successful_actions[:-1], 1, actions, axis=0)
+        self.__successful_rewards = np.insert(self.__successful_rewards[:-1], 1, rewards, axis=0)
 
         self.__successful_transitions_count = min(
             self.__successful_transitions_count + 1,
@@ -140,7 +149,17 @@ class PPOReplayBuffers:
     def sample_successful_trajectories(self, batch_size):
         assert(batch_size > 0)
 
-        indices = np.random.choice(self.__successful_transitions_count, size=batch_size)
+        # Uniform probabilities except for demonstration.
+        probabilities = (
+            [DEMONSRATION_PROBABILITY] + (
+                [
+                    (1.0-DEMONSRATION_PROBABILITY) / (self.__successful_transitions_count-1),
+                ] * (self.__successful_transitions_count-1)
+            )) \
+            if self.__successful_transitions_count > 1 \
+            else [1.0]
+        
+        indices = np.random.choice(self.__successful_transitions_count, size=batch_size, p=probabilities)
 
         states = self.__successful_states[indices]
         actions = self.__successful_actions[indices]

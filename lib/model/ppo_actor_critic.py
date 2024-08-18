@@ -2,11 +2,11 @@ import math
 import os
 from typing import List
 
-# Sets TF logger level to WARNING.
+# Sets TF logger level to ERROR.
 #
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
 

@@ -1,4 +1,5 @@
 import os
+import time
 from typing import List
 
 from .ppo_replay_buffers import PPOReplayBuffers
@@ -326,6 +327,8 @@ class PPO:
         '''
 
         while True:
+            start_seconds = time.time()
+
             rewards = []
             done_flags = []
 
@@ -441,9 +444,14 @@ class PPO:
             if policy_type == PolicyType.OLD:
                 self.timestep += T
 
-            if policy_type == PolicyType.OLD:
-                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
-            else:
-                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}')
-
             states = [states[-1]]
+
+            end_seconds = time.time()
+
+            learning_iteration_seconds = end_seconds - start_seconds
+
+            if policy_type == PolicyType.OLD:
+                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {learning_iteration_seconds}')
+            else:
+                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {learning_iteration_seconds}')
+

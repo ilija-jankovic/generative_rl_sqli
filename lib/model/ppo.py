@@ -113,7 +113,7 @@ class PPO:
         advantages = -tf.squeeze(
             self.actor_critic.critic_model(
                 first_states,
-                training=True
+                training=False,
             ))
         
         timestep_window = terminal_timestep - initial_timestep
@@ -131,7 +131,7 @@ class PPO:
                 tf.squeeze(
                     self.actor_critic.critic_model(
                         last_states,
-                        training=True
+                        training=False,
                     )
                 ),
             )

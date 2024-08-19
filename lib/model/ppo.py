@@ -2,7 +2,7 @@ import os
 import time
 from typing import List
 
-from .ppo_replay_buffers import PPOReplayBuffers
+from .ppo_replay_buffer import PPOReplayBuffer
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
@@ -23,30 +23,27 @@ MINIBATCH_SIZE = 256
 GAMMA = 0.999
 
 SUCCESSFUL_BUFFER_SIZE = 4096
-UNSUCCESSFUL_BUFFER_SIZE = 4096
 
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7.
 PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
 
-STARTING_RHO = 0.45
-STARTING_PHI = 0.05
+STARTING_RHO = 0.5
 
 # M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
 # N = 1 as there are no parallel actors.
 #assert(MINIBATCH_SIZE <= T)
 
 # Assert some chance for actor interaction with environments.
-assert(STARTING_RHO + STARTING_PHI <= 0.8)
+assert(STARTING_RHO <= 0.8)
 
 class PPO:
     timestep = 0
 
     rho = STARTING_RHO
-    phi = STARTING_PHI
 
     actor_critic: PPOActorCritic
-    buffers: PPOReplayBuffers
+    buffers: PPOReplayBuffer
     environments: List[Environment]
 
     def __init__(
@@ -82,11 +79,10 @@ class PPO:
         actions = np.array(actions)
         rewards = np.array(rewards)
 
-        self.buffers = PPOReplayBuffers(
+        self.buffers = PPOReplayBuffer(
             state_size=demonstration_environment.state_size,
             action_size=demonstration_environment.action_size,
             successful_buffer_size=SUCCESSFUL_BUFFER_SIZE,
-            unsuccessful_buffer_size=UNSUCCESSFUL_BUFFER_SIZE,
             demonstrated_successful_states=states,
             demonstrated_successful_actions=actions,
             demonstrated_successful_rewards=rewards,
@@ -295,24 +291,6 @@ class PPO:
                 rewards_minibatch,
             )
 
-    def __anneal_probabilities(self):
-        probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size
-
-        self.rho += probability_update
-        self.phi -= probability_update
-
-        # Account for floating point precision.
-        if self.rho > 0.99999:
-            self.rho = 1.0
-        
-        # Account for floating point precision.
-        #
-        # This one is particularly important to be set to zero if expected, as
-        # the unsuccessful buffer should be empty if this probability is to reach
-        # zero.
-        if self.phi < 0.00001:
-            self.phi = 0.0
-
     def run(self):
         states = [self.__create_empty_states()]
 
@@ -351,18 +329,12 @@ class PPO:
             rand = np.random.rand()
             policy_type = PolicyType.SUCCESSFUL_DEMONSTRATIONS \
                 if rand < self.rho \
-                else PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
-                if rand < self.rho + self.phi and not self.buffers.is_unsuccessful_buffer_empty() \
                 else PolicyType.OLD
 
             trajectories = self.buffers.sample_successful_trajectories(
                     batch_size=self.actor_critic.batch_size
                 ) \
                 if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-                else self.buffers.sample_unsuccessful_trajectories(
-                    batch_size=self.actor_critic.batch_size
-                ) \
-                if policy_type == PolicyType.UNSUCCESSFUL_DEMONSTRATIONS \
                 else None
 
             for i in range(T):
@@ -409,18 +381,6 @@ class PPO:
                             states[:-1, i],
                             actions_old[:, i],
                             rewards[:, i],
-                        )
-
-                        if self.phi > 0.0:
-                            self.__anneal_probabilities()
-                    else:
-                        # TODO: Ensure nothing added to unsuccessful transitions buffer when phi = 0
-                        # as unsuccessful buffer unused at this point.
-                        self.buffers.record_unsuccessful_transitions(
-                            states[:-1, i],
-                            actions_old[:, i],
-                            rewards[:, i],
-                            value_model=self.actor_critic.critic_model,
                         )
 
             exploration_seconds = time.time() - exploration_seconds

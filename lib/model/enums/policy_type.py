@@ -15,6 +15,3 @@ class PolicyType(Enum):
 
     # For PPO only.
     SUCCESSFUL_DEMONSTRATIONS = 5
-
-    # For PPO only.
-    UNSUCCESSFUL_DEMONSTRATIONS = 6

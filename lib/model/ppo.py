@@ -14,7 +14,7 @@ import numpy as np
 from .enums.policy_type import PolicyType
 
 from .environment import Environment
-from .ppo_actor_critic import PPOActorCritic, strategy
+from .ppo_actor_critic import PPOActorCritic
 
 # T << episode length pg. 5.
 T = 20
@@ -283,17 +283,17 @@ class PPO:
             states_minibatch = states[:, from_batch_index: to_batch_position]
             rewards_minibatch = rewards[:, from_batch_index: to_batch_position]
 
-            strategy.run(self.train_critic, [
+            self.train_critic(
                 states_minibatch,
                 rewards_minibatch
-            ])
+            )
 
-            strategy.run(self.train_actor, [
+            self.train_actor(
                 states_minibatch,
                 actions_old_minibatch,
                 y_old_minibatch,
                 rewards_minibatch,
-            ])
+            )
 
     def __anneal_probabilities(self):
         probability_update = STARTING_PHI / self.buffers.max_unsuccessful_buffer_size

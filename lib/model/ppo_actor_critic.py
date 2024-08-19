@@ -24,8 +24,7 @@ ACTOR_LSTM_UNITS = 256
 # https://github.com/y33-j3T/Coursera-Deep-Learning/blob/master/Custom%20and%20Distributed%20Training%20with%20Tensorflow/Week%204%20-%20Distributed%20Training/C2_W4_Lab_2_multi-GPU-mirrored-strategy.ipynb
 #strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
 
-strategy = tf.distribute.OneDeviceStrategy(device='/gpu:0')
-device_count = strategy.num_replicas_in_sync
+#device_count = strategy.num_replicas_in_sync
 
 class PPOActorCritic:
     dictionary_length: int
@@ -46,34 +45,33 @@ class PPOActorCritic:
         self.actor_model_old.set_weights(self.actor_model.get_weights())
 
     def __init_models(self):
-        with strategy.scope():
-            self.actor_model = self.get_actor()
-            self.actor_model_old = self.get_actor()
-            self.critic_model = self.get_critic()
+        self.actor_model = self.get_actor()
+        self.actor_model_old = self.get_actor()
+        self.critic_model = self.get_critic()
 
-            self.actor_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
-                tf.keras.optimizers.Nadam(
-                    ACTOR_LEARNING_RATE,
-                    beta_1=0.999,
-                    beta_2=0.999,
-                ))
+        self.actor_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
+            tf.keras.optimizers.Nadam(
+                ACTOR_LEARNING_RATE,
+                beta_1=0.999,
+                beta_2=0.999,
+            ))
 
-            # Mixed precision gives significant performance increase:
-            # https://developer.nvidia.com/automatic-mixed-precision
-            #
-            # Nadam for RNNs recommended by OverLordGoldDragon:
-            # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-            #
-            # Optimisers inside strategy:
-            # https://www.tensorflow.org/tutorials/distribute/custom_training#training_loop
-            self.critic_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
-                tf.keras.optimizers.Nadam(
-                    CRITIC_LEARNING_RATE,
-                    beta_1=0.999,
-                    beta_2=0.999,
-                ))
-            
-            self.update_old_actor_weights()
+        # Mixed precision gives significant performance increase:
+        # https://developer.nvidia.com/automatic-mixed-precision
+        #
+        # Nadam for RNNs recommended by OverLordGoldDragon:
+        # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
+        #
+        # Optimisers inside strategy:
+        # https://www.tensorflow.org/tutorials/distribute/custom_training#training_loop
+        self.critic_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
+            tf.keras.optimizers.Nadam(
+                CRITIC_LEARNING_RATE,
+                beta_1=0.999,
+                beta_2=0.999,
+            ))
+        
+        self.update_old_actor_weights()
 
     def __init__(
         self,

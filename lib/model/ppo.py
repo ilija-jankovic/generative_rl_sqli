@@ -313,17 +313,6 @@ class PPO:
             actions_old = []
             action_probabilities_old = []
 
-            # Demonstrations should give a probability of 1 as they should come from a
-            # separate policy which is definitionally constructed as such:
-            #
-            # Single demonstration PPO paper (pg. 3):
-            # 
-            # Policy = one of the below:
-            #
-            # πDR , if sampled from DR
-            # πDV , if sampled from DV
-            # πθ , if sampled from Env
-
             exploration_seconds = time.time()
 
             rand = np.random.rand()
@@ -338,7 +327,7 @@ class PPO:
                 else None
 
             for i in range(T):
-                if trajectories == None:
+                if policy_type == PolicyType.OLD:
                     action_batch, probabilities_batch = self.actor_critic.policy(
                         states[i],
                         PolicyType.OLD.value,
@@ -346,11 +335,16 @@ class PPO:
                         actions_reference=tf.fill([self.actor_critic.batch_size, self.actor_critic.action_size,], -1),
                         use_actions_reference=False,
                     )
-                else:
-                    action_batch, probabilities_batch = trajectories[1][:,i], tf.ones(
-                        [self.actor_critic.batch_size, 1],
-                        dtype=tf.float64,
+                elif policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
+                    action_batch, probabilities_batch = self.actor_critic.policy(
+                        states[i],
+                        PolicyType.OLD.value,
+                        batch_size=self.actor_critic.batch_size,
+                        actions_reference=trajectories[1][:,i],
+                        use_actions_reference=True,
                     )
+                else:
+                    raise Exception(f'Policy type {policy_type} is invalid for exploration.')
                     
                 actions_old.append(action_batch)
                 action_probabilities_old.append(probabilities_batch)

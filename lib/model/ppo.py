@@ -19,7 +19,7 @@ from .ppo_actor_critic import PPOActorCritic
 # T << episode length pg. 5.
 T = 20
 EPOCHS = 3
-MINIBATCH_SIZE = 256
+MINIBATCH_SIZE = 32
 GAMMA = 0.999
 
 SUCCESSFUL_BUFFER_SIZE = 4096

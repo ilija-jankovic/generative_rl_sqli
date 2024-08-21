@@ -169,8 +169,8 @@ class PPOActorCritic:
 
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
-        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(concat)
-        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(dense)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(concat)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(dense)
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 

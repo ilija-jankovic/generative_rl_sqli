@@ -16,7 +16,8 @@ ACTOR_LEARNING_RATE = 0.0001
 CRITIC_LEARNING_RATE = 0.0002
 L2_WEIGHT = 0.0001
 
-ACTOR_LSTM_UNITS = 256
+ACTOR_LSTM_UNITS = 512
+ACTOR_DENSE_UNITS = 512
 
 # Strategy to utilise multiple GPUs.
 #
@@ -143,15 +144,15 @@ class PPOActorCritic:
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_LSTM_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS, activation='tanh',
         )(input_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_LSTM_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS, activation='tanh',
         )(dense_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_LSTM_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS, activation='tanh',
         )(dense_rl_state)
 
         input_lstm_state_h = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
@@ -168,8 +169,8 @@ class PPOActorCritic:
 
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
-        dense = self.__create_hidden_dense_layer(128)(concat)
-        dense = self.__create_hidden_dense_layer(128)(dense)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(concat)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(dense)
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
@@ -178,14 +179,14 @@ class PPOActorCritic:
     def get_critic(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        dense = self.__create_hidden_dense_layer(128)(input_rl_state)
+        dense = self.__create_hidden_dense_layer(1024)(input_rl_state)
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = self.__create_hidden_dense_layer(512)(dense)
+        dense = self.__create_hidden_dense_layer(256)(dense)
         dense = self.__create_hidden_dense_layer(128)(dense)
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = self.__create_hidden_dense_layer(32)(dense)
         dense = self.__create_hidden_dense_layer(16)(dense)
-        dense = self.__create_hidden_dense_layer(8)(dense)
-        dense = self.__create_hidden_dense_layer(4)(dense)
-        dense = self.__create_hidden_dense_layer(2)(dense)
         output = tf.keras.layers.Dense(1)(dense)
 
         return tf.keras.Model([input_rl_state,], output)

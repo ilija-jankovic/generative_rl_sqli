@@ -410,7 +410,4 @@ class PPO:
             mean_batch_rollout_reward = np.mean(rewards)
 
             if policy_type == PolicyType.OLD:
-                print(f'Timestep: {self.timestep}, Mean rollout reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {total_seconds}, Exploration Time (s): {exploration_seconds}, Learning Time (s): {learning_seconds}')
-            else:
-                print(f'Timestep: {self.timestep}, Mean trajectory rollout playback reward: {mean_batch_rollout_reward}, Policy Type: {policy_type.name}, Execution Time (s): {total_seconds}, Exploration Time (s): {exploration_seconds}, Learning Time (s): {learning_seconds}')
-
+                print(mean_batch_rollout_reward)

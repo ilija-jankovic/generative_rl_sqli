@@ -320,9 +320,6 @@ class Environment():
             reward = new_tokens_count
 
             self.__episode.extend_episode()
-
-            print(f'Successful payload (unscaled reward: {reward}):')
-            print(payload)
         else:
             reward = 0.0
 

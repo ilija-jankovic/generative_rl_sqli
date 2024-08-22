@@ -6,6 +6,9 @@ from typing import Callable
 import tensorflow as tf
 from bs4 import BeautifulSoup
 
+from .ppo_reporter import PPOReporter
+from .ppo_payload_statistics import PPOPayloadStatistics
+
 from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
@@ -296,7 +299,7 @@ class Environment():
         return tf.convert_to_tensor(state, dtype=tf.float32)
 
 
-    def perform_action(self, action: tf.Tensor):
+    def perform_action(self, action: tf.Tensor, timestep: int, reporter: PPOReporter):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -318,8 +321,17 @@ class Environment():
         
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
             reward = new_tokens_count
-
+            
             self.__episode.extend_episode()
+            
+            if reporter != None:
+                stats = PPOPayloadStatistics(
+                    timestep=timestep,
+                    reward=reward,
+                    payload=payload,
+                )
+                
+                reporter.record_payload_statistic(stats)
         else:
             reward = 0.0
 
@@ -331,3 +343,10 @@ class Environment():
             else self.__create_state(response.text)
 
         return state, reward, done
+
+    def perform_demonstration_action(self, action: tf.Tensor):
+        return self.perform_action(
+            action=action,
+            timestep=None,
+            reporter=None,
+        )

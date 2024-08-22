@@ -6,6 +6,8 @@ from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GA
     PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
     PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
 
+from .ppo_reporter import PPOReporter
+from .ppo_running_statistics import PPORunningStatistics
 from .ppo_replay_buffer import PPOReplayBuffer
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
@@ -49,7 +51,7 @@ class PPO:
         for i in range(T):
             action = demonstration_actions[i]
 
-            state, reward, _ = demonstration_environment.perform_action(action)
+            state, reward, _ = demonstration_environment.perform_demonstration_action(action)
 
             states.append(state)
             actions.append(action)
@@ -193,6 +195,9 @@ class PPO:
             y_old_minibatch,
             rewards_minibatch
     ):
+        '''
+        Returns actor loss.
+        '''
         actor_model = self.actor_critic.actor_model
         actor_optimizer = self.actor_critic.actor_optimizer
         
@@ -222,9 +227,15 @@ class PPO:
 
         actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables)
         actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
+        
+        return actor_loss
 
     @tf.function
     def train_critic(self, states_minibatch, rewards_minibatch):
+        '''
+        Returns critic loss.
+        '''
+        
         critic_model = self.actor_critic.critic_model
         critic_optimizer = self.actor_critic.critic_optimizer
     
@@ -243,11 +254,19 @@ class PPO:
         critic_grad = tape.gradient(critic_loss, critic_model.trainable_variables)
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
-    def __learn(self, actions_old, y_old, states, rewards):
-        tf.Assert(tf.equal(states.shape[0], T), [states])
-        tf.Assert(tf.equal(rewards.shape[0], T), [rewards])        
+        return critic_loss
 
+    def __learn(self, actions_old, y_old, states, rewards):
+        '''
+        Returns `(actor losses, critic losses)` across minibatch trainings.
+        '''
+        assert(states.shape[0] == T)
+        assert(rewards.shape[0] == T)    
+
+        actor_losses, critic_losses = [], []
+        
         minibatches = BATCH_SIZE // MINIBATCH_SIZE
+        
         for minibatch in range(1, minibatches + 1):
             #print(f'Minibatch {minibatch}/{minibatches}...')
 
@@ -259,17 +278,22 @@ class PPO:
             states_minibatch = states[:, from_batch_index: to_batch_position]
             rewards_minibatch = rewards[:, from_batch_index: to_batch_position]
 
-            self.train_critic(
+            critic_loss = self.train_critic(
                 states_minibatch,
                 rewards_minibatch
             )
 
-            self.train_actor(
+            actor_loss = self.train_actor(
                 states_minibatch,
                 actions_old_minibatch,
                 y_old_minibatch,
                 rewards_minibatch,
             )
+            
+            actor_losses.append(actor_loss)
+            critic_losses.append(critic_loss)
+            
+        return actor_losses, critic_losses
             
     def __sample_policy_type(self):
         rand = np.random.rand()
@@ -278,7 +302,7 @@ class PPO:
             if rand < PPO_SUCCESSFUL_POLICY_PROBABILITY \
             else PolicyType.OLD
             
-    def __explore(self, policy_type: PolicyType, states: List[tf.Tensor]):
+    def __explore(self, policy_type: PolicyType, states: List[tf.Tensor], reporter: PPOReporter):
         actions_old = []
         action_probabilities_old = []
         rewards = []
@@ -314,7 +338,11 @@ class PPO:
 
             if trajectories == None:
                 env_tuples = [
-                    self.environments[batch_index].perform_action(action_batch[batch_index])
+                    self.environments[batch_index].perform_action(
+                        action_batch[batch_index],
+                        timestep=self.timestep + batch_index + 1,
+                        reporter=reporter,
+                    )
                         for batch_index in range(BATCH_SIZE)
                 ]
 
@@ -349,6 +377,11 @@ class PPO:
         action_probabilities_old: tf.Tensor,
         rewards: tf.Tensor,
     ):
+        '''
+        Returns `(mean actor loss, mean critic loss)` across every optimisation step.
+        '''
+        actor_losses, critic_losses = [], []
+        
         for _ in range(1, EPOCHS + 1):
             seed = np.random.randint(0, 9999999)
 
@@ -357,16 +390,25 @@ class PPO:
             states_shuffled = self.__tf_shuffle_axis(states[:-1], axis=1, seed=seed)
             rewards_shuffled = self.__tf_shuffle_axis(rewards, axis=1, seed=seed)
 
-            self.__learn(
+            epoch_actor_losses, epoch_critic_losses = self.__learn(
                 actions_old=actions_old_shuffled,
                 y_old=action_probabilities_old_shuffed,
                 states=states_shuffled,
                 rewards=rewards_shuffled,
             )
+            
+            actor_losses.extend(epoch_actor_losses)
+            critic_losses.extend(epoch_critic_losses)
 
         self.actor_critic.update_old_actor_weights()
+        
+        return np.mean(actor_losses), np.mean(critic_losses)
             
-    def __run_training_step(self, states: List[tf.Tensor]):        
+    def __run_training_step(
+        self,
+        states: List[tf.Tensor],
+        reporter: PPOReporter,
+    ):        
         total_seconds = time.time()
         
         # Explore
@@ -378,6 +420,7 @@ class PPO:
         states, actions_old, action_probabilities_old, rewards = self.__explore(
             policy_type=policy_type,
             states=states,
+            reporter=reporter,
         )
         
         exploration_seconds = time.time() - exploration_seconds
@@ -388,7 +431,7 @@ class PPO:
         # ===================================
         learning_seconds = time.time()
 
-        self.__learn_sgd(
+        mean_actor_loss, mean_critic_loss = self.__learn_sgd(
             states=states,
             actions_old=actions_old,
             action_probabilities_old=action_probabilities_old,
@@ -408,7 +451,21 @@ class PPO:
         
         mean_batch_rollout_reward = np.mean(rewards)
 
+        # Report running statistics and print reward if not from replayed
+        # demonstrations.
         if policy_type == PolicyType.OLD:
+            running_stats = PPORunningStatistics(
+                timestep=self.timestep,
+                mean_batch_reward=mean_batch_rollout_reward,
+                mean_actor_loss=mean_actor_loss,
+                mean_critic_loss=mean_critic_loss,
+                exploration_seconds=exploration_seconds,
+                learning_seconds=learning_seconds,
+                training_step_seconds=total_seconds,
+            )
+            
+            reporter.record_running_statistics(running_stats)
+            
             print(mean_batch_rollout_reward)
         
         # Last states of this training step returned as expected to be beginning
@@ -417,7 +474,14 @@ class PPO:
         
 
     def run(self):
+        reporter = PPOReporter()
+
+        reporter.start()
+        
         starting_states = [self.__create_empty_states()]
 
         while True:
-            starting_states = self.__run_training_step(starting_states)
+            starting_states = self.__run_training_step(
+                states=starting_states,
+                reporter=reporter,
+            )

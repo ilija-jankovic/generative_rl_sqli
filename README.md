@@ -49,7 +49,7 @@ done
 Run from root of project with minimal options for debugging (requires generated embeddings):
 
 ```sh
-python lib/main.py --no-run-sqlmap --from-cache --no-double-requests
+python -m lib --no-run-sqlmap --from-cache --no-double-requests
 ```
 
 Enable profiling with the `--profile` flag. For example:

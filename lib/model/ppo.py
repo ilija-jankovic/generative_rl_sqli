@@ -2,6 +2,10 @@ import os
 import time
 from typing import List
 
+from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GAMMA, \
+    PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
+    PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
+
 from .ppo_replay_buffer import PPOReplayBuffer
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
@@ -15,27 +19,6 @@ from .enums.policy_type import PolicyType
 
 from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
-
-# T << episode length pg. 5.
-T = 20
-EPOCHS = 3
-MINIBATCH_SIZE = 32
-GAMMA = 0.999
-
-SUCCESSFUL_BUFFER_SIZE = 4096
-
-# This value (epsilon) is based on best performing clipping strategy
-# in Table 1, pg. 7.
-PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
-
-RHO = 0.5
-
-# M <= NT from Algorithm 1 in pg. 5, where M is minibatch size.
-# N = 1 as there are no parallel actors.
-#assert(MINIBATCH_SIZE <= T)
-
-# Assert some chance for actor interaction with environments.
-assert(RHO <= 0.8)
 
 class PPO:
     timestep = 0
@@ -51,9 +34,8 @@ class PPO:
         demonstration_environment: Environment,
         demonstration_actions: tf.Tensor
     ):
-        assert(actor_critic.batch_size % MINIBATCH_SIZE == 0)
         assert(T <= len(demonstration_actions))
-        assert(len(environments) == actor_critic.batch_size)
+        assert(len(environments) == BATCH_SIZE)
         assert(len(environments) == len(set(environments)))
         assert(demonstration_environment not in environments)
 
@@ -78,9 +60,9 @@ class PPO:
         rewards = np.array(rewards)
 
         self.buffers = PPOReplayBuffer(
-            state_size=demonstration_environment.state_size,
-            action_size=demonstration_environment.action_size,
-            successful_buffer_size=SUCCESSFUL_BUFFER_SIZE,
+            state_size=STATE_SIZE,
+            action_size=ACTION_SIZE,
+            successful_buffer_size=PPO_SUCCESSFUL_BUFFER_SIZE,
             demonstrated_successful_states=states,
             demonstrated_successful_actions=actions,
             demonstrated_successful_rewards=rewards,
@@ -89,7 +71,7 @@ class PPO:
     def __create_empty_states(self):
         return tf.convert_to_tensor([
             self.environments[batch_index].create_empty_state()
-                for batch_index in range(self.actor_critic.batch_size)
+                for batch_index in range(BATCH_SIZE)
         ])
 
     @tf.function
@@ -139,8 +121,8 @@ class PPO:
 
         clipped = tf.clip_by_value(
             probability_ratios,
-            1.0 - PROBABILITY_RATIO_CLIP_THRESHOLD,
-            1.0 + PROBABILITY_RATIO_CLIP_THRESHOLD,
+            1.0 - PPO_PROBABILITY_RATIO_CLIP_THRESHOLD,
+            1.0 + PPO_PROBABILITY_RATIO_CLIP_THRESHOLD,
         )
 
         return tf.minimum(
@@ -265,7 +247,7 @@ class PPO:
         tf.Assert(tf.equal(states.shape[0], T), [states])
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])        
 
-        minibatches = self.actor_critic.batch_size // MINIBATCH_SIZE
+        minibatches = BATCH_SIZE // MINIBATCH_SIZE
         for minibatch in range(1, minibatches + 1):
             #print(f'Minibatch {minibatch}/{minibatches}...')
 
@@ -293,7 +275,7 @@ class PPO:
         rand = np.random.rand()
         
         return PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-            if rand < RHO \
+            if rand < PPO_SUCCESSFUL_POLICY_PROBABILITY \
             else PolicyType.OLD
             
     def __explore(self, policy_type: PolicyType, states: List[tf.Tensor]):
@@ -302,7 +284,7 @@ class PPO:
         rewards = []
 
         trajectories = self.buffers.sample_successful_trajectories(
-                batch_size=self.actor_critic.batch_size
+                batch_size=BATCH_SIZE
             ) \
             if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
             else None
@@ -312,15 +294,15 @@ class PPO:
                 action_batch, probabilities_batch = self.actor_critic.policy(
                     states[i],
                     PolicyType.OLD.value,
-                    batch_size=self.actor_critic.batch_size,
-                    actions_reference=tf.fill([self.actor_critic.batch_size, self.actor_critic.action_size,], -1),
+                    batch_size=BATCH_SIZE,
+                    actions_reference=tf.fill([BATCH_SIZE, ACTION_SIZE,], -1),
                     use_actions_reference=False,
                 )
             elif policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
                 action_batch, probabilities_batch = self.actor_critic.policy(
                     states[i],
                     PolicyType.OLD.value,
-                    batch_size=self.actor_critic.batch_size,
+                    batch_size=BATCH_SIZE,
                     actions_reference=trajectories[1][:,i],
                     use_actions_reference=True,
                 )
@@ -333,7 +315,7 @@ class PPO:
             if trajectories == None:
                 env_tuples = [
                     self.environments[batch_index].perform_action(action_batch[batch_index])
-                        for batch_index in range(self.actor_critic.batch_size)
+                        for batch_index in range(BATCH_SIZE)
                 ]
 
                 states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
@@ -348,7 +330,7 @@ class PPO:
         rewards = tf.convert_to_tensor(rewards)
 
         if policy_type == PolicyType.OLD:
-            for i in range(self.actor_critic.batch_size):
+            for i in range(BATCH_SIZE):
                 trajectory_reward = np.sum(rewards[:, i])
 
                 if trajectory_reward > 0.0:

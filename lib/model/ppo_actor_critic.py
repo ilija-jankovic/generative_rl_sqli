@@ -2,6 +2,9 @@ import math
 import os
 from typing import List
 
+from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
+    CRITIC_LEARNING_RATE, DENSE_L2_WEIGHT
+
 # Sets TF logger level to ERROR.
 #
 # Important to place before TF import, as stated by Matt Haythornthwaite
@@ -11,13 +14,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 
 from .enums.policy_type import PolicyType
-    
-ACTOR_LEARNING_RATE = 0.0001
-CRITIC_LEARNING_RATE = 0.0002
-L2_WEIGHT = 0.0001
-
-ACTOR_LSTM_UNITS = 512
-ACTOR_DENSE_UNITS = 512
 
 # Strategy to utilise multiple GPUs.
 #
@@ -135,7 +131,7 @@ class PPOActorCritic:
         return tf.keras.layers.Dense(
             units,
             activation=activation,
-            kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
+            kernel_regularizer=tf.keras.regularizers.l2(DENSE_L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3)
         )

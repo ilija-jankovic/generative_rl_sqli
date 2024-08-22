@@ -4,22 +4,21 @@ import numpy as np
 import os
 import requests
 
-from model.ppo_actor_critic import PPOActorCritic
-from model.ppo import PPO, T
-from sql_parser.contextual_template_populator import ContextualTemplatePopulator
-from sql_parser.wikisql_parser import WikiSQLParser
-from sqlmap_runner import SqlmapRunner
-from sql_parser.token_parser import TokenParser
-from sql_parser.sql_data_service import SQLDataService
-from model.token_embedder import TokenEmbedder 
-from model.ddpg import DDPG
-from model.environment import Environment
-from model.payload_builder import PayloadBuilder
-from model.ddpg_hyperparameters import DDPGHyperparameters
+from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
+from .model.ppo_actor_critic import PPOActorCritic
+from .model.ppo import PPO, T
+from .sql_parser.contextual_template_populator import ContextualTemplatePopulator
+from .sql_parser.wikisql_parser import WikiSQLParser
+from .sqlmap_runner import SqlmapRunner
+from .sql_parser.token_parser import TokenParser
+from .sql_parser.sql_data_service import SQLDataService
+from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
+from .model.token_embedder import TokenEmbedder 
+from .model.environment import Environment
+from .model.payload_builder import PayloadBuilder
+from .model.ddpg_hyperparameters import DDPGHyperparameters
 
 import tensorflow as tf
-
-import sql_parser.schema_parser as schema_parser
 
 # GPU private mode allows for optimisation. Thread count of two recommended but we set
 # it to three.Environment variable documentation from:
@@ -46,7 +45,6 @@ gpu_devices = tf.config.list_physical_devices('GPU')
 for device in gpu_devices:
   details = tf.config.experimental.get_device_details(device)
   print(details.get('device_name', 'Unknown GPU'))
-
 
 tf.config.optimizer.set_jit(True)
 
@@ -76,20 +74,10 @@ except:
 #
 #
 
-BATCH_SIZE = 64
-
-EMBEDDING_DIM = 128
-
-ACTION_SIZE = 32
-STATE_SIZE = 128
-
-# NOTE: State needs a few tokens of leeway for sectioning.
-assert(STATE_SIZE >= 8)
-
 OPEN_URL = 'http://localhost/products.php?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=699a57e6fb16c56f9aea7540c13ffa22; {flag}=45fbc6d3e05ebd93369ce542e8f2322d'
+COOKIE = 'pma_lang=en; PHPSESSID=14b6163c52b4820f67f2fea2647860bc; {flag}=f899139df5e1059396431415e770c6dd'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
@@ -108,11 +96,11 @@ data_service = SQLDataService()
 
 schema = data_service.load_schema()
 
-columns = schema_parser.get_column_tokens_from_schema(schema)
+columns = get_column_tokens_from_schema(schema)
 
 # NON-SYSTEM TABLE NAMES ARE CASE SENSITIVE!!!!!
 # Column names are probably too.
-tables = schema_parser.get_table_tokens_from_schema(schema)
+tables = get_table_tokens_from_schema(schema)
 
 sql_tokens = data_service.load_sql_tokens()
 token_blacklist = data_service.load_sql_blacklist()

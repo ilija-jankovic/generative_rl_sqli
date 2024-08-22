@@ -1,11 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-import model.ppo as ppo
-
-PRIORITY_EXPONENT = 0.3
-
-DEMONSRATION_PROBABILITY = 0.1
+from ..hyperparameters import T, PPO_DEMONSRATION_SAMPLING_PROBABILITY
 
 class PPOReplayBuffer:
     successful_buffer_size: int
@@ -29,15 +25,15 @@ class PPOReplayBuffer:
         
         assert successful_buffer_size > 1, 'Successful buffer size accounts for reserved demonstration index.'
 
-        assert(demonstrated_successful_states.shape[0] == ppo.T)
-        assert(demonstrated_successful_actions.shape[0] == ppo.T)
-        assert(demonstrated_successful_rewards.shape[0] == ppo.T)
+        assert(demonstrated_successful_states.shape[0] == T)
+        assert(demonstrated_successful_actions.shape[0] == T)
+        assert(demonstrated_successful_rewards.shape[0] == T)
 
         self.successful_buffer_size = successful_buffer_size
 
-        self.__successful_states = np.zeros([successful_buffer_size, ppo.T, state_size], dtype=np.float32)
-        self.__successful_actions = np.zeros([successful_buffer_size, ppo.T, action_size], dtype=np.int32)
-        self.__successful_rewards = np.zeros([successful_buffer_size, ppo.T], dtype=np.float32)
+        self.__successful_states = np.zeros([successful_buffer_size, T, state_size], dtype=np.float32)
+        self.__successful_actions = np.zeros([successful_buffer_size, T, action_size], dtype=np.int32)
+        self.__successful_rewards = np.zeros([successful_buffer_size, T], dtype=np.float32)
 
         # Index 0 of successful injections reserved for demonstration.
         self.__successful_states[0] = demonstrated_successful_states
@@ -57,9 +53,9 @@ class PPOReplayBuffer:
         actions: tf.Tensor,
         rewards: tf.Tensor,
     ):
-        assert(states.shape[0] == ppo.T)
-        assert(actions.shape[0] == ppo.T)
-        assert(rewards.shape[0] == ppo.T)
+        assert(states.shape[0] == T)
+        assert(actions.shape[0] == T)
+        assert(rewards.shape[0] == T)
 
         # Avoid affecting index 0 as this index contains the demonstration.
         index = self.__successful_transitions_counter % (self.successful_buffer_size - 1) + 1
@@ -75,9 +71,9 @@ class PPOReplayBuffer:
 
         # Uniform probabilities except for demonstration.
         probabilities = (
-            [DEMONSRATION_PROBABILITY] + (
+            [PPO_DEMONSRATION_SAMPLING_PROBABILITY] + (
                 [
-                    (1.0-DEMONSRATION_PROBABILITY) / (self.__successful_transitions_count-1),
+                    (1.0-PPO_DEMONSRATION_SAMPLING_PROBABILITY) / (self.__successful_transitions_count-1),
                 ] * (self.__successful_transitions_count-1)
             )) \
             if self.__successful_transitions_count > 1 \

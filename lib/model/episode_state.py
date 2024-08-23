@@ -3,6 +3,10 @@ class EpisodeState:
 
     __frames: int
     __frames_since_last_episode: int = 0
+    
+    @property
+    def frames_since_last_episode(self):
+        return self.__frames_since_last_episode
 
     def __init__(self, initial_frames: int):
         self.initial_frames = initial_frames

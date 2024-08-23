@@ -320,7 +320,13 @@ class Environment():
         new_tokens_count = len(new_tokens)
         
         if not self.__payload_attempted(payload) and new_tokens_count > 0:
-            reward = new_tokens_count
+            
+            # Successful payloads further along the episode are more greatly rewarded.
+            #
+            # They are less likely to be the result of simple injections, as these were
+            # already likely rewarded.
+            reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
+            reward = new_tokens_count * reward_weight
             
             self.__episode.extend_episode()
             

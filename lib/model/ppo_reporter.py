@@ -4,6 +4,7 @@ import os
 from typing import List
 
 from .ppo_running_statistics import PPORunningStatistics
+from .ppo_episodic_statistics import PPOEpisodicStatistics
 from .ppo_payload_statistics import PPOPayloadStatistics
 
 from ..hyperparameters import ACTION_SIZE, ACTOR_DENSE_UNITS, ACTOR_LEARNING_RATE, \
@@ -24,6 +25,12 @@ class PPOReporter:
         'Learning Seconds',
         'Training Step Seconds',
     ]
+    
+    __EPISODE_COLUMNS: List[str] = [
+        'Since Beginning Seconds',
+        'Epsiode',
+        'Mean Cumulative Episodic Reward',
+    ]
 
     __PAYLOAD_COLUMNS: List[str] = [
         'Since Beginning Seconds',
@@ -36,6 +43,7 @@ class PPOReporter:
 
     __startedAt: datetime = None
     __statistics_filename: str
+    __episodes_filename: str
     __payloads_filename: str
 
     def start(self):
@@ -47,7 +55,8 @@ class PPOReporter:
 
         directory = f'{dirname}/../../reports/{now}'
 
-        self.__statistics_filename = f'{directory}/{now} PPO Statistics Report.csv'
+        self.__statistics_filename = f'{directory}/{now} PPO Running Statistics Report.csv'
+        self.__episodes_filename = f'{directory}/{now} PPO Episodes Report.csv'
         self.__payloads_filename = f'{directory}/{now} PPO Successful Payloads Report.csv'
         
         os.makedirs(os.path.dirname(self.__statistics_filename), exist_ok=True)
@@ -80,6 +89,13 @@ class PPOReporter:
                 f.write(f'{name},{value}\n')
                 
             f.write(f'{",".join(self.__RUNNING_COLUMNS)}\n')
+            
+        f.close()
+
+        with open(self.__episodes_filename, 'w', encoding='utf-8') as f:
+            f.write(f'Report Started,{now}\n\n')
+            
+            f.write(f'{",".join(self.__EPISODE_COLUMNS)}\n')
             
         f.close()
 
@@ -116,6 +132,24 @@ class PPOReporter:
             f.write(f'{",".join(ordered_stats)}\n')
             
         f.close()
+        
+    def record_episodic_statistics(self, stats: PPOEpisodicStatistics):
+        if self.__startedAt == None:
+            raise Exception('Must call start() before recording statistics.')
+
+        stats_dict = {
+            'Since Beginning Seconds': self.__get_seconds_since_start(),
+            'Epsiode': stats.episode,
+            'Mean Cumulative Episodic Reward': stats.mean_cumulative_episodic_reward,
+        }
+        
+        ordered_stats = [str(stats_dict[column]) for column in self.__EPISODE_COLUMNS]
+
+        with open(self.__episodes_filename, 'a', encoding='utf-8') as f:
+            f.write(f'{",".join(ordered_stats)}\n')
+            
+        f.close()
+
 
     def record_payload_statistic(self, stats: PPOPayloadStatistics):
         if self.__startedAt == None:

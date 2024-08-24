@@ -2,6 +2,8 @@ import os
 import time
 from typing import List
 
+from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
+
 from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GAMMA, \
     PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
     PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
@@ -51,7 +53,7 @@ class PPO:
         for i in range(T):
             action = demonstration_actions[i]
 
-            state, reward, _ = demonstration_environment.perform_demonstration_action(action)
+            state, reward = demonstration_environment.perform_demonstration_action(action)
 
             states.append(state)
             actions.append(action)
@@ -302,7 +304,13 @@ class PPO:
             if rand < PPO_SUCCESSFUL_POLICY_PROBABILITY \
             else PolicyType.OLD
             
-    def __explore(self, policy_type: PolicyType, states: List[tf.Tensor], reporter: PPOReporter):
+    def __explore(
+        self,
+        policy_type: PolicyType,
+        states: List[tf.Tensor],
+        reporter: PPOReporter,
+        episodic_rewards_reporter: PPOEpisodicRewardsReporter,
+    ):
         actions_old = []
         action_probabilities_old = []
         rewards = []
@@ -337,14 +345,31 @@ class PPO:
             action_probabilities_old.append(probabilities_batch)
 
             if trajectories == None:
-                env_tuples = [
-                    self.environments[batch_index].perform_action(
+                env_tuples = []
+                
+                for batch_index in range(BATCH_SIZE):
+                    environment = self.environments[batch_index]
+
+                    # Retrieve epsiode before its potential update.
+                    #
+                    # Otherwise, if the episode is updated, the reward returned
+                    # will match the previous episode.
+                    episode = environment.episode
+                    
+                    state, reward = environment.perform_action(
                         action_batch[batch_index],
                         timestep=self.timestep + batch_index + 1,
                         reporter=reporter,
                     )
-                        for batch_index in range(BATCH_SIZE)
-                ]
+                    
+                    episodic_rewards_reporter.record_reward(
+                        reward=reward,
+                        batch_index=batch_index,
+                        episode=episode,
+                    )
+                        
+                    env_tuples.append((state, reward,))
+
 
                 states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
                 rewards.append([env_tuple[1] for env_tuple in env_tuples])
@@ -408,6 +433,7 @@ class PPO:
         self,
         states: List[tf.Tensor],
         reporter: PPOReporter,
+        episodic_rewards_reporter: PPOEpisodicRewardsReporter,
     ):        
         total_seconds = time.time()
         
@@ -421,6 +447,7 @@ class PPO:
             policy_type=policy_type,
             states=states,
             reporter=reporter,
+            episodic_rewards_reporter=episodic_rewards_reporter,
         )
         
         exploration_seconds = time.time() - exploration_seconds
@@ -475,6 +502,11 @@ class PPO:
 
     def run(self):
         reporter = PPOReporter()
+        
+        episodic_rewards_reporter = PPOEpisodicRewardsReporter(
+            batch_size=BATCH_SIZE,
+            reporter=reporter,
+        )
 
         reporter.start()
         
@@ -484,4 +516,5 @@ class PPO:
             starting_states = self.__run_training_step(
                 states=starting_states,
                 reporter=reporter,
+                episodic_rewards_reporter=episodic_rewards_reporter,
             )

@@ -7,6 +7,7 @@ import tensorflow as tf
 from bs4 import BeautifulSoup
 
 from .ppo_reporter import PPOReporter
+from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
 
 from .payload_builder import PayloadBuilder
@@ -41,6 +42,10 @@ class Environment():
     __new_tokens: List[str]
 
     __episode: EpisodeState
+
+    @property
+    def episode(self):
+        return self.__episode.episode
 
     def __init_tokenizer_dictionary(self, dictionary_upper: List[str]):
         '''
@@ -299,7 +304,12 @@ class Environment():
         return tf.convert_to_tensor(state, dtype=tf.float32)
 
 
-    def perform_action(self, action: tf.Tensor, timestep: int, reporter: PPOReporter):
+    def perform_action(
+        self,
+        action: tf.Tensor,
+        timestep: int,
+        reporter: PPOReporter,
+    ):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
         and resets token cache on every invocation.
@@ -348,7 +358,7 @@ class Environment():
             if done \
             else self.__create_state(response.text)
 
-        return state, reward, done
+        return state, reward
 
     def perform_demonstration_action(self, action: tf.Tensor):
         return self.perform_action(

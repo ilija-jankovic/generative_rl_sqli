@@ -1,12 +1,12 @@
 STATE_SIZE = 128
-ACTION_SIZE = 32
+ACTION_SIZE = 64
 EMBEDDING_DIM = 128
 
 # T << episode length pg. 5 (PPO paper).
-T = 20
+T = 22
 
 EPOCHS = 3
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 MINIBATCH_SIZE = 32
 
 # This value (epsilon) is based on best performing clipping strategy
@@ -21,8 +21,8 @@ ACTOR_LEARNING_RATE = 0.0001
 CRITIC_LEARNING_RATE = 0.0002
 DENSE_L2_WEIGHT = 0.0001
 
-ACTOR_LSTM_UNITS = 512
-ACTOR_DENSE_UNITS = 512
+ACTOR_LSTM_UNITS = 256
+ACTOR_DENSE_UNITS = 256
 
 # NOTE: State needs a few tokens of leeway for sectioning.
 assert(STATE_SIZE >= 8)

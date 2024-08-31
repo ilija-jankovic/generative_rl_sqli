@@ -79,9 +79,7 @@ OPEN_URL = 'http://localhost:5000/items?id='
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
 COOKIE = 'pma_lang=en; PHPSESSID=850f0124b1e274eccf6e9e13d8131e6c; {flag}=92262bf907af914b95a0fc33c3f33bf6'
 
-# Skips lowercase alphabet as SQL is case-insensitive.
-visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \
-    [chr(i) for i in range(123, 127)]
+visible_chars = [chr(i) for i in range(32, 127)]
 
 sqlmap = SqlmapRunner(OPEN_URL, vulernable_param='id', default_vulnerable_param_value='1')
 
@@ -113,7 +111,7 @@ data_service.save_contextual_payloads(payloads)
 
 payloads += data_service.load_payload_files(domain_name='localhost')
 
-dictionary = sql_tokens + tables + columns + visible_uppercase_chars + ['']
+dictionary = sql_tokens + tables + columns + visible_chars + ['']
 
 # Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
 # which may also be contained in sql_tokens.

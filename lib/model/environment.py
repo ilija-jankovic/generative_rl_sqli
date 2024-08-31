@@ -138,11 +138,7 @@ class Environment():
         Used to start off each branch of a batch in different directions.
         '''
 
-        # Floating point type as the state is expected to be concatenated
-        # with other inputs which are floating point in the policy model.
-        #
-        # The combined tensor must be of the same type.
-        return tf.zeros((self.state_size,), dtype=tf.float32)
+        return tf.zeros([self.state_size,], dtype=tf.float32)
 
     def __filter_payload_from_text(self, text: str, payload: str):
         return text.replace(payload, '')
@@ -283,12 +279,7 @@ class Environment():
         if(len(state) < self.state_size):
             state.extend([-1] * (self.state_size - len(state)))
 
-        # Floating point type as the state is expected to be concatenated
-        # with other inputs which are floating point in the policy model.
-        #
-        # The combined tensor must be of the same type.
         return tf.convert_to_tensor(state, dtype=tf.float32)
-
 
     def perform_action(
         self,

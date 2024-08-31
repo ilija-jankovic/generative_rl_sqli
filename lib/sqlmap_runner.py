@@ -22,7 +22,7 @@ class SqlmapRunner:
         self.domain_name = urlparse(open_url).netloc
 
         self.__dirname = os.path.dirname(__file__)
-        self.__sqlmap_path = f'{self.__dirname}\..\..\sqlmap-dev\sqlmap.py'
+        self.__sqlmap_path = f'{self.__dirname}/../../sqlmap-dev/sqlmap.py'
         self.__sqlmap_log_path = f'{self.__dirname}/../sqlmap-log'
 
     def __write_sqlmap_output(self, output: List[str]):

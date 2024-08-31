@@ -235,11 +235,12 @@ def main():
     ppo = PPO(
         actor_critic,
         environments=environments,
+    )
+
+    ppo.run(
         demonstration_environment=demonstration_environment,
         demonstration_actions=demonstration_actions
     )
-
-    ppo.run()
 
 
 if __name__ == '__main__':

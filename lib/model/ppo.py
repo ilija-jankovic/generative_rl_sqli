@@ -28,23 +28,31 @@ class PPO:
     timestep = 0
 
     actor_critic: PPOActorCritic
-    buffers: PPOReplayBuffer
+    buffer: PPOReplayBuffer
     environments: List[Environment]
 
     def __init__(
         self,
         actor_critic: PPOActorCritic,
         environments: List[Environment],
-        demonstration_environment: Environment,
-        demonstration_actions: tf.Tensor
     ):
-        assert(T <= len(demonstration_actions))
         assert(len(environments) == BATCH_SIZE)
         assert(len(environments) == len(set(environments)))
-        assert(demonstration_environment not in environments)
 
         self.actor_critic = actor_critic
         self.environments = environments
+
+    def __init_buffer(
+        self,
+        demonstration_environment: Environment,
+        demonstration_actions: tf.Tensor,
+    ):
+        assert(demonstration_environment not in self.environments)
+        
+        assert(len(demonstration_actions) > 0)
+        assert(len(demonstration_actions) % T == 0)
+        
+        assert(PPO_SUCCESSFUL_BUFFER_SIZE > len(demonstration_actions) % T)
 
         states = []
         actions = []
@@ -59,11 +67,11 @@ class PPO:
             actions.append(action)
             rewards.append(reward)
 
-        states = np.array(states)
-        actions = np.array(actions)
-        rewards = np.array(rewards)
+        states = np.reshape(states, [-1, T, STATE_SIZE,])
+        actions = np.reshape(actions, [-1, T, ACTION_SIZE,])
+        rewards = np.reshape(rewards, [-1, T,])
 
-        self.buffers = PPOReplayBuffer(
+        self.buffer = PPOReplayBuffer(
             state_size=STATE_SIZE,
             action_size=ACTION_SIZE,
             successful_buffer_size=PPO_SUCCESSFUL_BUFFER_SIZE,
@@ -315,7 +323,7 @@ class PPO:
         action_probabilities_old = []
         rewards = []
 
-        trajectories = self.buffers.sample_successful_trajectories(
+        trajectories = self.buffer.sample_successful_trajectories(
                 batch_size=BATCH_SIZE
             ) \
             if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
@@ -387,7 +395,7 @@ class PPO:
                 trajectory_reward = np.sum(rewards[:, i])
 
                 if trajectory_reward > 0.0:
-                    self.buffers.record_successful_transitions(
+                    self.buffer.record_successful_transitions(
                         states[:-1, i],
                         actions_old[:, i],
                         rewards[:, i],
@@ -500,7 +508,16 @@ class PPO:
         return [states[-1]]
         
 
-    def run(self):
+    def run(
+        self,
+        demonstration_environment: Environment,
+        demonstration_actions: tf.Tensor,
+    ):
+        self.__init_buffer(
+            demonstration_environment=demonstration_environment,
+            demonstration_actions=demonstration_actions,
+        )
+        
         reporter = PPOReporter()
         
         episodic_rewards_reporter = PPOEpisodicRewardsReporter(

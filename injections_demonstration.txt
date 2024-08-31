@@ -11,8 +11,6 @@
 ' UNION SELECT productCode, NULL, NULL FROM reviews-- 
 ' UNION SELECT name, productCode, NULL FROM reviews-- 
 ' UNION SELECT productLine, textDescription, NULL FROM productlines-- 
-' UNION SELECT htmlDescription, image, NULL FROM productlines-- 
-' UNION SELECT htmlDescription, NULL, NULL FROM productlines-- 
 ' UNION SELECT image, NULL, NULL FROM productlines-- 
 ' UNION SELECT productCode, productName, NULL FROM products-- 
 ' UNION SELECT productLine, productScale, NULL FROM products-- 

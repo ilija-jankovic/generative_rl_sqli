@@ -14,12 +14,11 @@ from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
 class Environment():
-    dictionary_upper: List[str]
-
+    dictionary: List[str]
     '''
-    Specially sorted version of `dictionary_upper` which handles subset cases of tokens.
+    Permutated version of `dictionary` which handles subset cases of tokens.
     '''
-    dictionary_upper_tokenizer: List[str]
+    dictionary_sorted: List[str]
 
     payload_builder: PayloadBuilder
 
@@ -47,20 +46,20 @@ class Environment():
     def episode(self):
         return self.__episode.episode
 
-    def __init_tokenizer_dictionary(self, dictionary_upper: List[str]):
+    def __init_tokenizer_dictionary(self):
         '''
         Since tokens may be a subset of each other, longer ones must be prioritied
         during this tokenization.
 
-        `dictionary_upper_tokenizer` is expected to have two layers of sorting: first by
+        `dictionary_sorted` is expected to have two layers of sorting: first by
         negative length, then by alphabetical order (for the case of multiple tokens
         of the same length existing).
         '''
 
         # Second condition prioritises alphabetically, as stated by Johannes from:
         # https://stackoverflow.com/a/44835987
-        self.dictionary_upper_tokenizer = sorted(
-            self.dictionary_upper,
+        self.dictionary_sorted = sorted(
+            self.dictionary,
             key=lambda token: (-len(token), token)
         )
 
@@ -79,20 +78,19 @@ class Environment():
         assert(state_size > 0)
         assert(state_size % 2 == 0)
         
-        dictionary = payload_builder.dictionary
+        self.dictionary = payload_builder.dictionary
 
-        assert(len(embeddings) == len(dictionary))
+        assert(len(embeddings) == len(self.dictionary))
 
         for embedding in embeddings[1:]:
             if len(embedding) != len(embeddings[0]):
                 raise Exception('All embeddings must be of the same length')
             
-        self.dictionary_upper = [token.upper() for token in dictionary]
-        self.__init_tokenizer_dictionary(self.dictionary_upper)
+        self.__init_tokenizer_dictionary()
 
         assert(
-            len(set(self.dictionary_upper)) ==
-            len(set(self.dictionary_upper_tokenizer))
+            len(set(self.dictionary)) ==
+            len(set(self.dictionary_sorted))
         )
 
         self.payload_builder = payload_builder
@@ -193,20 +191,13 @@ class Environment():
             resText1 = self.__strip_lxml(resText1)
             resText2 = self.__strip_lxml(resText2)
 
-            # Only uppercase considered as the dictionary and SQL is case insensitive.
-            resText1 = resText1.upper()
-            resText2 = resText2.upper()
-
             resTokens = self.__filter_non_matching_text(resText1, resText2)
         else:
             res2 = self.send_request_callback(data)
 
             resText = self.__filter_payload_from_text(res2.text, data)
             resText = self.__strip_lxml(resText)
-            
-            # Only uppercase considered as the dictionary and SQL is case insensitive.
-            resText = resText.upper()
-            
+
             resTokens = self.__tokenize_text(resText)
 
         new_tokens: List[str] = []
@@ -246,8 +237,7 @@ class Environment():
         return episode_ended
 
     def __string_to_indices(self, data: str, max_size: int):
-        dictionary_length = len(self.dictionary_upper)
-        data = data.upper()
+        dictionary_length = len(self.dictionary)
 
         indexed_data: List[int] = []
 
@@ -258,8 +248,9 @@ class Environment():
             appended = False
 
             for token in self.dictionary_upper_tokenizer:
+            for token in self.dictionary_sorted:
                 if data.startswith(token):
-                    index = self.dictionary_upper.index(token)
+                    index = self.dictionary.index(token)
                     indexed_data.append(index)
 
                     # Remove token from prefix.

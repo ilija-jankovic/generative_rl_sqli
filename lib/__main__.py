@@ -96,8 +96,10 @@ schema = data_service.load_schema()
 
 columns = get_column_tokens_from_schema(schema)
 
-# NON-SYSTEM TABLE NAMES ARE CASE SENSITIVE!!!!!
-# Column names are probably too.
+# NON-SYSTEM TABLE NAMES CAN BE CASE SENSITIVE (MySQL...)!!!!!
+#
+# Column names don't appear to be. This could be because they are not
+# part of the file naming system (unlike table names depending on DBMS).
 tables = get_table_tokens_from_schema(schema)
 
 sql_tokens = data_service.load_sql_tokens()
@@ -113,8 +115,7 @@ payloads += data_service.load_payload_files(domain_name='localhost')
 
 dictionary = sql_tokens + tables + columns + visible_chars + ['']
 
-# Remove duplicate characters. For example, visible_uppercase_chars might contain '(',
-# which may also be contained in sql_tokens.
+# Remove duplicate schema column names and ASCII characters from dictionary.
 dictionary = list(set(dictionary))
 
 dictionary.sort(key=len, reverse=True)
@@ -125,9 +126,6 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = data_service.load_embeddings()
 else:
-    # MIGHT NOT BE USED BECAUSE OF LOWERCASE LETTERS.
-    #
-    # TODO: Ensure uppercase.
     queries = data_service.load_wikisql_queries()
 
     parser = WikiSQLParser(schema)

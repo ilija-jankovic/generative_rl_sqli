@@ -2,7 +2,6 @@ import unittest
 
 from requests import Response
 import tensorflow as tf
-import unittest.test
 
 from lib.model.environment import Environment
 from lib.model.payload_builder import PayloadBuilder
@@ -46,8 +45,10 @@ class TestEnvironment(unittest.TestCase):
         )
 
     def __perform_dummy_action(self):
-        state, _, __ = self.__env.perform_action(
-            tf.zeros([ACTION_SIZE,], dtype=tf.int16)
+        state, _ = self.__env.perform_action(
+            action=tf.zeros([ACTION_SIZE,], dtype=tf.int16),
+            timestep=1,
+            reporter=None,
         )
 
         return state
@@ -103,14 +104,14 @@ class TestEnvironment(unittest.TestCase):
 
     def test_one_new_ascii_token_buffer(self):
         '''
-        New private token 'a' is tokenized to index ASCII code of 'A' plus
+        New private token 'a' is tokenized to index ASCII code of 'a' plus
         dictionary size.
         '''
 
         self.__set_response_body('a')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(state[2], ord('A') + dictionary_size)
+        self.assertEqual(state[2], ord('a') + dictionary_size)
 
     def test_three_new_tokens_buffer(self):
         '''
@@ -133,8 +134,8 @@ class TestEnvironment(unittest.TestCase):
         self.__set_response_body('privateToken a b')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(state[2], ord('B') + dictionary_size)
-        self.assertEqual(state[3], ord('A') + dictionary_size)
+        self.assertEqual(state[2], ord('b') + dictionary_size)
+        self.assertEqual(state[3], ord('a') + dictionary_size)
         self.assertEqual(state[4], 0)
 
     def test_three_consecutive_new_tokens_buffer(self):
@@ -172,8 +173,8 @@ class TestEnvironment(unittest.TestCase):
         self.__set_response_body('b')
         state = self.__perform_dummy_action()
 
-        self.assertEqual(state[2], ord('B') + dictionary_size)
-        self.assertEqual(state[3], ord('A') + dictionary_size)
+        self.assertEqual(state[2], ord('b') + dictionary_size)
+        self.assertEqual(state[3], ord('a') + dictionary_size)
         self.assertEqual(state[4], 0)
 
 

@@ -1,33 +1,5 @@
 {
-    "admin": [
-        "id",
-        "username",
-        "password"
-    ],
-    "commentsnew": [
-        "name",
-        "comment"
-    ],
-    "image": [
-        "images"
-    ],
-    "products": [
-        "id",
-        "type",
-        "name",
-        "price"
-    ],
-    "types": [
-        "id",
-        "name",
-        "description"
-    ],
-    "users": [
-        "id",
-        "username",
-        "password"
-    ],
-    "information_schema.tables": [
+    "INFORMATION_SCHEMA.TABLES": [
         "TABLE_CATALOG",
         "TABLE_SCHEMA",
         "TABLE_NAME",
@@ -50,7 +22,7 @@
         "CREATE_OPTIONS",
         "TABLE_COMMENT"
     ],
-    "information_schema.columns": [
+    "INFORMATION_SCHEMA.COLUMNS": [
         "TABLE_CATALOG",
         "TABLE_SCHEMA",
         "TABLE_NAME",

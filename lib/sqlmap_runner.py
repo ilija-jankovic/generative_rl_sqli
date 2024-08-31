@@ -19,7 +19,10 @@ class SqlmapRunner:
         self.vulernable_param = vulernable_param
         self.default_vulnerable_param_value = default_vulnerable_param_value
 
-        self.domain_name = urlparse(open_url).netloc
+        domain_name = urlparse(open_url).netloc
+        
+        # Removed port from domain name.
+        self.domain_name = domain_name.split(':')[0]
 
         self.__dirname = os.path.dirname(__file__)
         self.__sqlmap_path = f'{self.__dirname}/../../sqlmap-dev/sqlmap.py'

@@ -74,10 +74,10 @@ except:
 #
 #
 
-OPEN_URL = 'http://localhost/products.php?id='
+OPEN_URL = 'http://localhost:5000/items?id='
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=14b6163c52b4820f67f2fea2647860bc; {flag}=f899139df5e1059396431415e770c6dd'
+COOKIE = 'pma_lang=en; PHPSESSID=850f0124b1e274eccf6e9e13d8131e6c; {flag}=92262bf907af914b95a0fc33c3f33bf6'
 
 # Skips lowercase alphabet as SQL is case-insensitive.
 visible_uppercase_chars = [chr(i) for i in range(32, 97)] + \

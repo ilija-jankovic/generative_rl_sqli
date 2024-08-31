@@ -114,10 +114,6 @@ class Environment():
 
     def __inject_initial_payloads(self):
         self.__send_request('1', is_expected=True)
-        self.__send_request('2', is_expected=True)
-        self.__send_request('3', is_expected=True)
-        self.__send_request('4', is_expected=True)
-        self.__send_request('5', is_expected=True)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()

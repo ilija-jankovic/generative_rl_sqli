@@ -55,6 +55,14 @@ class PPOReplayBuffer:
             self.__successful_transitions_counter,
             self.successful_buffer_size,
         )
+        
+    def __get_next_successful_buffer_index(self):
+        non_demonstrations_count = self.successful_buffer_size - self.__demonstrations_count
+        
+        # Apply an offset of demonstration count to index, so that demonstrations
+        # are preserved.
+        return self.__successful_transitions_counter % non_demonstrations_count + \
+            self.__demonstrations_count
 
     def record_successful_transitions(
         self,
@@ -66,8 +74,7 @@ class PPOReplayBuffer:
         assert(actions.shape[0] == T)
         assert(rewards.shape[0] == T)
 
-        # Avoid affecting index 0 as this index contains the demonstration.
-        index = self.__successful_transitions_counter % (self.successful_buffer_size - 1) + 1
+        index = self.__get_next_successful_buffer_index()
 
         self.__successful_states[index] = states
         self.__successful_actions[index] = actions

@@ -243,7 +243,6 @@ class Environment():
         while len(data) > 0 and len(indexed_data) < max_size:
             appended = False
 
-            for token in self.dictionary_upper_tokenizer:
             for token in self.dictionary_sorted:
                 if data.startswith(token):
                     index = self.dictionary.index(token)

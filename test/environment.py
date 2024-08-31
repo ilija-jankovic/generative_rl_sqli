@@ -177,6 +177,22 @@ class TestEnvironment(unittest.TestCase):
         self.assertEqual(state[3], ord('a') + dictionary_size)
         self.assertEqual(state[4], 0)
 
+    def test_state_is_right_padded_with_negative_ones(self):
+        '''
+        State is right-padded with -1s.
+        '''
+
+        self.__set_response_body('privateToken')
+        state = self.__perform_dummy_action()
+
+        # Last token index is for 'privateToken', which is 0.
+        self.assertEqual(state[4], 0)
+        
+        # Padding starts after last token/character index.
+        self.assertEqual(state[5], -1)
+        self.assertEqual(state[6], -1)
+        self.assertEqual(state[7], -1)
+
 
 if __name__ == '__main__':
     unittest.main()

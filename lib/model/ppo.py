@@ -400,7 +400,7 @@ class PPO:
     
     def __learn_sgd(
         self,
-        states: tf.Tensor,
+        states: List[tf.Tensor],
         actions_old: tf.Tensor,
         action_probabilities_old: tf.Tensor,
         rewards: tf.Tensor,

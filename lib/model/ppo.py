@@ -86,7 +86,6 @@ class PPO:
                 for batch_index in range(BATCH_SIZE)
         ])
 
-    @tf.function
     def calculate_advantages_batch(
         self,
         initial_timestep,
@@ -126,7 +125,6 @@ class PPO:
 
         return advantages
 
-    @tf.function
     def calculate_clipped_probability_ratios(self, probability_ratios, advantages):
         tf.Assert(tf.equal(probability_ratios.shape[0], T), [probability_ratios])
         tf.Assert(tf.equal(advantages.shape[0], T), [advantages])
@@ -142,7 +140,6 @@ class PPO:
             tf.multiply(clipped, advantages),
         )
 
-    @tf.function
     def clipped_surrogate_loss(
         self,
         y,
@@ -176,7 +173,6 @@ class PPO:
         # and so our loss should negative this value.
         return -tf.reduce_mean(minimums)
 
-    @tf.function
     def mse(self, y, rewards):
         tf.Assert(tf.equal(y.shape[0], T), [y])
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])
@@ -240,7 +236,6 @@ class PPO:
         
         return actor_loss
 
-    @tf.function
     def train_critic(self, states_minibatch, rewards_minibatch):
         '''
         Returns critic loss.

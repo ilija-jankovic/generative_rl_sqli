@@ -484,11 +484,11 @@ class PPO:
         
         total_seconds = time.time() - total_seconds
         
-        mean_batch_rollout_reward = np.mean(rewards)
-
         # Report running statistics and print reward if not from replayed
         # demonstrations.
         if policy_type == PolicyType.OLD:
+            mean_batch_rollout_reward = np.mean(rewards)
+
             running_stats = PPORunningStatistics(
                 timestep=self.timestep,
                 mean_batch_reward=mean_batch_rollout_reward,
@@ -500,8 +500,6 @@ class PPO:
             )
             
             reporter.record_running_statistics(running_stats)
-            
-            print(mean_batch_rollout_reward)
         
         # Last states of this training step returned as expected to be beginning
         # of next training step.

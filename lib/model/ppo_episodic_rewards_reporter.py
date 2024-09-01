@@ -48,13 +48,15 @@ class PPOEpisodicRewardsReporter:
         assert(None not in previous_episodic_rewards)
 
         mean_cumulative_episodic_reward = sum(previous_episodic_rewards) / self.batch_size
-
+        
         stats = PPOEpisodicStatistics(
             episode=episode - 1,
             mean_cumulative_episodic_reward=mean_cumulative_episodic_reward,
         )
 
         self.reporter.record_episodic_statistics(stats)
+        
+        print(mean_cumulative_episodic_reward)
 
         # Delete recorded epsiodic reward data.
         del self.__total_episodic_rewards[episode - 1]

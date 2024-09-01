@@ -45,9 +45,9 @@ class PPOReplayBuffer:
         self.__successful_rewards = np.zeros([successful_buffer_size, T], dtype=np.float32)
 
         # Index 0 of successful injections reserved for demonstration.
-        self.__successful_states[0:self.__demonstrations_count] = demonstrated_successful_states
-        self.__successful_actions[0:self.__demonstrations_count] = demonstrated_successful_actions
-        self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards
+        self.__successful_states[0:self.__demonstrations_count] = demonstrated_successful_states.copy()
+        self.__successful_actions[0:self.__demonstrations_count] = demonstrated_successful_actions.copy()
+        self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards.copy()
 
     @property
     def __successful_transitions_count(self):
@@ -76,9 +76,9 @@ class PPOReplayBuffer:
 
         index = self.__get_next_successful_buffer_index()
 
-        self.__successful_states[index] = states
-        self.__successful_actions[index] = actions
-        self.__successful_rewards[index] = rewards
+        self.__successful_states[index] = np.array(states)
+        self.__successful_actions[index] = np.array(actions)
+        self.__successful_rewards[index] = np.array(rewards)
 
         self.__successful_transitions_counter += 1
         

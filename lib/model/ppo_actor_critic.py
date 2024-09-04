@@ -3,7 +3,7 @@ import os
 from typing import List
 
 from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
-    CRITIC_LEARNING_RATE, DENSE_L2_WEIGHT
+    CRITIC_LEARNING_RATE, L2_WEIGHT
 
 # Sets TF logger level to ERROR.
 #
@@ -123,6 +123,7 @@ class PPOActorCritic:
             return_sequences=True,
             return_state=True,
             unroll=True,
+            kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
         )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
@@ -131,7 +132,7 @@ class PPOActorCritic:
         return tf.keras.layers.Dense(
             units,
             activation=activation,
-            kernel_regularizer=tf.keras.regularizers.l2(DENSE_L2_WEIGHT),
+            kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3)
         )

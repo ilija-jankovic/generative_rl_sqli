@@ -120,6 +120,9 @@ dictionary = list(set(dictionary))
 
 dictionary.sort(key=len, reverse=True)
 
+print('DICTIONARY:')
+print('\n'.join(dictionary))
+
 token_parser = TokenParser(dictionary, token_blacklist)
 
 if use_cache:

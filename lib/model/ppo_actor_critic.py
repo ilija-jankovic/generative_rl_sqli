@@ -124,6 +124,8 @@ class PPOActorCritic:
             return_state=True,
             unroll=True,
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
+            kernel_constraint=tf.keras.constraints.max_norm(3),
+            bias_constraint=tf.keras.constraints.max_norm(3),
         )
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
@@ -134,7 +136,7 @@ class PPOActorCritic:
             activation=activation,
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
-            bias_constraint=tf.keras.constraints.max_norm(3)
+            bias_constraint=tf.keras.constraints.max_norm(3),
         )
 
     def get_actor(self):

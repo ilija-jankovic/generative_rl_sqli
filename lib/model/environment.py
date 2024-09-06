@@ -1,4 +1,4 @@
-import numpy as np
+import math
 from typing import List
 import re
 from requests import Response
@@ -314,6 +314,9 @@ class Environment():
             # already likely rewarded.
             reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
             reward = new_tokens_count * reward_weight
+
+            # Map reward to [-1, 1].
+            reward = math.tanh(reward)
             
             self.__episode.extend_episode()
             

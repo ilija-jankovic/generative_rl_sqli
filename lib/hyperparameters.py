@@ -6,8 +6,8 @@ EMBEDDING_DIM = 128
 T = 10
 
 EPOCHS = 3
-BATCH_SIZE = 512
-MINIBATCH_SIZE = 256
+BATCH_SIZE = 1024
+MINIBATCH_SIZE = 512
 
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7 (PPO paper).
@@ -28,8 +28,8 @@ ADAM_EPSILON=1e-5
 LR_SCHEDULE_DECAY_STEPS=10000
 LR_SCHEDULE_DECAY_RATE=0.9
 
-ACTOR_LSTM_UNITS = 256
-ACTOR_DENSE_UNITS = 256
+ACTOR_LSTM_UNITS = 128
+ACTOR_DENSE_UNITS = 128
 
 # NOTE: State needs a few tokens of leeway for sectioning.
 assert(STATE_SIZE >= 8)

@@ -1,9 +1,9 @@
-import math
 import os
 from typing import List
 
-from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
-    CRITIC_LEARNING_RATE, L2_WEIGHT
+from ..hyperparameters import ACTOR_DENSE_UNITS, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
+    INITIAL_CRITIC_LEARNING_RATE, L2_WEIGHT, ADAM_BETA1, ADAM_BETA2, ADAM_EPSILON, \
+    LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS
 
 # Sets TF logger level to ERROR.
 #
@@ -37,36 +37,41 @@ class PPOActorCritic:
 
     actor_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
     critic_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
+    
+    # Mixed precision gives significant performance increase:
+    # https://developer.nvidia.com/automatic-mixed-precision
+    #
+    # Parameter values are based on section "13 core implementation details" from
+    # the ICLR PPO research guide:
+    # https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
+    #
+    # Equal betas based on Overcoming Policy Collapse in Deep Reinforcement Learning
+    # paper (pp. 6-7): https://openreview.net/pdf?id=m9Jfdz4ymO
+    #
+    # Nadam for RNNs recommended by OverLordGoldDragon:
+    # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
+    def __create_optimizer(self, initial_learning_rate):
+        learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=initial_learning_rate,
+            decay_steps=LR_SCHEDULE_DECAY_STEPS,
+            decay_rate=LR_SCHEDULE_DECAY_RATE,
+        )
 
-    def update_old_actor_weights(self):
-        self.actor_model_old.set_weights(self.actor_model.get_weights())
+        return tf.keras.mixed_precision.LossScaleOptimizer(
+            tf.keras.optimizers.Nadam(
+                learning_rate=learning_rate_schedule,
+                beta_1=ADAM_BETA1,
+                beta_2=ADAM_BETA2,
+                epsilon=ADAM_EPSILON,
+            ))
 
     def __init_models(self):
         self.actor_model = self.get_actor()
         self.actor_model_old = self.get_actor()
         self.critic_model = self.get_critic()
 
-        self.actor_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
-            tf.keras.optimizers.Nadam(
-                ACTOR_LEARNING_RATE,
-                beta_1=0.999,
-                beta_2=0.999,
-            ))
-
-        # Mixed precision gives significant performance increase:
-        # https://developer.nvidia.com/automatic-mixed-precision
-        #
-        # Nadam for RNNs recommended by OverLordGoldDragon:
-        # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-        #
-        # Optimisers inside strategy:
-        # https://www.tensorflow.org/tutorials/distribute/custom_training#training_loop
-        self.critic_optimizer = tf.keras.mixed_precision.LossScaleOptimizer(
-            tf.keras.optimizers.Nadam(
-                CRITIC_LEARNING_RATE,
-                beta_1=0.999,
-                beta_2=0.999,
-            ))
+        self.actor_optimizer = self.__create_optimizer(INITIAL_ACTOR_LEARNING_RATE)
+        self.critic_optimizer = self.__create_optimizer(INITIAL_CRITIC_LEARNING_RATE)
         
         self.update_old_actor_weights()
 
@@ -91,6 +96,9 @@ class PPOActorCritic:
         self.embeddings = embeddings
 
         self.__init_models()
+
+    def update_old_actor_weights(self):
+        self.actor_model_old.set_weights(self.actor_model.get_weights())
 
     @tf.function
     def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):

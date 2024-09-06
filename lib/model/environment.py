@@ -316,7 +316,10 @@ class Environment():
             reward = new_tokens_count * reward_weight
 
             # Map reward to [-1, 1].
-            reward = math.tanh(reward)
+            #
+            # Approximately linearly scaled down for low reward values, then tapers off to
+            # upper/lower bound.
+            reward = math.tanh(reward / 20.0)
             
             self.__episode.extend_episode()
             

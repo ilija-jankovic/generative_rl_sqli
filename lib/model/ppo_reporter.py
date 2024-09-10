@@ -1,7 +1,7 @@
 
 from datetime import datetime
 import os
-from typing import List
+from typing import List, Set
 
 from .ppo_running_statistics import PPORunningStatistics
 from .ppo_episodic_statistics import PPOEpisodicStatistics
@@ -41,14 +41,24 @@ class PPOReporter:
         # Payload at end as a backup in case a cell break character is not escaped.
         'Payload',
     ]
-
+    
+    __recorded_payloads: Set[str]
+    
     __startedAt: datetime = None
     __statistics_filename: str
     __episodes_filename: str
     __payloads_filename: str
+    
+    def __init__(self):
+        self.__recorded_payloads = set()
+    
+    def is_payload_recorded(self, payload: str):
+        return payload in self.__recorded_payloads
 
     def start(self):
         dirname = os.path.dirname(__file__)
+        
+        self.__recorded_payloads.clear()
 
         # Replacement removes invalid token in filename.
         self.__startedAt = datetime.now()
@@ -160,6 +170,8 @@ class PPOReporter:
     def record_payload_statistic(self, stats: PPOPayloadStatistics):
         if self.__startedAt == None:
             raise Exception('Must call start() before recording statistics.')
+        
+        self.__recorded_payloads.add(stats.payload)
         
         # - Double double-quotes escape them in Excel.
         # - Quotes around the entry escape commas.

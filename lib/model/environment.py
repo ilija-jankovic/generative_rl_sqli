@@ -330,7 +330,8 @@ class Environment():
                     payload=payload,
                 )
                 
-                reporter.record_payload_statistic(stats)
+                if not reporter.is_payload_recorded(payload):
+                    reporter.record_payload_statistic(stats)
         else:
             reward = 0.0
 

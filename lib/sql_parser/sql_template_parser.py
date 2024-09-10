@@ -27,6 +27,8 @@ def __generate_randomised_example(schema: Dict[str, str], query: str):
             for _ in range(random.randint(1, 5))
     ] if is_unknown_table else schema[table]
     
+    columns = columns + ['NULL']
+    
     query = query.replace('[TABLE_NAME]', table)
     
     while '[COLUMN_NAME]' in query:

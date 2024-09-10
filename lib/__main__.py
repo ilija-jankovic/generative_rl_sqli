@@ -10,7 +10,7 @@ from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
 from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
-from .sql_parser import contextual_template_populator, sql_data_service, wikisql_parser
+from .sql_parser import sql_data_service, sql_template_parser
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
@@ -101,17 +101,6 @@ tables = get_table_tokens_from_schema(schema)
 sql_tokens = sql_data_service.load_sql_tokens()
 token_blacklist = sql_data_service.load_sql_blacklist()
 
-payload_templates = sql_data_service.load_contextual_payload_templates()
-
-# Get from cache for consistent tests.
-payloads = contextual_template_populator.generate_randomised_examples(
-    schema=schema,
-    templates=payload_templates,
-    count=10000,
-)
-sql_data_service.save_contextual_payloads(payloads)
-
-payloads += sql_data_service.load_payload_files(domain_name='localhost')
 
 dictionary = sql_tokens + tables + columns + visible_chars + ['']
 
@@ -129,13 +118,15 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = sql_data_service.load_embeddings()
 else:
+    payloads = sql_data_service.load_payload_files(domain_name='localhost')
+
     queries = sql_data_service.load_wikisql_queries()
-    queries = wikisql_parser.generate_randomised_examples(
+    queries = sql_template_parser.generate_randomised_examples(
         schema=schema,
         queries=queries,
     )
 
-    sql_data_service.save_parsed_wikisql_queries(queries)
+    sql_data_service.save_parsed_query_templates(queries)
 
     embedding_training_data = payloads + queries
     

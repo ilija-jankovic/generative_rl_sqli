@@ -7,3 +7,4 @@ embeddings.json
 reports/
 contextual_payloads.txt
 tensorboard_log
+parsed_query_templates.txt

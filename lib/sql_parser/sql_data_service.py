@@ -80,11 +80,8 @@ def load_embeddings():
 
     return tf.convert_to_tensor(embeddings)
 
-def save_parsed_wikisql_queries(queries: List[str]):
-    __save_lines('../../wikisql/parsed_queries.txt', queries)
-
-def save_contextual_payloads(payloads):
-    __save_lines('../../contextual_payloads.txt', payloads)
+def save_parsed_query_templates(queries: List[str]):
+    __save_lines('../../parsed_query_templates.txt', queries)
 
 def save_embeddings(embeddings: List[List[float]]):
     __save_json('../../embeddings.json', embeddings)

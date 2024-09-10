@@ -12,7 +12,7 @@ from .sql_parser.contextual_template_populator import ContextualTemplatePopulato
 from .sql_parser.wikisql_parser import WikiSQLParser
 from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
-import sql_parser.sql_data_service as sql_data_service
+from .sql_parser import sql_data_service
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
@@ -36,7 +36,6 @@ os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 # Multi-GPU Keras environment variable from official Keras tutorial:
 # https://keras.io/guides/distributed_training_with_tensorflow/
 os.environ['KERAS_BACKEND'] = 'tensorflow'
-
 
 # Print GPU devices visible to TensorFlow based on official guide:
 # https://www.tensorflow.org/api_docs/python/tf/config/experimental/get_device_details

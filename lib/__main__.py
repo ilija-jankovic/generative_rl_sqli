@@ -9,10 +9,9 @@ from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
 from .sql_parser.contextual_template_populator import ContextualTemplatePopulator
-from .sql_parser.wikisql_parser import WikiSQLParser
 from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
-from .sql_parser import sql_data_service
+from .sql_parser import sql_data_service, wikisql_parser
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
@@ -128,9 +127,10 @@ if use_cache:
     embeddings = sql_data_service.load_embeddings()
 else:
     queries = sql_data_service.load_wikisql_queries()
-
-    parser = WikiSQLParser(schema)
-    queries = parser.generate_randomised_examples(queries)
+    queries = wikisql_parser.generate_randomised_examples(
+        schema=schema,
+        queries=queries,
+    )
 
     sql_data_service.save_parsed_wikisql_queries(queries)
 

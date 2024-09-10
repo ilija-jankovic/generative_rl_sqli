@@ -70,7 +70,7 @@ class TokenEmbedder:
     return targets, contexts, labels
 
   def learn_embeddings(self, training_data: List[List[int]], vocabulary_length: int,
-                       batch_size: int = 1024, buffer_size: int = 10000) -> List[List[float]]:
+                       batch_size: int, buffer_size: int) -> tf.Tensor:
       print('Generating embedding training data...')
       targets, contexts, labels = self.__generate_training_data(
           sequences=training_data,

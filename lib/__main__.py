@@ -2,20 +2,18 @@
 import sys
 import numpy as np
 import os
-import random
 import requests
 
 from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
 from .sqlmap_runner import SqlmapRunner
-from .sql_parser.token_parser import TokenParser
-from .sql_parser import sql_data_service, sql_template_parser
+from .nlp.token_parser import TokenParser
+from .sql_parser import sql_data_service, training_data_generator
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
 from .model.payload_builder import PayloadBuilder
-from .util import match_list_lengths
 
 import tensorflow as tf
 
@@ -118,46 +116,24 @@ if use_cache:
     print('Using cached embeddings...')
     embeddings = sql_data_service.load_embeddings()
 else:
-    payloads = sql_data_service.load_payload_files(domain_name='localhost')
-
-    queries = sql_data_service.load_wikisql_queries()
-    queries = sql_template_parser.generate_randomised_examples(
+    embedding_training_data = training_data_generator.generate_training_data(
         schema=schema,
-        queries=queries,
+        max_length=embedding_data_rows,
+        token_parser=token_parser,
     )
-
-    sql_data_service.save_parsed_query_templates(queries)
-
-    embedding_training_data = payloads + queries
-    
-    # Ensure equally distributed categories of payloads and queries
-    # before uniform shuffling. Both categories are important for training,
-    # so equal importance is assumed.
-    #
-    # Note that this will duplicate members in the smaller list, allowing
-    # for repeated data.
-    match_list_lengths(payloads, queries)
-    
-    # Uniformly shuffle across length-matched categories.
-    random.shuffle(embedding_training_data)
-    
-    print('\n'.join(embedding_training_data[:100]))
-    print('Printed first 100 slice of embedding training data.')
-    
-    print('Encoding SQL fragment(s) for embeddings...')
-    
-    embedding_training_data = token_parser.parse(embedding_training_data)
-    
-    # Limit embedding training data if defined.
-    embedding_training_data = embedding_training_data if embedding_data_rows \
-        is None else embedding_training_data[:embedding_data_rows]
-
-    print(f'{len(embedding_training_data)} fragment(s) encoded.')
 
     # TODO: Retrieve cached embeddings (if already generated) if dictionary and
     # embedding examples are unchanged.
+    
     print('Running token embedder...')
-    embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
+    
+    embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
+        training_data=embedding_training_data,
+        vocabulary_length=len(dictionary),
+        batch_size=BATCH_SIZE,
+        buffer_size=10000,
+    )
+    
     print('Embeddings learned.')
 
     sql_data_service.save_embeddings(embeddings.numpy().tolist())

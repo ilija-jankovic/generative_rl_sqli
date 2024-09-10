@@ -13,7 +13,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
 
-from .enums.policy_type import PolicyType
+from .policy_type import PolicyType
 
 # Strategy to utilise multiple GPUs.
 #

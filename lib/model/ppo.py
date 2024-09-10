@@ -19,7 +19,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import tensorflow as tf
 import numpy as np
 
-from .enums.policy_type import PolicyType
+from .policy_type import PolicyType
 
 from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic

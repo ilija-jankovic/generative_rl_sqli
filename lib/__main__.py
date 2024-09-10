@@ -144,10 +144,14 @@ else:
     print('\n'.join(embedding_training_data[:100]))
     print('Printed first 100 slice of embedding training data.')
     
-    embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]
-
     print('Encoding SQL fragment(s) for embeddings...')
+    
     embedding_training_data = token_parser.parse(embedding_training_data)
+    
+    # Limit embedding training data if defined.
+    embedding_training_data = embedding_training_data if embedding_data_rows \
+        is None else embedding_training_data[:embedding_data_rows]
+
     print(f'{len(embedding_training_data)} fragment(s) encoded.')
 
     # TODO: Retrieve cached embeddings (if already generated) if dictionary and

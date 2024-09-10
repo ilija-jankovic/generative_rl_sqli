@@ -2,6 +2,7 @@
 import sys
 import numpy as np
 import os
+import random
 import requests
 
 from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
@@ -17,6 +18,7 @@ from .model.token_embedder import TokenEmbedder
 from .model.environment import Environment
 from .model.payload_builder import PayloadBuilder
 from .model.ddpg_hyperparameters import DDPGHyperparameters
+from .util import match_list_lengths
 
 import tensorflow as tf
 
@@ -136,8 +138,22 @@ else:
 
     data_service.save_parsed_wikisql_queries(queries)
 
-    # Prioritise payloads over queries if the full dataset is not used for embeddings.
     embedding_training_data = payloads + queries
+    
+    # Ensure equally distributed categories of payloads and queries
+    # before uniform shuffling. Both categories are important for training,
+    # so equal importance is assumed.
+    #
+    # Note that this will duplicate members in the smaller list, allowing
+    # for repeated data.
+    match_list_lengths(payloads, queries)
+
+    # Ensure same distribution uniformly random selection across every run.
+    random.Random(19549708).shuffle(embedding_training_data)
+    
+    print('\n'.join(embedding_training_data[:100]))
+    print('Printed first 100 slice of embedding training data.')
+    
     embedding_training_data = embedding_training_data if embedding_data_rows is None else embedding_training_data[:embedding_data_rows]
 
     print('Encoding SQL fragment(s) for embeddings...')

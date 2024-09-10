@@ -12,7 +12,7 @@ from .sql_parser.contextual_template_populator import ContextualTemplatePopulato
 from .sql_parser.wikisql_parser import WikiSQLParser
 from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
-from .sql_parser.sql_data_service import SQLDataService
+import sql_parser.sql_data_service as sql_data_service
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
@@ -91,9 +91,7 @@ if run_sqlmap:
 else:
     print('Skipping running sqlmap...')
 
-data_service = SQLDataService()
-
-schema = data_service.load_schema()
+schema = sql_data_service.load_schema()
 
 columns = get_column_tokens_from_schema(schema)
 
@@ -103,16 +101,16 @@ columns = get_column_tokens_from_schema(schema)
 # part of the file naming system (unlike table names depending on DBMS).
 tables = get_table_tokens_from_schema(schema)
 
-sql_tokens = data_service.load_sql_tokens()
-token_blacklist = data_service.load_sql_blacklist()
+sql_tokens = sql_data_service.load_sql_tokens()
+token_blacklist = sql_data_service.load_sql_blacklist()
 
-payload_templates = data_service.load_contextual_payload_templates()
+payload_templates = sql_data_service.load_contextual_payload_templates()
 
 # Get from cache for consistent tests.
 payloads = ContextualTemplatePopulator(schema).generate_randomised_examples(templates=payload_templates)
-data_service.save_contextual_payloads(payloads)
+sql_data_service.save_contextual_payloads(payloads)
 
-payloads += data_service.load_payload_files(domain_name='localhost')
+payloads += sql_data_service.load_payload_files(domain_name='localhost')
 
 dictionary = sql_tokens + tables + columns + visible_chars + ['']
 
@@ -128,14 +126,14 @@ token_parser = TokenParser(dictionary, token_blacklist)
 
 if use_cache:
     print('Using cached embeddings...')
-    embeddings = data_service.load_embeddings()
+    embeddings = sql_data_service.load_embeddings()
 else:
-    queries = data_service.load_wikisql_queries()
+    queries = sql_data_service.load_wikisql_queries()
 
     parser = WikiSQLParser(schema)
     queries = parser.generate_randomised_examples(queries)
 
-    data_service.save_parsed_wikisql_queries(queries)
+    sql_data_service.save_parsed_wikisql_queries(queries)
 
     embedding_training_data = payloads + queries
     
@@ -165,7 +163,7 @@ else:
     embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(embedding_training_data, len(dictionary))
     print('Embeddings learned.')
 
-    data_service.save_embeddings(embeddings.numpy().tolist())
+    sql_data_service.save_embeddings(embeddings.numpy().tolist())
 
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})

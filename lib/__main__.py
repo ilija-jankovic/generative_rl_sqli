@@ -14,7 +14,7 @@ from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
 from .sql_parser.sql_data_service import SQLDataService
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
-from .model.token_embedder import TokenEmbedder 
+from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
 from .model.payload_builder import PayloadBuilder
 from .util import match_list_lengths

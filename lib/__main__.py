@@ -17,7 +17,6 @@ from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_t
 from .model.token_embedder import TokenEmbedder 
 from .model.environment import Environment
 from .model.payload_builder import PayloadBuilder
-from .model.ddpg_hyperparameters import DDPGHyperparameters
 from .util import match_list_lengths
 
 import tensorflow as tf
@@ -172,28 +171,6 @@ headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 
 payload_builder = PayloadBuilder(dictionary, '', '')
-
-params = DDPGHyperparameters(
-    gamma=0.999,
-    tau=0.001,
-    actor_learning_rate=0.00015,
-    critic_learning_rate=0.0003,
-    embedding_size=EMBEDDING_DIM,
-    batch_size=BATCH_SIZE,
-    starting_stddev=0.001,
-    psi=0.0,
-    temperature=0.5,
-    n_step_rollout=1,
-    learnings_per_batch=20,
-    rollout_weight=0.0001,
-    l2_weight=0.0001,
-    priority_weight=0.0001,
-    action_size=ACTION_SIZE,
-    state_size=STATE_SIZE,
-    prefix=payload_builder.prefix,
-    suffix=payload_builder.suffix,
-    # TODO: Add extend epsiode parameter.
-)
 
 environments = [
     Environment(

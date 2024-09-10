@@ -107,6 +107,7 @@ payload_templates = sql_data_service.load_contextual_payload_templates()
 payloads = contextual_template_populator.generate_randomised_examples(
     schema=schema,
     templates=payload_templates,
+    count=10000,
 )
 sql_data_service.save_contextual_payloads(payloads)
 

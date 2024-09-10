@@ -143,9 +143,9 @@ else:
     # Note that this will duplicate members in the smaller list, allowing
     # for repeated data.
     match_list_lengths(payloads, queries)
-
-    # Ensure same distribution uniformly random selection across every run.
-    random.Random(19549708).shuffle(embedding_training_data)
+    
+    # Uniformly shuffle across length-matched categories.
+    random.shuffle(embedding_training_data)
     
     print('\n'.join(embedding_training_data[:100]))
     print('Printed first 100 slice of embedding training data.')

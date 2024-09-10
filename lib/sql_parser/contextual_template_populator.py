@@ -1,34 +1,34 @@
 import random
 from typing import Dict, List
 
+def __generate_randomised_example(schema: Dict[str, str], payload: str):
+    table = random.choice(list(schema.keys()))
 
-class ContextualTemplatePopulator:
+    columns = schema[table]
+    columns = columns + ['NULL']
+
+    payload = payload.replace('[TABLE_NAME]', table)
     
-    schema: Dict[str, List[str]]
+    while '[COLUMN_NAME]' in payload:
+        column = random.choice(columns)
+        payload = payload.replace('[COLUMN_NAME]', column, 1)
 
-    def __init__(self, schema: Dict[str, str]) -> None:
-        self.schema = schema
+    while '[COLUMN_NAME_NOT_NULL]' in payload:
+        column = random.choice(columns[:-1])
+        payload = payload.replace('[COLUMN_NAME_NOT_NULL]', column, 1)
 
-    def __generate_randomised_example(self, payload: str):
-        table = random.choice(list(self.schema.keys()))
+    return payload
 
-        columns = self.schema[table]
-        columns = columns + ['NULL']
+def generate_randomised_examples(
+    schema: Dict[str, str],
+    templates: List[str],
+    count: int
+):
+    templates = [random.choice(templates) for _ in range(count)]
 
-        payload = payload.replace('[TABLE_NAME]', table)
-        
-        while '[COLUMN_NAME]' in payload:
-            column = random.choice(columns)
-            payload = payload.replace('[COLUMN_NAME]', column, 1)
-
-        while '[COLUMN_NAME_NOT_NULL]' in payload:
-            column = random.choice(columns[:-1])
-            payload = payload.replace('[COLUMN_NAME_NOT_NULL]', column, 1)
-
-        return payload
-
-    def generate_randomised_examples(self, templates: List[str], count: int = 10000):
-        templates = [random.choice(templates) for _ in range(count)]
-
-        return [self.__generate_randomised_example(payload) for payload in templates]
-        
+    return [
+        __generate_randomised_example(
+            schema=schema,
+            payload=payload,
+        ) for payload in templates
+    ]

@@ -8,10 +8,9 @@ import requests
 from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
-from .sql_parser.contextual_template_populator import ContextualTemplatePopulator
 from .sqlmap_runner import SqlmapRunner
 from .sql_parser.token_parser import TokenParser
-from .sql_parser import sql_data_service, wikisql_parser
+from .sql_parser import contextual_template_populator, sql_data_service, wikisql_parser
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
@@ -105,7 +104,10 @@ token_blacklist = sql_data_service.load_sql_blacklist()
 payload_templates = sql_data_service.load_contextual_payload_templates()
 
 # Get from cache for consistent tests.
-payloads = ContextualTemplatePopulator(schema).generate_randomised_examples(templates=payload_templates)
+payloads = contextual_template_populator.generate_randomised_examples(
+    schema=schema,
+    templates=payload_templates,
+)
 sql_data_service.save_contextual_payloads(payloads)
 
 payloads += sql_data_service.load_payload_files(domain_name='localhost')

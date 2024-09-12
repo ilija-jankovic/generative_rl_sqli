@@ -130,7 +130,7 @@ else:
     embeddings = TokenEmbedder(EMBEDDING_DIM).learn_embeddings(
         training_data=embedding_training_data,
         vocabulary_length=len(dictionary),
-        batch_size=BATCH_SIZE,
+        batch_size=1024,
         buffer_size=10000,
     )
     

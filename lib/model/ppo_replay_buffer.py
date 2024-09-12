@@ -44,7 +44,8 @@ class PPOReplayBuffer:
         self.__successful_actions = np.zeros([successful_buffer_size, T, action_size], dtype=np.int32)
         self.__successful_rewards = np.zeros([successful_buffer_size, T], dtype=np.float32)
 
-        # Index 0 of successful injections reserved for demonstration.
+        # Indices up to __demonstrations_count of successful injections reserved
+        # for demonstration.
         self.__successful_states[0:self.__demonstrations_count] = demonstrated_successful_states.copy()
         self.__successful_actions[0:self.__demonstrations_count] = demonstrated_successful_actions.copy()
         self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards.copy()

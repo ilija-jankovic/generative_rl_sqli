@@ -6,6 +6,7 @@ from typing import Callable
 import tensorflow as tf
 from bs4 import BeautifulSoup
 
+from .payload_syntax import is_payload_syntax_correct
 from .ppo_reporter import PPOReporter
 from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
@@ -333,7 +334,7 @@ class Environment():
                 if not reporter.is_payload_recorded(payload):
                     reporter.record_payload_statistic(stats)
         else:
-            reward = 0.0
+            reward = 0.0 if is_payload_syntax_correct(payload) else -1.0
 
         self.__record_payload(payload)
         done = self.__update_episode()

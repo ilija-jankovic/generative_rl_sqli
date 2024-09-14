@@ -5,7 +5,6 @@ from typing import List
 from .word2vec import Word2Vec
 import tensorflow as tf
 import tqdm
-import numpy as np
   
 class TokenEmbedder:
   embedding_dim: int

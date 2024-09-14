@@ -2,7 +2,6 @@
 import sys
 import numpy as np
 import os
-import requests
 
 from lib.configuration import Configuration
 from lib.injected_request import send_request

@@ -10,7 +10,7 @@ from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
 
 
-AttackCallback = Callable[[str], str]
+AttackCallback = Callable[[str], List[str]]
 '''
 Use for injecting a payload and returning a list of filtered
 response tokens.

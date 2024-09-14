@@ -1,28 +1,24 @@
 import os
 import time
+import numpy as np
+from .policy_type import PolicyType
+from .environment import Environment
+from .ppo_actor_critic import PPOActorCritic
 from typing import List
-
+from . import state_factory
 from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
-
-from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GAMMA, \
-    PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
-    PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
-
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
 from .ppo_replay_buffer import PPOReplayBuffer
+from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GAMMA, \
+    PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
+    PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 import tensorflow as tf
-import numpy as np
-
-from .policy_type import PolicyType
-
-from .environment import Environment
-from .ppo_actor_critic import PPOActorCritic
 
 class PPO:
     timestep = 0
@@ -82,8 +78,8 @@ class PPO:
 
     def __create_empty_states(self):
         return tf.convert_to_tensor([
-            self.environments[batch_index].create_empty_state()
-                for batch_index in range(BATCH_SIZE)
+            state_factory.create_empty_state(state_size=STATE_SIZE)
+                for _ in range(BATCH_SIZE)
         ])
 
     def calculate_advantages_batch(

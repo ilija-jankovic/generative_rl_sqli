@@ -176,7 +176,7 @@ class Environment:
         self.__record_payload(payload)
         done = self.__update_episode()
 
-        state = state_factory.create_empty_state() \
+        state = state_factory.create_empty_state(state_size=self.state_size) \
             if done \
             else state_factory.create_state_from_tokens(
                 state_size=self.state_size,

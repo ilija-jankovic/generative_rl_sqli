@@ -37,6 +37,7 @@ class PPOReporter:
         'Since Beginning Seconds',
         'Timestep',
         'Reward',
+        'Syntax Estimated Correct'
         
         # Payload at end as a backup in case a cell break character is not escaped.
         'Payload',
@@ -183,6 +184,7 @@ class PPOReporter:
             'Since Beginning Seconds': self.__get_seconds_since_start(),
             'Timestep': stats.timestep,
             'Reward': stats.reward,
+            'Syntax Estimated Correct': stats.payload.is_syntax_correct,
             'Payload': escaped_payload,
         }
         

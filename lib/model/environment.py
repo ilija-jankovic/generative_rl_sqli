@@ -3,7 +3,8 @@ from typing import List
 from typing import Callable
 import tensorflow as tf
 from .payload import Payload
-from .payload_factory import create_payload_from_action
+from . import payload_factory
+from . import state_factory
 from .ppo_reporter import PPOReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
@@ -18,13 +19,9 @@ response tokens.
 
 class Environment:
     dictionary: List[str]
-    dictionary_sorted: List[str]
-    '''
-    Permutated version of `dictionary` which handles subset cases of tokens.
-    '''
-
     action_size: int
     state_size: int
+
     attack_callback: AttackCallback
     '''
     Payload injection to filtered response mechanism.
@@ -38,26 +35,10 @@ class Environment:
 
     __episode: EpisodeState
 
+
     @property
     def episode(self):
         return self.__episode.episode
-
-    def __init_tokenizer_dictionary(self):
-        '''
-        Since tokens may be a subset of each other, longer ones must be prioritied
-        during this tokenization.
-
-        `dictionary_sorted` is expected to have two layers of sorting: first by
-        negative length, then by alphabetical order (for the case of multiple tokens
-        of the same length existing).
-        '''
-
-        # Second condition prioritises alphabetically, as stated by Johannes from:
-        # https://stackoverflow.com/a/44835987
-        self.dictionary_sorted = sorted(
-            self.dictionary,
-            key=lambda token: (-len(token), token)
-        )
         
 
     def __inject_payload(self, payload_text: str, is_expected: bool):
@@ -84,32 +65,23 @@ class Environment:
         dictionary: List[str],
         action_size: int,
         state_size: int,
+        attack_callback: AttackCallback,
         frames_per_episode: int,
-        attack_callback: AttackCallback
     ):
         assert(action_size > 0)
         assert(state_size > 0)
         assert(state_size % 2 == 0)
 
         self.dictionary = dictionary
-            
-        self.__init_tokenizer_dictionary()
-
-        assert(
-            len(set(self.dictionary)) ==
-            len(set(self.dictionary_sorted))
-        )
-
         self.action_size = action_size
         self.state_size = state_size
-
+        self.attack_callback = attack_callback
+        
+        self.__episode = EpisodeState(frames_per_episode)
         self.__attempted_payloads = []
         self.__found_tokens = []
         self.__new_tokens = []
         
-        self.attack_callback = attack_callback
-        self.__episode = EpisodeState(frames_per_episode)
-
         self.__inject_initial_payloads()
 
     def __inject_initial_payloads(self):
@@ -128,14 +100,6 @@ class Environment:
     def __payload_attempted(self, payload: Payload):
         return payload in self.__attempted_payloads
 
-    def create_empty_state(self):
-        '''
-        Creates a state filled with index.
-
-        Used to start off each branch of a batch in different directions.
-        '''
-
-        return tf.zeros([self.state_size,], dtype=tf.float32)
     
     def __update_episode(self):
         '''
@@ -158,65 +122,6 @@ class Environment:
 
         return episode_ended
 
-    def __string_to_indices(self, data: str, max_size: int):
-        dictionary_length = len(self.dictionary)
-
-        indexed_data: List[int] = []
-
-        # Prioritise dictionary indices.
-        #
-        # Fall back to shifted ASCII indices.
-        while len(data) > 0 and len(indexed_data) < max_size:
-            appended = False
-
-            for token in self.dictionary_sorted:
-                if data.startswith(token):
-                    index = self.dictionary.index(token)
-                    indexed_data.append(index)
-
-                    # Remove token from prefix.
-                    data = data[len(token):]
-                    appended = True
-
-                    break
-
-            if appended:
-                continue
-            
-            # Append ASCII code shifted by max dictionary index.
-            indexed_data.append(ord(data[0]) + dictionary_length)
-
-            data = data[1:]
-
-        return indexed_data
-    
-    def __create_state(self, responseTokens: List[str]):
-        total_new_tokens_count = len(self.__new_tokens)
-
-        new_tokens_joined = ''.join(self.__new_tokens)
-        response_tokens_joined = ''.join(responseTokens)
-        
-        max_new_tokens_size = self.state_size // 2 - 2
-        new_token_indices = self.__string_to_indices(
-            data=new_tokens_joined,
-            max_size=max_new_tokens_size,
-        )
-        
-        state = [total_new_tokens_count, -1, *new_token_indices, -1]
-        max_data_tokens_size = self.state_size - len(state)
-        
-        data_indices = self.__string_to_indices(
-            data=response_tokens_joined, 
-            max_size=max_data_tokens_size,
-        )
-
-        state.extend(data_indices)
-
-        # Pad state until self.state_size is reached.
-        if(len(state) < self.state_size):
-            state.extend([-1] * (self.state_size - len(state)))
-        
-        return tf.convert_to_tensor(state, dtype=tf.float32)
 
     def perform_action(
         self,
@@ -224,25 +129,15 @@ class Environment:
         timestep: int,
         reporter: PPOReporter | None,
     ):
-        '''
-        If `ignore_episode` is `True`, this method always returns `False` for episode ended,
-        and resets token cache on every invocation.
-        '''
-        #
-        #
-        # !IMPORTANT!
-        #
         # TODO: Do not run payload if it contains any sql_blacklist.txt tokens.
         # Severely negatively reward such actions.
-        #
-        #
 
-        payload = create_payload_from_action(
+        payload = payload_factory.create_payload_from_action(
             action=action,
             dictionary=self.dictionary,
         )
         
-        response, new_tokens = self.__inject_payload(
+        response_tokens, new_tokens = self.__inject_payload(
             payload_text=str(payload),
             is_expected=False,
         )
@@ -281,9 +176,14 @@ class Environment:
         self.__record_payload(payload)
         done = self.__update_episode()
 
-        state = self.create_empty_state() \
+        state = state_factory.create_empty_state() \
             if done \
-            else self.__create_state(response)
+            else state_factory.create_state_from_tokens(
+                state_size=self.state_size,
+                tokens=response_tokens,
+                new_tokens_buffer=self.__new_tokens,
+                dictionary=self.dictionary,
+            )
 
         return state, reward
 

@@ -37,7 +37,7 @@ class PPOReporter:
         'Since Beginning Seconds',
         'Timestep',
         'Reward',
-        'Syntax Estimated Correct'
+        'Syntax Estimated Correct',
         
         # Payload at end as a backup in case a cell break character is not escaped.
         'Payload',

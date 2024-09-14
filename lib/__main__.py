@@ -4,10 +4,14 @@ import numpy as np
 import os
 import requests
 
+from lib.configuration import Configuration
+from lib.injected_request import send_request
+from lib.network.attacker import attack
+
 from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
-from .sqlmap_runner import SqlmapRunner
+from .network.sqlmap_runner import SqlmapRunner
 from .nlp.token_parser import TokenParser
 from .sql_parser import sql_data_service, training_data_generator
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
@@ -69,18 +73,24 @@ except:
 #
 #
 
-OPEN_URL = 'http://localhost:5000/items?id='
-
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'}
-COOKIE = 'pma_lang=en; PHPSESSID=850f0124b1e274eccf6e9e13d8131e6c; {flag}=92262bf907af914b95a0fc33c3f33bf6'
-
 visible_chars = [chr(i) for i in range(32, 127)]
 
-sqlmap = SqlmapRunner(OPEN_URL, vulernable_param='id', default_vulnerable_param_value='1')
+config = Configuration(
+    open_url='http://localhost:5000/items?id=',
+    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'},
+    cookie='pma_lang=en; PHPSESSID=850f0124b1e274eccf6e9e13d8131e6c; {flag}=92262bf907af914b95a0fc33c3f33bf6',
+)
+
+sqlmap = SqlmapRunner(config.open_url, vulernable_param='id', default_vulnerable_param_value='1')
 
 if run_sqlmap:
     print('Running sqlmap...')
-    sqlmap.run(HEADERS, COOKIE)
+    
+    sqlmap.run(
+        headers=config.headers,
+        cookie=config.cookie,
+    )
+    
     print('Attempted payloads gathered from sqlmap.')
 else:
     print('Skipping running sqlmap...')
@@ -137,19 +147,17 @@ else:
 
     sql_data_service.save_embeddings(embeddings.numpy().tolist())
 
-headers = HEADERS.copy()
-headers.update({'cookie': COOKIE})
-
 environments = [
     Environment(
         dictionary=dictionary,
-        embeddings=embeddings,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         frames_per_episode=T,
-        double_requests=double_requests,
-        send_request_callback= lambda payload:
-            requests.get(OPEN_URL + payload, headers=headers))
+        attack_callback=lambda payload: attack(
+            send_request_callback=lambda: send_request(payload, config=config),
+            payload=payload,
+            perform_double_requests=double_requests,
+        ))
             for _ in range(BATCH_SIZE + 1)
 ]
 

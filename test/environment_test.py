@@ -1,10 +1,8 @@
 import unittest
-
-from requests import Response
 import tensorflow as tf
-
 from lib.model.environment import Environment
-from lib.model.payload_builder import PayloadBuilder
+from lib.network.attacker import attack
+
 
 ACTION_SIZE = 10
 
@@ -21,27 +19,24 @@ dictionary_size = len(DICTIONARY)
 class TestEnvironment(unittest.TestCase):
 
     __env: Environment
-    __response: Response
+    __response_body: str
 
     def __set_response_body(self, body: str):
-        self.__response._content = str.encode(body)
+        self.__response_body = attack(
+            send_request_callback=lambda: body,
+            payload='',
+            perform_double_requests=False,
+        )
 
     def setUp(self):
-        self.__response = Response()
         self.__set_response_body('publicToken publicToken2 123')
 
         self.__env = Environment(
-            payload_builder=PayloadBuilder(
-                dictionary=DICTIONARY,
-                prefix='',
-                suffix='',
-            ),
-            embeddings=[[0.0], [0.1], [0.2], [0.3], [0.4]],
+            dictionary=DICTIONARY,
             action_size=ACTION_SIZE,
             state_size=10,
             frames_per_episode=5,
-            double_requests=False,
-            send_request_callback=lambda _: self.__response
+            attack_callback=lambda _: self.__response_body,
         )
 
     def __perform_dummy_action(self):

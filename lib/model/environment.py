@@ -1,34 +1,34 @@
 import math
 from typing import List
-import re
-from requests import Response
 from typing import Callable
 import tensorflow as tf
-from bs4 import BeautifulSoup
 from .payload import Payload
 from .payload_factory import create_payload_from_action
 from .ppo_reporter import PPOReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
 
-class Environment():
+
+AttackCallback = Callable[[str], str]
+'''
+Use for injecting a payload and returning a list of filtered
+response tokens.
+'''
+
+
+class Environment:
     dictionary: List[str]
+    dictionary_sorted: List[str]
     '''
     Permutated version of `dictionary` which handles subset cases of tokens.
     '''
-    dictionary_sorted: List[str]
 
     action_size: int
     state_size: int
-
-    send_request_callback: Callable[[str], Response]
-
-    embeddings: List[List[float]]
-
-    # Calculated dynamically from embeddings.
-    embedding_size : int
-
-    double_requests: bool
+    attack_callback: AttackCallback
+    '''
+    Payload injection to filtered response mechanism.
+    '''
 
     __attempted_payloads: List[Payload]
     __found_tokens: List[str]
@@ -58,28 +58,40 @@ class Environment():
             self.dictionary,
             key=lambda token: (-len(token), token)
         )
+        
+
+    def __inject_payload(self, payload_text: str, is_expected: bool):
+        response_tokens = self.attack_callback(payload_text)
+
+        new_tokens: List[str] = []
+
+        # Avoid sets for token processing, as their order is non-deterministic.
+        # This is undesirable for tests, as well as consistency for the agent.
+        for token in response_tokens:
+            if token not in self.__found_tokens:
+                self.__found_tokens.append(token)
+
+                if(not is_expected):
+                    new_tokens.insert(0, token)
+
+        self.__new_tokens = new_tokens + self.__new_tokens
+
+        return response_tokens, new_tokens
+    
 
     def __init__(
-            self,
-            dictionary: List[str],
-            embeddings: List[List[int]], 
-            action_size: int,
-            state_size: int,
-            frames_per_episode: int,
-            double_requests: bool,
-            send_request_callback: Callable[[str], Response]
-        ):
+        self,
+        dictionary: List[str],
+        action_size: int,
+        state_size: int,
+        frames_per_episode: int,
+        attack_callback: AttackCallback
+    ):
         assert(action_size > 0)
         assert(state_size > 0)
         assert(state_size % 2 == 0)
 
-        assert(len(embeddings) == len(dictionary))
-        
         self.dictionary = dictionary
-
-        for embedding in embeddings[1:]:
-            if len(embedding) != len(embeddings[0]):
-                raise Exception('All embeddings must be of the same length')
             
         self.__init_tokenizer_dictionary()
 
@@ -91,22 +103,17 @@ class Environment():
         self.action_size = action_size
         self.state_size = state_size
 
-        self.embeddings = embeddings
-        self.embedding_size = len(embeddings[0])
-
-        self.double_requests = double_requests
-
         self.__attempted_payloads = []
         self.__found_tokens = []
         self.__new_tokens = []
         
-        self.send_request_callback = send_request_callback
+        self.attack_callback = attack_callback
         self.__episode = EpisodeState(frames_per_episode)
 
         self.__inject_initial_payloads()
 
     def __inject_initial_payloads(self):
-        self.__send_request('1', is_expected=True)
+        self.__inject_payload('1', is_expected=True)
 
     def __reset_token_cache(self):
         self.__found_tokens.clear()
@@ -129,73 +136,6 @@ class Environment():
         '''
 
         return tf.zeros([self.state_size,], dtype=tf.float32)
-
-    def __filter_payload_from_text(self, text: str, payload: str):
-        return text.replace(payload, '')
-
-    def __strip_lxml(self, text: str):
-        '''
-        Strip HTML and XML tags and recover text.
-
-        Text instances are separated with a space.
-        '''
-        return BeautifulSoup(text, "lxml").get_text(separator=' ')
-    
-    def __tokenize_text(self, text: str):
-        '''
-        Tokenizes by matching all visible ASCII characters.
-        '''
-        return re.findall(r'[!-~]+', text)
-    
-    def __filter_non_matching_text(self, text1: str, text2: str):
-        tokens1 = self.__tokenize_text(text1)
-        tokens2 = self.__tokenize_text(text2)
-
-        combined = tokens1 + tokens2
-
-        for token in combined:
-            if token in tokens1 and token in tokens2:
-                yield token
-
-    def __send_request(self, data: str, is_expected: bool = False):
-        '''
-        Returns new tokens found after filtering responses.
-        '''
-        if self.double_requests:
-            res1 = self.send_request_callback(data)
-            res2 = self.send_request_callback(data)
-
-            # Do not filter data from response if expected as full caching of public response
-            # data is desired.
-            resText1 = self.__filter_payload_from_text(res1.text, data)
-            resText2 = self.__filter_payload_from_text(res2.text, data)
-            
-            resText1 = self.__strip_lxml(resText1)
-            resText2 = self.__strip_lxml(resText2)
-
-            resTokens = self.__filter_non_matching_text(resText1, resText2)
-        else:
-            res2 = self.send_request_callback(data)
-
-            resText = self.__filter_payload_from_text(res2.text, data)
-            resText = self.__strip_lxml(resText)
-
-            resTokens = self.__tokenize_text(resText)
-
-        new_tokens: List[str] = []
-
-        # Avoid sets for token processing, as their order is non-deterministic.
-        # This is undesirable for tests, as well as consistency for the agent.
-        for token in resTokens:
-            if token not in self.__found_tokens:
-                self.__found_tokens.append(token)
-
-                if(not is_expected):
-                    new_tokens.insert(0, token)
-
-        self.__new_tokens = new_tokens + self.__new_tokens
-
-        return res2, new_tokens
     
     def __update_episode(self):
         '''
@@ -250,32 +190,39 @@ class Environment():
 
         return indexed_data
     
-    def __create_state(self, data: str):
+    def __create_state(self, responseTokens: List[str]):
         total_new_tokens_count = len(self.__new_tokens)
 
-        new_tokens = ''.join(self.__new_tokens)
-
+        new_tokens_joined = ''.join(self.__new_tokens)
+        response_tokens_joined = ''.join(responseTokens)
+        
         max_new_tokens_size = self.state_size // 2 - 2
-        new_token_indices = self.__string_to_indices(new_tokens, max_size=max_new_tokens_size)
+        new_token_indices = self.__string_to_indices(
+            data=new_tokens_joined,
+            max_size=max_new_tokens_size,
+        )
         
         state = [total_new_tokens_count, -1, *new_token_indices, -1]
         max_data_tokens_size = self.state_size - len(state)
         
-        data_indices = self.__string_to_indices(data, max_size=max_data_tokens_size)
+        data_indices = self.__string_to_indices(
+            data=response_tokens_joined, 
+            max_size=max_data_tokens_size,
+        )
 
         state.extend(data_indices)
 
         # Pad state until self.state_size is reached.
         if(len(state) < self.state_size):
             state.extend([-1] * (self.state_size - len(state)))
-
+        
         return tf.convert_to_tensor(state, dtype=tf.float32)
 
     def perform_action(
         self,
         action: tf.Tensor,
         timestep: int,
-        reporter: PPOReporter,
+        reporter: PPOReporter | None,
     ):
         '''
         If `ignore_episode` is `True`, this method always returns `False` for episode ended,
@@ -295,7 +242,10 @@ class Environment():
             dictionary=self.dictionary,
         )
         
-        response, new_tokens = self.__send_request(data=str(payload))
+        response, new_tokens = self.__inject_payload(
+            payload_text=str(payload),
+            is_expected=False,
+        )
 
         new_tokens_count = len(new_tokens)
         
@@ -333,7 +283,7 @@ class Environment():
 
         state = self.create_empty_state() \
             if done \
-            else self.__create_state(response.text)
+            else self.__create_state(response)
 
         return state, reward
 

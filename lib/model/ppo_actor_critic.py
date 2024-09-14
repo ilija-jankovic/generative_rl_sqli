@@ -63,9 +63,6 @@ class PPOActorCritic:
                 beta_1=ADAM_BETA1,
                 beta_2=ADAM_BETA2,
                 epsilon=ADAM_EPSILON,
-                
-                # Mitigate exploding gradients.
-                clipnorm=1,
             ))
 
     def __init_models(self):

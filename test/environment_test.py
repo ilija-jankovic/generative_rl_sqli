@@ -171,22 +171,38 @@ class TestEnvironment(unittest.TestCase):
         self.assertEqual(state[2], ord('b') + dictionary_size)
         self.assertEqual(state[3], ord('a') + dictionary_size)
         self.assertEqual(state[4], 0)
-
-    def test_state_is_right_padded_with_negative_ones(self):
+        
+    def test_state_section_markers(self):
         '''
-        State is right-padded with -1s.
+        State sections are joined with -1s.
+        '''
+        
+        self.__set_response_body('test test2 test3')
+        state = self.__perform_dummy_action()
+        
+        self.assertEqual(
+            state[1],
+            -1,
+            msg='New token count section ends at index 1.',
+        )
+        
+        self.assertEqual(
+            state[5],
+            -1,
+            msg='New tokens buffer section ends at middle of ' +
+                'remaining space, rounded down at index 5.'
+        )
+
+    def test_state_is_sectioned(self):
+        '''
+        Single-token response begins at start of response section.
         '''
 
         self.__set_response_body('privateToken')
         state = self.__perform_dummy_action()
 
-        # Last token index is for 'privateToken', which is 0.
-        self.assertEqual(state[4], 0)
-        
-        # Padding starts after last token/character index.
-        self.assertEqual(state[5], -1)
-        self.assertEqual(state[6], -1)
-        self.assertEqual(state[7], -1)
+        self.assertEqual(state[6], 0)
+
 
 
 if __name__ == '__main__':

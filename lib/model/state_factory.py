@@ -21,28 +21,28 @@ def __sort_dictionary(dictionary: List[str]):
 
 
 def __string_to_indices(
-    data: str,
+    tokens: str,
     max_size: int,
     dictionary: List[str],
-    sorted_dictionary: List[str]
+    sorted_dictionary: List[str],
 ):
     dictionary_length = len(dictionary)
 
-    indexed_data: List[int] = []
+    indices: List[int] = []
 
     # Prioritise dictionary indices.
     #
     # Fall back to shifted ASCII indices.
-    while len(data) > 0 and len(indexed_data) < max_size:
+    while len(tokens) > 0 and len(indices) < max_size:
         appended = False
 
         for token in sorted_dictionary:
-            if data.startswith(token):
+            if tokens.startswith(token):
                 index = dictionary.index(token)
-                indexed_data.append(index)
+                indices.append(index)
 
                 # Remove token from prefix.
-                data = data[len(token):]
+                tokens = tokens[len(token):]
                 appended = True
 
                 break
@@ -51,50 +51,73 @@ def __string_to_indices(
             continue
         
         # Append ASCII code shifted by max dictionary index.
-        indexed_data.append(ord(data[0]) + dictionary_length)
+        indices.append(ord(tokens[0]) + dictionary_length)
 
-        data = data[1:]
+        tokens = tokens[1:]
 
-    return indexed_data
+    return indices
+
+
+def __pad_index_list(indices: List[int], padded_length: int):
+    indices_length = len(indices)
+    
+    assert(padded_length >= indices_length)
+    
+    return indices + [-1] * (padded_length - indices_length)
+
+
+def __tokens_to_indices(
+    tokens: List[str],
+    index_list_length: int,
+    dictionary: List[str],
+    sorted_dictionary: List[str],
+) -> List[int]:
+    indices = __string_to_indices(
+        tokens=tokens,
+        max_size=index_list_length,
+        dictionary=dictionary,
+        sorted_dictionary=sorted_dictionary,
+    )
+    
+    indices = __pad_index_list(
+        indices=indices,
+        padded_length=index_list_length,
+    )
+    
+    return indices
 
 
 def create_state_from_tokens(
     state_size: int,
-    tokens: List[str],
     new_tokens_buffer: List[str],
+    tokens: List[str],
     dictionary: List[str],
 ):
-
-    joined_tokens = ''.join(tokens)
-    joined_new_tokens = ''.join(new_tokens_buffer)
-    
-    sorted_dictionary = __sort_dictionary(dictionary)
-    
-    max_new_tokens_size = state_size // 2 - 2
-    new_token_indices = __string_to_indices(
-        data=joined_new_tokens,
-        max_size=max_new_tokens_size,
-        dictionary=dictionary,
-        sorted_dictionary=sorted_dictionary,
-    )
-    
     total_new_tokens_count = len(new_tokens_buffer)
 
-    state = [total_new_tokens_count, -1, *new_token_indices, -1]
-    max_data_tokens_size = state_size - len(state)
+    joined_new_tokens = ''.join(new_tokens_buffer)
+    joined_tokens = ''.join(tokens)
+
+    sorted_dictionary = __sort_dictionary(dictionary)
     
-    data_indices = __string_to_indices(
-        data=joined_tokens, 
-        max_size=max_data_tokens_size,
+    buffer_section_size = state_size // 2 - 2
+    
+    new_tokens_indices = __tokens_to_indices(
+        tokens=joined_new_tokens,
+        index_list_length=buffer_section_size,
         dictionary=dictionary,
         sorted_dictionary=sorted_dictionary,
     )
-
-    state.extend(data_indices)
-
-    # Pad state until self.state_size is reached.
-    if(len(state) < state_size):
-        state.extend([-1] * (state_size - len(state)))
+    
+    token_indices = __tokens_to_indices(
+        tokens=joined_tokens, 
+        index_list_length=buffer_section_size,
+        dictionary=dictionary,
+        sorted_dictionary=sorted_dictionary,
+    )
+    
+    state = [total_new_tokens_count, -1] + \
+        new_tokens_indices + [-1] + token_indices
     
     return tf.convert_to_tensor(state, dtype=tf.float32)
 

@@ -171,11 +171,12 @@ class PPOReporter:
         if self.__startedAt == None:
             raise Exception('Must call start() before recording statistics.')
         
-        self.__recorded_payloads.add(stats.payload)
+        payload_str = str(stats.payload)
+        self.__recorded_payloads.add(payload_str)
         
         # - Double double-quotes escape them in Excel.
         # - Quotes around the entry escape commas.
-        escaped_payload = stats.payload.replace('"', '""')
+        escaped_payload = payload_str.replace('"', '""')
         escaped_payload = f'\"{escaped_payload}\"'
 
         stats_dict = {

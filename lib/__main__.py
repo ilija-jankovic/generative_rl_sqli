@@ -13,7 +13,6 @@ from .sql_parser import sql_data_service, training_data_generator
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
 from .nlp.token_embedder import TokenEmbedder 
 from .model.environment import Environment
-from .model.payload_builder import PayloadBuilder
 
 import tensorflow as tf
 
@@ -141,15 +140,13 @@ else:
 headers = HEADERS.copy()
 headers.update({'cookie': COOKIE})
 
-payload_builder = PayloadBuilder(dictionary, '', '')
-
 environments = [
     Environment(
-        payload_builder=payload_builder,
+        dictionary=dictionary,
+        embeddings=embeddings,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         frames_per_episode=T,
-        embeddings=embeddings,
         double_requests=double_requests,
         send_request_callback= lambda payload:
             requests.get(OPEN_URL + payload, headers=headers))

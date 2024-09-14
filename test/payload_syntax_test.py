@@ -1,6 +1,6 @@
 import unittest
 
-from lib.model.payload_syntax import is_payload_syntax_correct
+from lib.model.payload import Payload
 
 class TestPayloadSyntax(unittest.TestCase):
     def test_empty_payload_is_correct_syntax(self):
@@ -8,7 +8,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Empty payload passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('')
+        is_payload_valid_syntax = Payload('').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -19,7 +19,7 @@ class TestPayloadSyntax(unittest.TestCase):
         syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('test')
+        is_payload_valid_syntax = Payload('test').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -30,7 +30,7 @@ class TestPayloadSyntax(unittest.TestCase):
         syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('TEST')
+        is_payload_valid_syntax = Payload('TEST').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -40,7 +40,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Payload of numeric characters passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('123')
+        is_payload_valid_syntax = Payload('123').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -50,7 +50,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Payload of alphanumeric characters passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('testTEST123')
+        is_payload_valid_syntax = Payload('testTEST123').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -60,7 +60,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Payload of a single quote does not pass SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\'')
+        is_payload_valid_syntax = Payload('\'').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, False)
 
@@ -70,7 +70,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Payload of two single quotes does passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\'\'')
+        is_payload_valid_syntax = Payload('\'\'').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -80,7 +80,7 @@ class TestPayloadSyntax(unittest.TestCase):
         Payload of a backslash passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\\')
+        is_payload_valid_syntax = Payload('\\').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -91,7 +91,7 @@ class TestPayloadSyntax(unittest.TestCase):
         SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\'--')
+        is_payload_valid_syntax = Payload('\'--').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
         
@@ -102,7 +102,7 @@ class TestPayloadSyntax(unittest.TestCase):
         SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\'#')
+        is_payload_valid_syntax = Payload('\'#').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -113,7 +113,7 @@ class TestPayloadSyntax(unittest.TestCase):
         double-dash comment constraint) passes SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\'-- ')
+        is_payload_valid_syntax = Payload('\'-- ').is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
         
@@ -124,9 +124,9 @@ class TestPayloadSyntax(unittest.TestCase):
         syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct(
+        is_payload_valid_syntax = Payload(
             '\' UNION SELECT x FROM y-- '
-        )
+        ).is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
         
@@ -137,7 +137,9 @@ class TestPayloadSyntax(unittest.TestCase):
         syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\' UNION SELECT x, y, z FROM y-- ')
+        is_payload_valid_syntax = Payload(
+            '\' UNION SELECT x, y, z FROM y-- '
+        ).is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, True)
 
@@ -148,7 +150,9 @@ class TestPayloadSyntax(unittest.TestCase):
         misspelled as UNIONX does not pass SQL syntax check.
         '''
         
-        is_payload_valid_syntax = is_payload_syntax_correct('\' UNIONX SELECT x FROM y-- ')
+        is_payload_valid_syntax = Payload(
+            '\' UNIONX SELECT x FROM y-- '
+        ).is_syntax_correct
         
         self.assertEqual(is_payload_valid_syntax, False)
 

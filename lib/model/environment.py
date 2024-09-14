@@ -5,13 +5,10 @@ from requests import Response
 from typing import Callable
 import tensorflow as tf
 from bs4 import BeautifulSoup
-
-from .payload_syntax import is_payload_syntax_correct
+from .payload import Payload
+from .payload_factory import create_payload_from_action
 from .ppo_reporter import PPOReporter
-from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
-
-from .payload_builder import PayloadBuilder
 from .episode_state import EpisodeState
 
 class Environment():
@@ -20,8 +17,6 @@ class Environment():
     Permutated version of `dictionary` which handles subset cases of tokens.
     '''
     dictionary_sorted: List[str]
-
-    payload_builder: PayloadBuilder
 
     action_size: int
     state_size: int
@@ -35,7 +30,7 @@ class Environment():
 
     double_requests: bool
 
-    __attempted_payloads: List[str]
+    __attempted_payloads: List[Payload]
     __found_tokens: List[str]
 
     # Most recent tokens at front.
@@ -66,7 +61,7 @@ class Environment():
 
     def __init__(
             self,
-            payload_builder: PayloadBuilder,
+            dictionary: List[str],
             embeddings: List[List[int]], 
             action_size: int,
             state_size: int,
@@ -75,13 +70,12 @@ class Environment():
             send_request_callback: Callable[[str], Response]
         ):
         assert(action_size > 0)
-
         assert(state_size > 0)
         assert(state_size % 2 == 0)
-        
-        self.dictionary = payload_builder.dictionary
 
-        assert(len(embeddings) == len(self.dictionary))
+        assert(len(embeddings) == len(dictionary))
+        
+        self.dictionary = dictionary
 
         for embedding in embeddings[1:]:
             if len(embedding) != len(embeddings[0]):
@@ -93,8 +87,6 @@ class Environment():
             len(set(self.dictionary)) ==
             len(set(self.dictionary_sorted))
         )
-
-        self.payload_builder = payload_builder
 
         self.action_size = action_size
         self.state_size = state_size
@@ -123,13 +115,10 @@ class Environment():
     def __reset_payload_cache(self):
         self.__attempted_payloads.clear()
 
-    def get_payload(self, action: tf.Tensor):
-        return self.payload_builder.convert_action_to_payload(action)
-
-    def __record_payload(self, payload: str):
+    def __record_payload(self, payload: Payload):
         self.__attempted_payloads.append(payload)
 
-    def __payload_attempted(self, payload: str):
+    def __payload_attempted(self, payload: Payload):
         return payload in self.__attempted_payloads
 
     def create_empty_state(self):
@@ -301,9 +290,12 @@ class Environment():
         #
         #
 
-        payload = self.get_payload(action)
-
-        response, new_tokens = self.__send_request(payload)
+        payload = create_payload_from_action(
+            action=action,
+            dictionary=self.dictionary,
+        )
+        
+        response, new_tokens = self.__send_request(data=str(payload))
 
         new_tokens_count = len(new_tokens)
         
@@ -334,7 +326,7 @@ class Environment():
                 if not reporter.is_payload_recorded(payload):
                     reporter.record_payload_statistic(stats)
         else:
-            reward = 0.0 if is_payload_syntax_correct(payload) else -1.0
+            reward = 0.0 if payload.is_syntax_correct else -1.0
 
         self.__record_payload(payload)
         done = self.__update_episode()

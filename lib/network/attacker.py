@@ -17,7 +17,7 @@ def __strip_lxml(text: str):
     Text instances are separated with a space.
     '''
 
-    return BeautifulSoup(text, "lxml").get_text(separator=' ')
+    return BeautifulSoup(text, "lxml").get_text(separator='\0')
 
 
 def __find_visible_text(text: str) -> List[str]:

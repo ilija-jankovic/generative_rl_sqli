@@ -100,7 +100,7 @@ def create_state_from_tokens(
 
     sorted_dictionary = __sort_dictionary(dictionary)
     
-    buffer_section_size = state_size // 2 - 2
+    buffer_section_size = (state_size - 3) // 2
     
     new_tokens_indices = __tokens_to_indices(
         tokens=joined_new_tokens,
@@ -118,6 +118,14 @@ def create_state_from_tokens(
     
     state = [total_new_tokens_count, -1] + \
         new_tokens_indices + [-1] + token_indices
+
+    # Account for even state sizes, as the two buffers evenly
+    # expand into the remaining space - state size minus three
+    # slots.
+    if state_size % 2 == 0:
+        state.append(-1)
+
+    assert(len(state) == state_size)
     
     return tf.convert_to_tensor(state, dtype=tf.float32)
 

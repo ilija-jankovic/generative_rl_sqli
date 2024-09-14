@@ -48,6 +48,16 @@ class TestEnvironment(unittest.TestCase):
 
         return state
 
+    def test_state_is_predefined_size(self):
+        '''
+        State is the predefined size of 10.
+        '''
+        
+        self.__set_response_body('')
+        state = self.__perform_dummy_action()
+        
+        self.assertEqual(len(state), 10)
+        
     def test_one_new_token_count(self):
         '''
         State counts one new token after private token returned.

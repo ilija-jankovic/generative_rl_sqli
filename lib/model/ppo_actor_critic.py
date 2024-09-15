@@ -153,10 +153,10 @@ class PPOActorCritic:
         
         return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
 
-    def __create_hidden_dense_layer(self, units: int, activation: str='relu'):
+    def __create_hidden_dense_layer(self, units: int):
         return tf.keras.layers.Dense(
             units,
-            activation=activation,
+            activation='tanh',
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3),
@@ -166,15 +166,15 @@ class PPOActorCritic:
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_DENSE_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS,
         )(input_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_DENSE_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS,
         )(dense_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
-            ACTOR_DENSE_UNITS, activation='tanh',
+            ACTOR_DENSE_UNITS,
         )(dense_rl_state)
 
         input_lstm_state_h = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
@@ -191,8 +191,8 @@ class PPOActorCritic:
 
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
-        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(concat)
-        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(dense)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(concat)
+        dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS)(dense)
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 

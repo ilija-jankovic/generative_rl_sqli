@@ -1,6 +1,5 @@
 from sqltree import sqltree
-from typing import List, Self
-import tensorflow as tf
+from typing import Self
 
 
 class Payload:

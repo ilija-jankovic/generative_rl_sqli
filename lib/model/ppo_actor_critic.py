@@ -50,7 +50,9 @@ class PPOActorCritic:
     #
     # Nadam for RNNs recommended by OverLordGoldDragon:
     # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-    def __create_optimizer(self, initial_learning_rate):
+    def __create_optimizer(self, initial_learning_rate: float):
+        assert(initial_learning_rate > 0.0)
+        
         learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
             initial_learning_rate=initial_learning_rate,
             decay_steps=LR_SCHEDULE_DECAY_STEPS,
@@ -101,7 +103,12 @@ class PPOActorCritic:
         self.actor_model_old.set_weights(self.actor_model.get_weights())
 
     @tf.function
-    def get_embeddings_from_probabilities(self, probabilities, chosen_indices, use_chosen_indices):
+    def get_embeddings_from_probabilities(
+        self,
+        probabilities: tf.Tensor,
+        chosen_indices: tf.Tensor,
+        use_chosen_indices: tf.Tensor,
+    ):
         chosen_indices = tf.cond(
             tf.equal(use_chosen_indices, True),
             true_fn=lambda: chosen_indices,
@@ -209,18 +216,18 @@ class PPOActorCritic:
     @tf.function
     def concat_next_token_indicies(
         self, 
-        actions,
-        probabilities,
-        batch_size,
-        action_index,
-        action_index_float,
-        state_h,
-        state_c,
-        embeddings,
+        actions: tf.Tensor,
+        probabilities: tf.Tensor,
+        batch_size: int,
+        action_index: tf.Tensor,
+        action_index_float: tf.Tensor,
+        state_h: tf.Tensor,
+        state_c: tf.Tensor,
+        embeddings: tf.Tensor,
         type: int,
-        states,
-        actions_reference,
-        use_actions_reference,
+        states: tf.Tensor,
+        actions_reference: tf.Tensor,
+        use_actions_reference: bool,
     ):
         input = (states, state_h, state_c, embeddings,)
 
@@ -261,9 +268,9 @@ class PPOActorCritic:
     @tf.function
     def policy(
         self,
-        states,
+        states: tf.Tensor,
         type: int,
-        batch_size,
+        batch_size: int,
         actions_reference: tf.Tensor,
         use_actions_reference: bool,
     ):

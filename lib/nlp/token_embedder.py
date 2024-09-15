@@ -11,7 +11,12 @@ class TokenEmbedder:
   window_size: int
   num_ns: int
 
-  def __init__(self, embedding_dim: int, window_size: int = 2, num_ns: int = 4):
+  def __init__(
+    self,
+    embedding_dim: int,
+    window_size: int = 2,
+    num_ns: int = 4,
+  ):
     self.embedding_dim = embedding_dim
     self.window_size = window_size
     self.num_ns = num_ns
@@ -19,7 +24,12 @@ class TokenEmbedder:
   # Generates skip-gram pairs with negative sampling for a list of sequences
   # (int-encoded sentences) based on window size, number of negative samples
   # and vocabulary size.
-  def __generate_training_data(self, sequences: List[List[int]], vocab_size: int, seed: int = 11):
+  def __generate_training_data(
+    self,
+    sequences: List[List[int]],
+    vocab_size: int,
+    seed: int = 11,
+  ):
     # Elements of each training example are appended to these lists.
     targets, contexts, labels = [], [], []
 
@@ -68,8 +78,13 @@ class TokenEmbedder:
 
     return targets, contexts, labels
 
-  def learn_embeddings(self, training_data: List[List[int]], vocabulary_length: int,
-                       batch_size: int, buffer_size: int) -> tf.Tensor:
+  def learn_embeddings(
+    self,
+    training_data: List[List[int]],
+    vocabulary_length: int,
+    batch_size: int,
+    buffer_size: int,
+  ) -> tf.Tensor:
       print('Generating embedding training data...')
       targets, contexts, labels = self.__generate_training_data(
           sequences=training_data,

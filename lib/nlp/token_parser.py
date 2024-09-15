@@ -7,9 +7,11 @@ class TokenParser:
     token_blacklist: List[str]
     data: List[str]
 
-    def __init__(self,
-            tokens: List[str],
-            token_blacklist: List[str]):
+    def __init__(
+        self,
+        tokens: List[str],
+        token_blacklist: List[str],
+    ):
         '''
         `tokens` must be in descending order.
         '''
@@ -98,7 +100,12 @@ class TokenParser:
 
         return indexed_data
     
-    def __filter_unformatted_data(self, data: List[str], prefix: str, suffix: str):
+    def __filter_unformatted_data(
+        self,
+        data: List[str],
+        prefix: str,
+        suffix: str,
+    ):
         data = list(filter(lambda datum: prefix in datum and suffix in datum and datum.index(prefix) < datum.rindex(suffix), data))
 
         # Take out prefix and suffix, and everything before and after respectively.
@@ -106,7 +113,12 @@ class TokenParser:
         
         return list(filter(lambda datum: len(datum) > 0, data))
     
-    def parse(self, data: List[str], required_prefix: str = '', required_suffix: str = ''):
+    def parse(
+        self,
+        data: List[str],
+        required_prefix: str = '',
+        required_suffix: str = '',
+    ):
         '''
         Returns data parsed to token indices in range `[0, ..., len(tokens) - 1]`.
 

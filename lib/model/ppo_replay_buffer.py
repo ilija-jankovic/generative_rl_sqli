@@ -107,7 +107,7 @@ class PPOReplayBuffer:
             if self.__successful_transitions_count > self.__demonstrations_count \
             else [1.0 / self.__demonstrations_count] * self.__demonstrations_count
 
-    def sample_successful_trajectories(self, batch_size):
+    def sample_successful_trajectories(self, batch_size: int):
         assert(batch_size > 0)
 
         probabilities = self.__get_sampling_probabilities()

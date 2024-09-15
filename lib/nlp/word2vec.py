@@ -1,11 +1,17 @@
 # Word2Vec model class from TensorFlow tutorial:
 # https://www.tensorflow.org/text/tutorials/word2vec
 
+from typing import Tuple
 import tensorflow as tf
 from tensorflow.keras import layers
 
 class Word2Vec(tf.keras.Model):
-  def __init__(self, vocab_size: int, embedding_dim: int, num_ns: int):
+  def __init__(
+    self,
+    vocab_size: int,
+    embedding_dim: int,
+    num_ns: int,
+  ):
     super(Word2Vec, self).__init__()
     self.target_embedding = layers.Embedding(vocab_size,
                                       embedding_dim,
@@ -15,7 +21,7 @@ class Word2Vec(tf.keras.Model):
                                        embedding_dim,
                                        input_length=num_ns+1)
 
-  def call(self, pair):
+  def call(self, pair: Tuple[tf.Tensor, tf.Tensor]):
     target, context = pair
     # target: (batch, dummy?)  # The dummy axis doesn't exist in TF2.7+
     # context: (batch, context)

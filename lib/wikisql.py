@@ -9,7 +9,7 @@
 
 import json
 import os
-from typing import List
+from typing import Any, List, Tuple
 
 _AGG_OPS = ["", "MAX", "MIN", "COUNT", "SUM", "AVG"]
 _COND_OPS = ["=", ">", "<", "OP"]
@@ -22,7 +22,11 @@ class WikiSQL():
     def __init__(self):
         self.__wikisql_path = f'{os.path.dirname(__file__)}/../wikisql'
 
-    def _convert_to_human_readable(self, agg, conditions):
+    def _convert_to_human_readable(
+        self,
+        agg: int,
+        conditions: List[Tuple[Any, int, Any]],
+    ):
         """Make SQL query string. Based on https://github.com/salesforce/WikiSQL/blob/c2ed4f9b22db1cc2721805d53e6e76e07e2ccbdc/lib/query.py#L10"""
 
         rep = f"SELECT {_AGG_OPS[agg]} [COLUMN_NAME] FROM [TABLE_NAME]"
@@ -31,7 +35,7 @@ class WikiSQL():
             rep += " WHERE " + " AND ".join([f"[COLUMN_NAME] {_COND_OPS[o]} [COMPARISON_VALUE]" for _, o, __ in conditions])
         return " ".join(rep.split())
 
-    def generate_examples(self, main_relative_filepath):
+    def generate_examples(self, main_relative_filepath: str):
         """Yields examples."""
 
         with open(f'{self.__wikisql_path}/{main_relative_filepath}', encoding="utf-8") as f:
@@ -55,7 +59,11 @@ class WikiSQL():
                     }
                 yield idx, row
 
-    def save_generated_examples(self, main_relative_filepath: str, open_text_mode: str):
+    def save_generated_examples(
+        self,
+        main_relative_filepath: str,
+        open_text_mode: str,
+    ):
         with open(f'{self.__wikisql_path}/queries.txt', open_text_mode) as f:
             lines: List[str] = []
 

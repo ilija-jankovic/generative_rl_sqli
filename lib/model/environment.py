@@ -126,7 +126,7 @@ class Environment:
     def perform_action(
         self,
         action: tf.Tensor,
-        timestep: int,
+        timestep: int | None,
         reporter: PPOReporter | None,
     ):
         # TODO: Do not run payload if it contains any sql_blacklist.txt tokens.

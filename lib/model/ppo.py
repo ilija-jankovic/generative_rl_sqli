@@ -84,11 +84,11 @@ class PPO:
 
     def calculate_advantages_batch(
         self,
-        initial_timestep,
-        terminal_timestep,
-        first_states,
-        last_states,
-        rewards
+        initial_timestep: int,
+        terminal_timestep: int,
+        first_states: tf.Tensor,
+        last_states: tf.Tensor,
+        rewards: tf.Tensor,
     ):
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])
         tf.Assert(tf.greater(terminal_timestep, initial_timestep), [terminal_timestep, initial_timestep])
@@ -138,11 +138,11 @@ class PPO:
 
     def clipped_surrogate_loss(
         self,
-        y,
-        y_old,
-        first_states,
-        last_states,
-        rewards
+        y: tf.Tensor,
+        y_old: tf.Tensor,
+        first_states: tf.Tensor,
+        last_states: tf.Tensor,
+        rewards: tf.Tensor,
     ):
         tf.Assert(tf.equal(y.shape[0], T), [y])
         tf.Assert(tf.equal(y_old.shape[0], T), [y_old])
@@ -169,7 +169,7 @@ class PPO:
         # and so our loss should negative this value.
         return -tf.reduce_mean(minimums)
 
-    def mse(self, y, rewards):
+    def mse(self, y: tf.Tensor, rewards: tf.Tensor):
         tf.Assert(tf.equal(y.shape[0], T), [y])
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])
 
@@ -181,7 +181,7 @@ class PPO:
     
     # Modified solution for shuffling along non-first axis by Faris Hijazi from:
     # https://github.com/tensorflow/swift/issues/394#issuecomment-779729550
-    def __tf_shuffle_axis(self, value, axis, seed):
+    def __tf_shuffle_axis(self, value: tf.Tensor, axis: int, seed: int):
         tf.random.set_seed(seed)
 
         perm = list(range(tf.rank(value)))
@@ -191,11 +191,11 @@ class PPO:
         return value
 
     def train_actor(
-            self,
-            states_minibatch,
-            actions_old_minibatch,
-            y_old_minibatch,
-            rewards_minibatch
+        self,
+        states_minibatch: tf.Tensor,
+        actions_old_minibatch: tf.Tensor,
+        y_old_minibatch: tf.Tensor,
+        rewards_minibatch: tf.Tensor,
     ):
         '''
         Returns actor loss.
@@ -232,7 +232,11 @@ class PPO:
         
         return actor_loss
 
-    def train_critic(self, states_minibatch, rewards_minibatch):
+    def train_critic(
+        self,
+        states_minibatch: tf.Tensor,
+        rewards_minibatch: tf.Tensor,
+    ):
         '''
         Returns critic loss.
         '''
@@ -257,7 +261,13 @@ class PPO:
 
         return critic_loss
 
-    def __learn(self, actions_old, y_old, states, rewards):
+    def __learn(
+        self,
+        actions_old: tf.Tensor,
+        y_old: tf.Tensor,
+        states: tf.Tensor,
+        rewards: tf.Tensor,
+    ):
         '''
         Returns `(actor losses, critic losses)` across minibatch trainings.
         '''

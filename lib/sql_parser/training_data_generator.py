@@ -9,7 +9,7 @@ from lib.util import match_list_lengths
 def generate_training_data(
     schema: Dict[str, str],
     max_length: int | None, 
-    token_parser: TokenParser
+    token_parser: TokenParser,
 ) -> List[List[int]]:
     payloads = sql_data_service.load_payload_files(domain_name='localhost')
 

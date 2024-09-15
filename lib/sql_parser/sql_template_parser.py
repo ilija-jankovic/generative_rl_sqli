@@ -46,7 +46,10 @@ def __generate_randomised_example(schema: Dict[str, str], query: str):
 
     return query
 
-def generate_randomised_examples(schema: Dict[str, str], queries: List[str]):
+def generate_randomised_examples(
+    schema: Dict[str, str],
+    queries: List[str],
+):
     return [
         __generate_randomised_example(
             schema=schema,

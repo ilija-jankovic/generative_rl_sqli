@@ -2,7 +2,8 @@ import math
 from typing import List
 from typing import Callable
 import tensorflow as tf
-from .payload import Payload
+
+from .injection_buffers import InjectionBuffers
 from . import payload_factory
 from . import state_factory
 from .ppo_reporter import PPOReporter
@@ -27,13 +28,8 @@ class Environment:
     Payload injection to filtered response mechanism.
     '''
 
-    __attempted_payloads: List[Payload]
-    __found_tokens: List[str]
-
-    # Most recent tokens at front.
-    __new_tokens: List[str]
-
     __episode: EpisodeState
+    __injection_buffers: InjectionBuffers
 
 
     @property
@@ -44,18 +40,10 @@ class Environment:
     def __inject_payload(self, payload_text: str, is_expected: bool):
         response_tokens = self.attack_callback(payload_text)
 
-        new_tokens: List[str] = []
-
-        # Avoid sets for token processing, as their order is non-deterministic.
-        # This is undesirable for tests, as well as consistency for the agent.
-        for token in response_tokens:
-            if token not in self.__found_tokens:
-                self.__found_tokens.append(token)
-
-                if(not is_expected):
-                    new_tokens.insert(0, token)
-
-        self.__new_tokens = new_tokens + self.__new_tokens
+        new_tokens = self.__injection_buffers.record_tokens(
+            response_tokens,
+            is_expected=is_expected,
+        )
 
         return response_tokens, new_tokens
     
@@ -78,27 +66,13 @@ class Environment:
         self.attack_callback = attack_callback
         
         self.__episode = EpisodeState(frames_per_episode)
-        self.__attempted_payloads = []
-        self.__found_tokens = []
-        self.__new_tokens = []
+        self.__injection_buffers = InjectionBuffers()
         
         self.__inject_initial_payloads()
 
+
     def __inject_initial_payloads(self):
         self.__inject_payload('1', is_expected=True)
-
-    def __reset_token_cache(self):
-        self.__found_tokens.clear()
-        self.__new_tokens.clear()
-
-    def __reset_payload_cache(self):
-        self.__attempted_payloads.clear()
-
-    def __record_payload(self, payload: Payload):
-        self.__attempted_payloads.append(payload)
-
-    def __payload_attempted(self, payload: Payload):
-        return payload in self.__attempted_payloads
 
     
     def __update_episode(self):
@@ -109,16 +83,10 @@ class Environment:
         self.__episode.next_frame()
 
         episode_ended = self.__episode.has_episode_ended()
+
         if episode_ended:
             self.__episode.next_episode()
-
-            # Remove found tokens to allow DDPG to learn
-            # with more reward opportunity.
-            self.__reset_token_cache()
-            self.__reset_payload_cache()
-
-            # Ensures data from non-useful injections is not rewarded.
-            self.__inject_initial_payloads()
+            self.__injection_buffers.clear()
 
         return episode_ended
 
@@ -144,7 +112,12 @@ class Environment:
 
         new_tokens_count = len(new_tokens)
         
-        if not self.__payload_attempted(payload) and new_tokens_count > 0:
+        # Do not reward repeated payloads in case of non-deterministic
+        # network responses.
+        #
+        # A pen-tester is unlikely to repeat the same injection multiple
+        # times unless checking a previous result.
+        if new_tokens_count > 0 and not self.__injection_buffers.was_payload_attempted(payload):
             
             # Successful payloads further along the episode are more greatly rewarded.
             #
@@ -173,7 +146,7 @@ class Environment:
         else:
             reward = 0.0 if payload.is_syntax_correct else -1.0
 
-        self.__record_payload(payload)
+        self.__injection_buffers.record_payload(payload)
         done = self.__update_episode()
 
         state = state_factory.create_empty_state(state_size=self.state_size) \
@@ -181,7 +154,7 @@ class Environment:
             else state_factory.create_state_from_tokens(
                 state_size=self.state_size,
                 tokens=response_tokens,
-                new_tokens_buffer=self.__new_tokens,
+                new_tokens_buffer=self.__injection_buffers.new_tokens,
                 dictionary=self.dictionary,
             )
 

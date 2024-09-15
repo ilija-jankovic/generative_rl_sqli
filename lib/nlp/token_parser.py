@@ -7,6 +7,7 @@ class TokenParser:
     token_blacklist: List[str]
     data: List[str]
 
+
     def __init__(
         self,
         tokens: List[str],
@@ -31,6 +32,7 @@ class TokenParser:
 
         self.token_blacklist = token_blacklist
 
+
     def __contains_blacklisted_token(self, datum: str):
         for token in self.token_blacklist:
             if token in datum:
@@ -42,12 +44,14 @@ class TokenParser:
 
         return len(datum) > 0
 
+
     def __remove_blacklisted_tokens(self, data: List[str]):
         return list(filter(
             lambda datum: not self.__contains_blacklisted_token(datum),
             data
         ))
-    
+
+
     def __tokenize(self, data: List[str]):
         '''
         Assumes `data` does not contain any blacklisted tokens.
@@ -99,35 +103,12 @@ class TokenParser:
             indexed_datum += [len(self.tokens) - 1] * (tokens_per_row - len(indexed_datum))
 
         return indexed_data
-    
-    def __filter_unformatted_data(
-        self,
-        data: List[str],
-        prefix: str,
-        suffix: str,
-    ):
-        data = list(filter(lambda datum: prefix in datum and suffix in datum and datum.index(prefix) < datum.rindex(suffix), data))
 
-        # Take out prefix and suffix, and everything before and after respectively.
-        data = [datum[datum.index(prefix)+1:datum.rindex(suffix)] for datum in data]
-        
-        return list(filter(lambda datum: len(datum) > 0, data))
     
-    def parse(
-        self,
-        data: List[str],
-        required_prefix: str = '',
-        required_suffix: str = '',
-    ):
+    def parse(self, data: List[str]):
         '''
         Returns data parsed to token indices in range `[0, ..., len(tokens) - 1]`.
-
-        If `required_prefix` and/or `required_suffix` are provided, data is filtered
-        based on these and these are trimmed off.
         '''
         data = self.__remove_blacklisted_tokens(data)
-
-        if len(required_prefix) > 0 or len(required_suffix) > 0:
-            data = self.__filter_unformatted_data(data, required_prefix, required_suffix)
 
         return self.__tokenize(data)

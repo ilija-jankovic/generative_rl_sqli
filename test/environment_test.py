@@ -42,8 +42,8 @@ class TestEnvironment(unittest.TestCase):
     def __perform_dummy_action(self):
         state, _ = self.__env.perform_action(
             action=tf.zeros([ACTION_SIZE,], dtype=tf.int16),
-            timestep=1,
             reporter=None,
+            timestep=None,
         )
 
         return state

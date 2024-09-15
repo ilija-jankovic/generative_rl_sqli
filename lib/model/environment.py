@@ -3,6 +3,8 @@ from typing import List
 from typing import Callable
 import tensorflow as tf
 
+from .payload import Payload
+
 from .injection_buffers import InjectionBuffers
 from . import payload_factory
 from . import state_factory
@@ -73,8 +75,94 @@ class Environment:
 
     def __inject_initial_payloads(self):
         self.__inject_payload('1', is_expected=True)
+        
+        
+    def __is_successful_payload(
+        self,
+        payload: Payload,
+        new_tokens_count: int,
+    ):
+        assert(new_tokens_count >= 0)
+        
+        # Do not mark repeated payloads as successful, even in the case
+        # of a non-deterministic network response.
+        #
+        # A pen-tester is unlikely to repeat the same injection multiple
+        # times unless checking a previous result.
+        return new_tokens_count > 0 and \
+            not self.__injection_buffers.was_payload_attempted(payload)
+        
+        
+    def __calculate_successful_reward(self, new_tokens_count: int):
+        assert(new_tokens_count > 0)
+        
+        # Successful payloads further along the episode are more greatly
+        # rewarded.
+        #
+        # They are less likely to be the result of simple injections, as
+        # these were already likely rewarded.
+        reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
+        reward = new_tokens_count * reward_weight
 
+        # Map reward to [-1, 1].
+        #
+        # Approximately linearly scaled down for low reward values, then
+        # tapers off to upper/lower bound.
+        reward = math.tanh(reward / 20.0)
+        
+        self.__episode.extend_episode()
+        
+        return reward
     
+    
+    def __try_report_payload_statistics(
+        self,
+        payload: Payload,
+        reporter: PPOReporter | None,
+        timestep: int | None,
+        reward: float,
+    ):
+        '''
+        Reports payload statistics if a reporter is provided and the
+        payload was not already recorded by the reporter.
+        
+        Either both `reporter` and `timestep` must be defined or
+        both must be `None`.
+        
+        If one is defined and the other is not, an assertion error
+        is raised.
+        '''
+
+        assert(
+            reporter == None and timestep == None or \
+            reporter != None and timestep != None
+        )
+        assert(timestep == None or timestep > 0)
+
+        if reporter == None or reporter.is_payload_recorded(payload):
+            return
+        
+        stats = PPOPayloadStatistics(
+            timestep=timestep,
+            reward=reward,
+            payload=payload,
+        )
+        
+        reporter.record_payload_statistic(stats)
+        
+
+    def __calculate_unsuccessful_reward(self, payload: Payload):
+        '''
+        Negatively rewards payloads which syntax is incorrect.
+
+        This quickly enforces AST adherence.
+        
+        A zero reward (no punishment) is given if the syntax is
+        correct but the payload was not successful.
+        '''
+        return 0.0 if payload.is_syntax_correct else -1.0
+
+
     def __update_episode(self):
         '''
         Returns whether the episode has ended.
@@ -89,14 +177,44 @@ class Environment:
             self.__injection_buffers.clear()
 
         return episode_ended
+    
+    
+    def __create_next_state(
+        self,
+        response_tokens: List[str],
+        is_episode_done: bool,
+    ):
+        return state_factory.create_empty_state(
+            state_size=self.state_size,
+        ) if is_episode_done \
+            else state_factory.create_state_from_tokens(
+                state_size=self.state_size,
+                tokens=response_tokens,
+                new_tokens_buffer=self.__injection_buffers.new_tokens,
+                dictionary=self.dictionary,
+            )
 
 
     def perform_action(
         self,
         action: tf.Tensor,
-        timestep: int | None,
         reporter: PPOReporter | None,
+        timestep: int | None,
     ):
+        '''
+        Either both `reporter` and `timestep` must be defined or
+        both must be `None`.
+        
+        If one is defined and the other is not, an assertion error
+        is raised.
+        '''
+        
+        assert(
+            reporter == None and timestep == None or \
+            reporter != None and timestep != None
+        )
+        assert(timestep == None or timestep > 0)
+        
         # TODO: Do not run payload if it contains any sql_blacklist.txt tokens.
         # Severely negatively reward such actions.
 
@@ -112,57 +230,39 @@ class Environment:
 
         new_tokens_count = len(new_tokens)
         
-        # Do not reward repeated payloads in case of non-deterministic
-        # network responses.
-        #
-        # A pen-tester is unlikely to repeat the same injection multiple
-        # times unless checking a previous result.
-        if new_tokens_count > 0 and not self.__injection_buffers.was_payload_attempted(payload):
+        if self.__is_successful_payload(
+            payload=payload,
+            new_tokens_count=new_tokens_count
+        ):
+            reward = self.__calculate_successful_reward(
+                new_tokens_count=new_tokens_count,
+            )
             
-            # Successful payloads further along the episode are more greatly rewarded.
-            #
-            # They are less likely to be the result of simple injections, as these were
-            # already likely rewarded.
-            reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
-            reward = new_tokens_count * reward_weight
-
-            # Map reward to [-1, 1].
-            #
-            # Approximately linearly scaled down for low reward values, then tapers off to
-            # upper/lower bound.
-            reward = math.tanh(reward / 20.0)
-            
-            self.__episode.extend_episode()
-            
-            if reporter != None:
-                stats = PPOPayloadStatistics(
-                    timestep=timestep,
-                    reward=reward,
-                    payload=payload,
-                )
-                
-                if not reporter.is_payload_recorded(payload):
-                    reporter.record_payload_statistic(stats)
+            self.__try_report_payload_statistics(
+                payload=payload,
+                reporter=reporter,
+                timestep=timestep,
+                reward=reward,
+            )
         else:
-            reward = 0.0 if payload.is_syntax_correct else -1.0
+            reward = self.__calculate_unsuccessful_reward(
+                payload=payload,
+            )
 
         self.__injection_buffers.record_payload(payload)
-        done = self.__update_episode()
 
-        state = state_factory.create_empty_state(state_size=self.state_size) \
-            if done \
-            else state_factory.create_state_from_tokens(
-                state_size=self.state_size,
-                tokens=response_tokens,
-                new_tokens_buffer=self.__injection_buffers.new_tokens,
-                dictionary=self.dictionary,
-            )
+        is_episode_done = self.__update_episode()
+
+        state = self.__create_next_state(
+            response_tokens=response_tokens,
+            is_episode_done=is_episode_done,
+        )
 
         return state, reward
 
     def perform_demonstration_action(self, action: tf.Tensor):
         return self.perform_action(
             action=action,
-            timestep=None,
             reporter=None,
+            timestep=None,
         )

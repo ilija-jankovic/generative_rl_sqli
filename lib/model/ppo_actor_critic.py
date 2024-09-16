@@ -129,7 +129,7 @@ class PPOActorCritic:
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
 
-    def __create_lstm_layer(self, units: int, bidirectional: bool = True):
+    def __create_bidirectional_lstm_layer(self, units: int):
         '''
         Creates LTSM (or Bidirectional LSTM) with dropout.
         '''
@@ -151,7 +151,7 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3),
         )
         
-        return tf.keras.layers.Bidirectional(lstm) if bidirectional else lstm
+        return tf.keras.layers.Bidirectional(lstm)
 
     def __create_hidden_dense_layer(self, units: int, activation: str='relu'):
         return tf.keras.layers.Dense(
@@ -168,48 +168,99 @@ class PPOActorCritic:
         dense_rl_state = self.__create_hidden_dense_layer(
             ACTOR_DENSE_UNITS, activation='tanh',
         )(input_rl_state)
+        dense_rl_state = tf.keras.layers.BatchNormalization()(dense_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
             ACTOR_DENSE_UNITS, activation='tanh',
         )(dense_rl_state)
+        dense_rl_state = tf.keras.layers.BatchNormalization()(dense_rl_state)
 
         dense_rl_state = self.__create_hidden_dense_layer(
             ACTOR_DENSE_UNITS, activation='tanh',
         )(dense_rl_state)
+        dense_rl_state = tf.keras.layers.BatchNormalization()(dense_rl_state)
 
-        input_lstm_state_h = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
-        input_lstm_state_c = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
+        input_state_h_forward = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
+        input_state_c_forward = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
+        input_state_h_backward = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
+        input_state_c_backward = tf.keras.layers.Input(shape=[ACTOR_LSTM_UNITS,])
+        
+        input_bidirectional_state = (
+            input_state_h_forward,
+            input_state_c_forward,
+            input_state_h_backward,
+            input_state_c_backward,
+        )
 
         # Average embedding input.
         input_embedding = tf.keras.layers.Input(shape=[1, self.embedding_size,],)
 
-        lstm, state_h, state_c = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(input_embedding, initial_state=[input_lstm_state_h, input_lstm_state_c,])
-        lstm, state_h, state_c = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm, initial_state=[state_h, state_c,])
-        lstm, state_h, state_c = self.__create_lstm_layer(ACTOR_LSTM_UNITS, bidirectional=False)(lstm, initial_state=[state_h, state_c,])
+        lstm, *bidirectional_state = self.__create_bidirectional_lstm_layer(
+            ACTOR_LSTM_UNITS,
+        )(
+            input_embedding, initial_state=input_bidirectional_state,
+        )
+
+        lstm, *bidirectional_state = self.__create_bidirectional_lstm_layer(
+            ACTOR_LSTM_UNITS,
+        )(
+            lstm, initial_state=bidirectional_state,
+        )
+        
+        lstm, *bidirectional_state = self.__create_bidirectional_lstm_layer(
+            ACTOR_LSTM_UNITS,
+        )(
+            lstm, initial_state=bidirectional_state,
+        )
 
         lstm = tf.keras.layers.Flatten()(lstm)
 
         concat = tf.keras.layers.Concatenate()([dense_rl_state, lstm,])
 
         dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(concat)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
-        return tf.keras.Model([input_rl_state, input_lstm_state_h, input_lstm_state_c, input_embedding,], [dense, state_h, state_c,])
+        return tf.keras.Model([
+            input_rl_state,
+            input_state_h_forward,
+            input_state_c_forward,
+            input_state_h_backward,
+            input_state_c_backward,
+            input_embedding,
+        ], [dense, *bidirectional_state,])
 
     def get_critic(self):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense = self.__create_hidden_dense_layer(256)(input_rl_state)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(128)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(64)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(32)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(16)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(8)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+
         dense = self.__create_hidden_dense_layer(4)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         dense = self.__create_hidden_dense_layer(2)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
         output = tf.keras.layers.Dense(1)(dense)
 
         return tf.keras.Model([input_rl_state,], output)
@@ -222,19 +273,18 @@ class PPOActorCritic:
         batch_size: int,
         action_index: tf.Tensor,
         action_index_float: tf.Tensor,
-        state_h: tf.Tensor,
-        state_c: tf.Tensor,
+        bidirectional_state: tf.Tensor,
         embeddings: tf.Tensor,
         type: int,
         states: tf.Tensor,
         actions_reference: tf.Tensor,
         use_actions_reference: bool,
     ):
-        input = (states, state_h, state_c, embeddings,)
+        input = (states, *bidirectional_state, embeddings,)
 
         normal_policy_id = tf.constant(PolicyType.NORMAL.value, dtype=tf.int32)
 
-        one_hot_probabilities, state_h, state_c = tf.cond(
+        one_hot_probabilities, *bidirectional_state = tf.cond(
             tf.equal(type, normal_policy_id),
                 true_fn=lambda: self.actor_model(input, training=True),
                 false_fn=lambda: self.actor_model_old(input, training=False))
@@ -264,7 +314,7 @@ class PPOActorCritic:
 
         action_index =  tf.add(action_index, 1)
         
-        return actions, probabilities, batch_size, action_index, action_index_float, state_h, state_c, embeddings, type, states, actions_reference, use_actions_reference
+        return actions, probabilities, batch_size, action_index, action_index_float, bidirectional_state, embeddings, type, states, actions_reference, use_actions_reference
 
     @tf.function
     def policy(
@@ -286,8 +336,18 @@ class PPOActorCritic:
         actions = tf.fill([batch_size, action_size], -1)
         probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
-        state_h = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
-        state_c = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        state_h_forward = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        state_c_forward = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        state_h_backward = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        state_c_backward = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        
+        bidirectional_state = (
+            state_h_forward,
+            state_c_forward,
+            state_h_backward,
+            state_c_backward,
+        )
+        
         embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float32)
 
         action_index = tf.constant(0, dtype=tf.int32)
@@ -302,8 +362,7 @@ class PPOActorCritic:
                 batch_size,
                 action_index,
                 action_index_float,
-                state_h,
-                state_c,
+                bidirectional_state,
                 embeddings,
                 type,
                 states,

@@ -6,8 +6,8 @@ EMBEDDING_DIM = 128
 T = 10
 
 EPOCHS = 10
-BATCH_SIZE = 1024
-MINIBATCH_SIZE = 512
+BATCH_SIZE = 512
+MINIBATCH_SIZE = 256
 
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7 (PPO paper).

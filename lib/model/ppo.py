@@ -166,7 +166,7 @@ class PPO:
         minimums = self.calculate_clipped_probability_ratios(probability_ratios, advantages)
 
         # The goal of the policy is to maximise the surrogate objective (pg. 3, para. 1),
-        # and so our loss should negative this value.
+        # and so our loss should negate this value.
         return -tf.reduce_mean(minimums)
 
     def mse(self, y: tf.Tensor, rewards: tf.Tensor):

@@ -45,9 +45,6 @@ class PPOActorCritic:
     # the ICLR PPO research guide:
     # https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
     #
-    # Equal betas based on Overcoming Policy Collapse in Deep Reinforcement Learning
-    # paper (pp. 6-7): https://openreview.net/pdf?id=m9Jfdz4ymO
-    #
     # Nadam for RNNs recommended by OverLordGoldDragon:
     # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
     def __create_optimizer(self, initial_learning_rate: float):

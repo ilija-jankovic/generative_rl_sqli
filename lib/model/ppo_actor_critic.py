@@ -129,11 +129,9 @@ class PPOActorCritic:
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
 
-    def __create_bidirectional_lstm_layer(self, units: int):
-        '''
-        Creates LTSM (or Bidirectional LSTM) with dropout.
-        '''
-        lstm = tf.keras.layers.LSTM(
+    
+    def _create_lstm(self, units: int, go_backwards: bool):
+        return tf.keras.layers.LSTM(
             units,
             return_sequences=True,
             return_state=True,
@@ -149,9 +147,15 @@ class PPOActorCritic:
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3),
+            go_backwards=go_backwards,
         )
-        
-        return tf.keras.layers.Bidirectional(lstm)
+    
+
+    def __create_bidirectional_lstm_layer(self, units: int):
+        return tf.keras.layers.Bidirectional(
+            self._create_lstm(units, go_backwards=False),
+            backward_layer=self._create_lstm(units, go_backwards=True),
+        )
 
     def __create_hidden_dense_layer(self, units: int, activation: str='relu'):
         return tf.keras.layers.Dense(

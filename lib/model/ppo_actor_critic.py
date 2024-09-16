@@ -65,9 +65,12 @@ class PPOActorCritic:
             ))
 
     def __init_models(self):
-        self.actor_model = self.get_actor()
-        self.actor_model_old = self.get_actor()
-        self.critic_model = self.get_critic()
+        self.actor_model = self.get_actor(name='ACTOR')
+        self.actor_model_old = self.get_actor(name='ACTOR_OLD')
+        self.critic_model = self.get_critic(name='CRITIC')
+
+        self.actor_model.summary()
+        self.critic_model.summary()
 
         self.actor_optimizer = self.__create_optimizer(INITIAL_ACTOR_LEARNING_RATE)
         self.critic_optimizer = self.__create_optimizer(INITIAL_CRITIC_LEARNING_RATE)
@@ -159,7 +162,7 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3),
         )
 
-    def get_actor(self):
+    def get_actor(self, name: str):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense_rl_state = self.__create_hidden_dense_layer(
@@ -222,16 +225,23 @@ class PPOActorCritic:
         
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
-        return tf.keras.Model([
-            input_rl_state,
-            input_state_h_forward,
-            input_state_c_forward,
-            input_state_h_backward,
-            input_state_c_backward,
-            input_embedding,
-        ], [dense, *bidirectional_state,])
-
-    def get_critic(self):
+        return tf.keras.Model(
+            inputs=[
+                input_rl_state,
+                input_state_h_forward,
+                input_state_c_forward,
+                input_state_h_backward,
+                input_state_c_backward,
+                input_embedding,
+            ],
+            outputs=[
+                dense,
+                *bidirectional_state,
+            ],
+            name=name,
+        )
+        
+    def get_critic(self, name: str):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
         dense = self.__create_hidden_dense_layer(256)(input_rl_state)
@@ -260,7 +270,11 @@ class PPOActorCritic:
         
         output = tf.keras.layers.Dense(1)(dense)
 
-        return tf.keras.Model([input_rl_state,], output)
+        return tf.keras.Model(
+            inputs=[input_rl_state,],
+            outputs=output,
+            name=name,
+        )
 
     @tf.function
     def concat_next_token_indicies(

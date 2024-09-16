@@ -236,7 +236,16 @@ class PPOActorCritic:
     def get_critic(self, name: str):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        dense = self.__create_hidden_dense_layer(256)(input_rl_state)
+        dense = self.__create_hidden_dense_layer(1024)(input_rl_state)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
+        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
+        dense = self.__create_hidden_dense_layer(512)(dense)
+        dense = tf.keras.layers.BatchNormalization()(dense)
+        
+        dense = self.__create_hidden_dense_layer(256)(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
         dense = self.__create_hidden_dense_layer(128)(dense)
@@ -244,20 +253,11 @@ class PPOActorCritic:
         
         dense = self.__create_hidden_dense_layer(64)(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
-        
+
         dense = self.__create_hidden_dense_layer(32)(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
         dense = self.__create_hidden_dense_layer(16)(dense)
-        dense = tf.keras.layers.BatchNormalization()(dense)
-        
-        dense = self.__create_hidden_dense_layer(8)(dense)
-        dense = tf.keras.layers.BatchNormalization()(dense)
-
-        dense = self.__create_hidden_dense_layer(4)(dense)
-        dense = tf.keras.layers.BatchNormalization()(dense)
-        
-        dense = self.__create_hidden_dense_layer(2)(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
         output = tf.keras.layers.Dense(1)(dense)

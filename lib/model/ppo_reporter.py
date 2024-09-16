@@ -4,7 +4,7 @@ import os
 from typing import List, Set
 
 from .ppo_running_statistics import PPORunningStatistics
-from .ppo_episodic_statistics import PPOEpisodicStatistics
+from .total_episodic_statistics import TotalEpisodicStatistics
 from .ppo_payload_statistics import PPOPayloadStatistics
 
 from ..hyperparameters import ACTION_SIZE, ACTOR_DENSE_UNITS, INITIAL_ACTOR_LEARNING_RATE, \
@@ -31,6 +31,7 @@ class PPOReporter:
         'Since Beginning Seconds',
         'Epsiode',
         'Mean Cumulative Episodic Reward',
+        'Mean Accuracy',
     ]
 
     __PAYLOAD_COLUMNS: List[str] = [
@@ -150,7 +151,7 @@ class PPOReporter:
             
         f.close()
         
-    def record_episodic_statistics(self, stats: PPOEpisodicStatistics):
+    def record_episodic_statistics(self, stats: TotalEpisodicStatistics):
         if self.__startedAt == None:
             raise Exception('Must call start() before recording statistics.')
 
@@ -158,6 +159,7 @@ class PPOReporter:
             'Since Beginning Seconds': self.__get_seconds_since_start(),
             'Epsiode': stats.episode,
             'Mean Cumulative Episodic Reward': stats.mean_cumulative_episodic_reward,
+            'Mean Accuracy': stats.mean_accuracy,
         }
         
         ordered_stats = [str(stats_dict[column]) for column in self.__EPISODE_COLUMNS]

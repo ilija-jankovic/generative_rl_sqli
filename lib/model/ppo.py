@@ -6,7 +6,7 @@ from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 from typing import List
 from . import state_factory
-from .ppo_episodic_rewards_reporter import PPOEpisodicRewardsReporter
+from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
 from .ppo_replay_buffer import PPOReplayBuffer
@@ -318,7 +318,7 @@ class PPO:
         policy_type: PolicyType,
         states: List[tf.Tensor],
         reporter: PPOReporter,
-        episodic_rewards_reporter: PPOEpisodicRewardsReporter,
+        episodic_rewards_reporter: PPOEpisodicReporter,
     ):
         actions_old = []
         action_probabilities_old = []
@@ -371,10 +371,10 @@ class PPO:
                         reporter=reporter,
                     )
                     
-                    episodic_rewards_reporter.record_reward(
+                    episodic_rewards_reporter.record_episodic_statistics(
+                        episode=episode,
                         reward=reward,
                         batch_index=batch_index,
-                        episode=episode,
                     )
                         
                     env_tuples.append((state, reward,))
@@ -442,7 +442,7 @@ class PPO:
         self,
         states: List[tf.Tensor],
         reporter: PPOReporter,
-        episodic_rewards_reporter: PPOEpisodicRewardsReporter,
+        episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
         total_seconds = time.time()
         
@@ -519,7 +519,7 @@ class PPO:
         
         reporter = PPOReporter()
         
-        episodic_rewards_reporter = PPOEpisodicRewardsReporter(
+        episodic_rewards_reporter = PPOEpisodicReporter(
             batch_size=BATCH_SIZE,
             reporter=reporter,
         )

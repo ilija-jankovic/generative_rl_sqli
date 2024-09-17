@@ -127,8 +127,8 @@ def create_state_from_tokens(
 
     assert(len(state) == state_size)
     
-    return tf.convert_to_tensor(state, dtype=tf.float32)
+    return tf.convert_to_tensor(state, dtype=tf.float64)
 
 
 def create_empty_state(state_size: int):
-    return tf.zeros([state_size,], dtype=tf.float32)
+    return tf.zeros([state_size,], dtype=tf.float64)

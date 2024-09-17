@@ -65,6 +65,8 @@ class PPOActorCritic:
             ))
 
     def __init_models(self):
+        tf.keras.backend.set_floatx('float64')
+
         self.actor_model = self.get_actor(name='ACTOR')
         self.actor_model_old = self.get_actor(name='ACTOR_OLD')
         self.critic_model = self.get_critic(name='CRITIC')
@@ -118,13 +120,11 @@ class PPOActorCritic:
         )
         chosen_indices = tf.squeeze(chosen_indices)
         
-        embeddings = tf.convert_to_tensor(self.embeddings, dtype=tf.float32)
-        
         # TODO: Consider using tf.gather_nd for performance increase:
         # https://github.com/matterport/Mask_RCNN/issues/749#issuecomment-1497595166
-        chosen_embeddings = tf.gather(embeddings, chosen_indices)
+        chosen_embeddings = tf.gather(self.embeddings, chosen_indices)
+        chosen_embeddings = tf.cast(chosen_embeddings, dtype=tf.float64)
 
-        probabilities = tf.cast(probabilities, dtype=tf.float64)
         chosen_probabilities = tf.gather(probabilities, chosen_indices, axis=1, batch_dims=1)
         
         return chosen_indices, chosen_embeddings, chosen_probabilities
@@ -339,18 +339,18 @@ class PPOActorCritic:
         actions = tf.fill([batch_size, action_size], -1)
         probabilities = tf.zeros([batch_size, action_size], dtype=tf.float64)
         
-        state_h = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
-        state_c = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float32)
+        state_h = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float64)
+        state_c = tf.zeros([batch_size, ACTOR_LSTM_UNITS,], dtype=tf.float64)
         
         lstm_state = (
             state_h,
             state_c,
         )
         
-        embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float32)
+        embeddings = tf.zeros([batch_size, 1, self.embedding_size], dtype=tf.float64)
 
         action_index = tf.constant(0, dtype=tf.int32)
-        action_index_float = tf.constant(0.0, dtype=tf.float32)
+        action_index_float = tf.constant(0.0, dtype=tf.float64)
 
         actions, probabilities, *_ = tf.while_loop(
             cond=lambda *_: True,

@@ -92,6 +92,8 @@ class PPO:
     ):
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])
         tf.Assert(tf.greater(terminal_timestep, initial_timestep), [terminal_timestep, initial_timestep])
+        
+        gamma = tf.constant(GAMMA, dtype=tf.float64)
 
         advantages = -tf.squeeze(
             self.actor_critic.critic_model(
@@ -103,14 +105,14 @@ class PPO:
         for t in range(initial_timestep, terminal_timestep):
             advantages += tf.multiply(
                     tf.pow(
-                        GAMMA,
+                        gamma,
                         timestep_window + t - terminal_timestep
                     ),
                     tf.squeeze(rewards[t - initial_timestep]),
                 )
 
         advantages += tf.multiply(
-                tf.pow(GAMMA, timestep_window),
+                tf.pow(gamma, timestep_window),
                 tf.squeeze(
                     self.actor_critic.critic_model(
                         last_states,
@@ -159,7 +161,6 @@ class PPO:
             ) for t in range(self.timestep, self.timestep + T)
         ]
 
-        advantages = tf.cast(advantages, dtype=tf.float64)
         advantages = tf.squeeze(advantages)
         advantages = tf.expand_dims(advantages, axis=-1)
 
@@ -175,7 +176,7 @@ class PPO:
 
         # Expected value from paper pg. 5 ((V^targ)_t) can be defined as (R(s_t,a_t)), as
         # demonstrated by pi-tau from: https://ai.stackexchange.com/a/41896
-        y_error = tf.cast(y, dtype=tf.float32) - rewards
+        y_error = tf.cast(y, dtype=tf.float64) - rewards
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
     
@@ -388,8 +389,11 @@ class PPO:
 
         states = tf.convert_to_tensor(states)
         actions_old = tf.convert_to_tensor(actions_old)
-        action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
-        rewards = tf.convert_to_tensor(rewards)
+        action_probabilities_old = tf.convert_to_tensor(
+            action_probabilities_old,
+            dtype=tf.float64,
+        )
+        rewards = tf.convert_to_tensor(rewards, dtype=tf.float64)
 
         if policy_type == PolicyType.OLD:
             for i in range(BATCH_SIZE):

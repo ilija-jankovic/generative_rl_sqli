@@ -40,9 +40,9 @@ class PPOReplayBuffer:
 
         self.successful_buffer_size = successful_buffer_size
 
-        self.__successful_states = np.zeros([successful_buffer_size, T, state_size], dtype=np.float32)
+        self.__successful_states = np.zeros([successful_buffer_size, T, state_size], dtype=np.float64)
         self.__successful_actions = np.zeros([successful_buffer_size, T, action_size], dtype=np.int32)
-        self.__successful_rewards = np.zeros([successful_buffer_size, T], dtype=np.float32)
+        self.__successful_rewards = np.zeros([successful_buffer_size, T], dtype=np.float64)
 
         # Indices up to __demonstrations_count of successful injections reserved
         # for demonstration.

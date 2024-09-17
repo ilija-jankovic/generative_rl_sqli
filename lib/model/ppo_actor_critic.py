@@ -148,7 +148,7 @@ class PPOActorCritic:
             bias_constraint=tf.keras.constraints.max_norm(3),
         )
 
-    def __create_hidden_dense_layer(self, units: int, activation: str='relu'):
+    def __create_hidden_dense_layer(self, units: int, activation: str):
         return tf.keras.layers.Dense(
             units,
             activation=activation,
@@ -236,28 +236,52 @@ class PPOActorCritic:
     def get_critic(self, name: str):
         input_rl_state = tf.keras.layers.Input(shape=[self.state_size,])
 
-        dense = self.__create_hidden_dense_layer(1024)(input_rl_state)
+        dense = self.__create_hidden_dense_layer(
+            1024,
+            activation='relu',
+        )(input_rl_state)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(1024)(dense)
+        dense = self.__create_hidden_dense_layer(
+            1024,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(512)(dense)
+        dense = self.__create_hidden_dense_layer(
+            512,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(256)(dense)
+        dense = self.__create_hidden_dense_layer(
+            256,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(128)(dense)
+        dense = self.__create_hidden_dense_layer(
+            128,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(64)(dense)
+        dense = self.__create_hidden_dense_layer(
+            64,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
 
-        dense = self.__create_hidden_dense_layer(32)(dense)
+        dense = self.__create_hidden_dense_layer(
+            32,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        dense = self.__create_hidden_dense_layer(16)(dense)
+        dense = self.__create_hidden_dense_layer(
+            16,
+            activation='relu',
+        )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
         output = tf.keras.layers.Dense(1)(dense)

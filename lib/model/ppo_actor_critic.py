@@ -28,7 +28,6 @@ class PPOActorCritic:
     action_size: int
     state_size: int
     embedding_size: int
-    batch_size: int
     embeddings: List[List[int]]
 
     actor_model: tf.keras.Model
@@ -85,18 +84,15 @@ class PPOActorCritic:
         action_size: int,
         state_size: int,
         embedding_size: int,
-        batch_size: int,
         embeddings: List[List[int]]
     ):
         assert(dictionary_length > 0)
         assert(embedding_size > 0)
-        assert(batch_size > 0)
 
         self.dictionary_length = dictionary_length
         self.action_size = action_size
         self.state_size = state_size
         self.embedding_size = embedding_size
-        self.batch_size = batch_size
         self.embeddings = embeddings
 
         self.__init_models()

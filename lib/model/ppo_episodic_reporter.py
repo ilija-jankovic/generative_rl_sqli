@@ -75,7 +75,7 @@ class PPOEpisodicReporter:
             return
         
         total_stats = TotalEpisodicStatistics(
-            episode=episode,
+            episode=base_running_stats.episode,
             mean_cumulative_episodic_reward=base_running_stats.mean_running_reward,
             mean_accuracy=base_running_stats.mean_accuracy,
         )

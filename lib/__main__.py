@@ -7,7 +7,7 @@ from lib.configuration import Configuration
 from lib.injected_request import send_request
 from lib.network.attacker import attack
 
-from .hyperparameters import ACTION_SIZE, BATCH_SIZE, EMBEDDING_DIM, STATE_SIZE
+from .hyperparameters import ACTION_SIZE, EMBEDDING_DIM, ENVIRONMENT_BATCH_SIZE, STATE_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
 from .network.sqlmap_runner import SqlmapRunner
@@ -157,7 +157,7 @@ environments = [
             payload=payload,
             perform_double_requests=double_requests,
         ))
-            for _ in range(BATCH_SIZE + 1)
+            for _ in range(ENVIRONMENT_BATCH_SIZE + 1)
 ]
 
 demonstration_environment = environments[0]

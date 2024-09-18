@@ -10,9 +10,9 @@ from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
 from .ppo_replay_buffer import PPOReplayBuffer
-from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, T, EPOCHS, GAMMA, \
-    PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
-    PPO_SUCCESSFUL_POLICY_PROBABILITY, MINIBATCH_SIZE
+from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, PPO_SUCCESSFUL_BATCH_SIZE, \
+    ENVIRONMENT_BATCH_SIZE, T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE
+    
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
@@ -32,7 +32,7 @@ class PPO:
         actor_critic: PPOActorCritic,
         environments: List[Environment],
     ):
-        assert(len(environments) == BATCH_SIZE)
+        assert(len(environments) == ENVIRONMENT_BATCH_SIZE)
         assert(len(environments) == len(set(environments)))
 
         self.actor_critic = actor_critic
@@ -306,17 +306,9 @@ class PPO:
             critic_losses.append(critic_loss)
             
         return actor_losses, critic_losses
-            
-    def __sample_policy_type(self):
-        rand = np.random.rand()
-        
-        return PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-            if rand < PPO_SUCCESSFUL_POLICY_PROBABILITY \
-            else PolicyType.OLD
-            
+
     def __explore(
         self,
-        policy_type: PolicyType,
         states: List[tf.Tensor],
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
@@ -325,86 +317,105 @@ class PPO:
         action_probabilities_old = []
         rewards = []
 
+        '''
+        successful_trajectories_count = np.random.binomial(
+            n=BATCH_SIZE,
+            p=PPO_SUCCESSFUL_BATCH_SIZE,
+            size=None,
+        )
+        '''
+        
         trajectories = self.buffer.sample_successful_trajectories(
-                batch_size=BATCH_SIZE
-            ) \
-            if policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS \
-            else None
-
+            batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
+        )
+        
         for i in range(T):
-            if policy_type == PolicyType.OLD:
-                action_batch, probabilities_batch = self.actor_critic.policy(
-                    states[i],
-                    PolicyType.OLD.value,
-                    batch_size=BATCH_SIZE,
-                    actions_reference=tf.fill([BATCH_SIZE, ACTION_SIZE,], -1),
-                    use_actions_reference=False,
-                )
-            elif policy_type == PolicyType.SUCCESSFUL_DEMONSTRATIONS:
-                action_batch, probabilities_batch = self.actor_critic.policy(
-                    states[i],
-                    PolicyType.OLD.value,
-                    batch_size=BATCH_SIZE,
-                    actions_reference=trajectories[1][:,i],
-                    use_actions_reference=True,
-                )
-            else:
-                raise Exception(f'Policy type {policy_type} is invalid for exploration.')
+            actions_old_combined = []
+            action_probabilities_old_combined = []
+            states_combined = []
+            rewards_combined = []
+
+
+            # Replay successful demonstrations.
+            # ===================================
+            action_batch, probabilities_batch = self.actor_critic.policy(
+                tf.convert_to_tensor(states[i][:PPO_SUCCESSFUL_BATCH_SIZE]),
+                PolicyType.OLD.value,
+                batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
+                actions_reference=trajectories[1][:,i],
+                use_actions_reference=True,
+            )
+            
+            actions_old_combined.extend(action_batch)
+            action_probabilities_old_combined.extend(probabilities_batch)
+            states_combined.extend(trajectories[0][:, i])
+            rewards_combined.extend(trajectories[2][:, i])
+            # ===================================
+
+
+
+            # Interact with environments.
+            # ===================================
+            action_batch, probabilities_batch = self.actor_critic.policy(
+                tf.convert_to_tensor(states[i][PPO_SUCCESSFUL_BATCH_SIZE:]),
+                PolicyType.OLD.value,
+                batch_size=ENVIRONMENT_BATCH_SIZE,
+                actions_reference=tf.fill([ENVIRONMENT_BATCH_SIZE, ACTION_SIZE,], -1),
+                use_actions_reference=False,
+            )
+
+            env_tuples = []
+            
+            for batch_index in range(ENVIRONMENT_BATCH_SIZE):
+                environment = self.environments[batch_index]
+
+                # Retrieve epsiode before its potential update.
+                #
+                # Otherwise, if the episode is updated, the reward returned
+                # will match the previous episode.
+                episode = environment.episode
                 
-            actions_old.append(action_batch)
-            action_probabilities_old.append(probabilities_batch)
-
-            if trajectories == None:
-                env_tuples = []
+                state, reward = environment.perform_action(
+                    action_batch[batch_index],
+                    timestep=self.timestep + batch_index + 1,
+                    reporter=reporter,
+                )
                 
-                for batch_index in range(BATCH_SIZE):
-                    environment = self.environments[batch_index]
-
-                    # Retrieve epsiode before its potential update.
-                    #
-                    # Otherwise, if the episode is updated, the reward returned
-                    # will match the previous episode.
-                    episode = environment.episode
+                episodic_rewards_reporter.record_episodic_statistics(
+                    episode=episode,
+                    reward=reward,
+                    batch_index=batch_index,
+                )
                     
-                    state, reward = environment.perform_action(
-                        action_batch[batch_index],
-                        timestep=self.timestep + batch_index + 1,
-                        reporter=reporter,
-                    )
-                    
-                    episodic_rewards_reporter.record_episodic_statistics(
-                        episode=episode,
-                        reward=reward,
-                        batch_index=batch_index,
-                    )
-                        
-                    env_tuples.append((state, reward,))
-
-
-                states.append(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
-                rewards.append([env_tuple[1] for env_tuple in env_tuples])
-            else:
-                states.append(trajectories[0][:, i])
-                rewards.append(trajectories[2][:, i])
+                env_tuples.append((state, reward,))
+                
+            actions_old_combined.extend(action_batch)
+            action_probabilities_old_combined.extend(probabilities_batch)
+            states_combined.extend(tf.convert_to_tensor([env_tuple[0] for env_tuple in env_tuples]))
+            rewards_combined.extend([env_tuple[1] for env_tuple in env_tuples])
+            # ===================================
+            
+            
+            actions_old.append(actions_old_combined)
+            action_probabilities_old.append(action_probabilities_old_combined)
+            states.append(states_combined)
+            rewards.append(rewards_combined)
 
         states = tf.convert_to_tensor(states)
         actions_old = tf.convert_to_tensor(actions_old)
-        action_probabilities_old = tf.convert_to_tensor(
-            action_probabilities_old,
-            dtype=tf.float64,
-        )
+        action_probabilities_old = tf.convert_to_tensor(action_probabilities_old)
         rewards = tf.convert_to_tensor(rewards, dtype=tf.float64)
 
-        if policy_type == PolicyType.OLD:
-            for i in range(BATCH_SIZE):
-                trajectory_reward = np.sum(rewards[:, i])
+        # Record successful on-policy transitions from environment.
+        for i in range(PPO_SUCCESSFUL_BATCH_SIZE, BATCH_SIZE):
+            trajectory_reward = np.sum(rewards[:, i])
 
-                if trajectory_reward > 0.0:
-                    self.buffer.record_successful_transitions(
-                        states[:-1, i],
-                        actions_old[:, i],
-                        rewards[:, i],
-                    )
+            if trajectory_reward > 0.0:
+                self.buffer.record_successful_transitions(
+                    states[:-1, i],
+                    actions_old[:, i],
+                    rewards[:, i],
+                )
                     
         return states, actions_old, action_probabilities_old, rewards
     
@@ -454,10 +465,7 @@ class PPO:
         # ===================================
         exploration_seconds = time.time()
         
-        policy_type = self.__sample_policy_type()
-        
         states, actions_old, action_probabilities_old, rewards = self.__explore(
-            policy_type=policy_type,
             states=states,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
@@ -482,29 +490,23 @@ class PPO:
         # ===================================
         
         
-        # Update timestep (replayed demonstrations do not count as interaction
-        # with the environment).
-        if policy_type == PolicyType.OLD:
-            self.timestep += T
+        self.timestep += T
         
         total_seconds = time.time() - total_seconds
         
-        # Report running statistics and print reward if not from replayed
-        # demonstrations.
-        if policy_type == PolicyType.OLD:
-            mean_batch_rollout_reward = np.mean(rewards)
+        mean_batch_rollout_reward = np.mean(rewards)
 
-            running_stats = PPORunningStatistics(
-                timestep=self.timestep,
-                mean_batch_reward=mean_batch_rollout_reward,
-                mean_actor_loss=mean_actor_loss,
-                mean_critic_loss=mean_critic_loss,
-                exploration_seconds=exploration_seconds,
-                learning_seconds=learning_seconds,
-                training_step_seconds=total_seconds,
-            )
-            
-            reporter.record_running_statistics(running_stats)
+        running_stats = PPORunningStatistics(
+            timestep=self.timestep,
+            mean_batch_reward=mean_batch_rollout_reward,
+            mean_actor_loss=mean_actor_loss,
+            mean_critic_loss=mean_critic_loss,
+            exploration_seconds=exploration_seconds,
+            learning_seconds=learning_seconds,
+            training_step_seconds=total_seconds,
+        )
+        
+        reporter.record_running_statistics(running_stats)
         
         # Last states of this training step returned as expected to be beginning
         # of next training step.
@@ -524,7 +526,7 @@ class PPO:
         reporter = PPOReporter()
         
         episodic_rewards_reporter = PPOEpisodicReporter(
-            batch_size=BATCH_SIZE,
+            batch_size=ENVIRONMENT_BATCH_SIZE,
             reporter=reporter,
         )
 

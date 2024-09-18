@@ -6,6 +6,3 @@ class PolicyType(Enum):
 
     # For PPO only.
     OLD = 2
-
-    # For PPO only.
-    SUCCESSFUL_DEMONSTRATIONS = 3

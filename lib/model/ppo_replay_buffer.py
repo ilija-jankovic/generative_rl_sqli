@@ -82,37 +82,11 @@ class PPOReplayBuffer:
         self.__successful_rewards[index] = np.array(rewards)
 
         self.__successful_transitions_counter += 1
-        
-    def __calculate_uniform_non_demonstration_probabilities(self):
-        non_demonstrations_count = self.__successful_transitions_count - self.__demonstrations_count
-        
-        sampling_probability = (
-            1.0 - PPO_DEMONSRATION_SAMPLING_PROBABILITY
-        ) / non_demonstrations_count
-        
-        return [sampling_probability] * (
-            self.__successful_transitions_count - self.__demonstrations_count
-        )
-        
-    def __get_sampling_probabilities(self):
-        demonstration_probabilities = [
-            PPO_DEMONSRATION_SAMPLING_PROBABILITY / self.__demonstrations_count
-        ] * self.__demonstrations_count
-        
-        # Return two sets of uniform probabilities based on demonstration and
-        # non-demonstrations.
-        #
-        # If no non-demonstrations are stored, return a uniform distribution.
-        return demonstration_probabilities + self.__calculate_uniform_non_demonstration_probabilities() \
-            if self.__successful_transitions_count > self.__demonstrations_count \
-            else [1.0 / self.__demonstrations_count] * self.__demonstrations_count
 
     def sample_successful_trajectories(self, batch_size: int):
         assert(batch_size > 0)
-
-        probabilities = self.__get_sampling_probabilities()
         
-        indices = np.random.choice(self.__successful_transitions_count, size=batch_size, p=probabilities)
+        indices = np.random.choice(self.__successful_transitions_count, size=batch_size)
 
         states = self.__successful_states[indices]
         actions = self.__successful_actions[indices]

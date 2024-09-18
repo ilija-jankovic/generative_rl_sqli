@@ -199,7 +199,6 @@ def main():
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         embedding_size=EMBEDDING_DIM,
-        batch_size=BATCH_SIZE,
         embeddings=embeddings,
     )
     

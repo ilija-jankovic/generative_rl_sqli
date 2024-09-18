@@ -61,6 +61,9 @@ class PPOActorCritic:
                 beta_1=ADAM_BETA1,
                 beta_2=ADAM_BETA2,
                 epsilon=ADAM_EPSILON,
+
+                # Critical for mitigating NaNs from demonstration
+                # action probability ratios when calculating actor loss.
                 clipvalue=1.0,
             ))
 

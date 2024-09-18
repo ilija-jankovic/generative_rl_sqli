@@ -280,7 +280,7 @@ class PPOActorCritic:
         )(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
         
-        output = tf.keras.layers.Dense(1)(dense)
+        output = tf.keras.layers.Dense(1, activation='linear',)(dense)
 
         return tf.keras.Model(
             inputs=[input_rl_state,],

@@ -151,6 +151,8 @@ class PPO:
 
         probability_ratios = tf.math.divide_no_nan(y, y_old)
 
+        print(probability_ratios)
+
         advantages = [
             self.calculate_advantages_batch(
                 t,

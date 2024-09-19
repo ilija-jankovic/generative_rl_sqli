@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from ..hyperparameters import T, PPO_DEMONSRATION_SAMPLING_PROBABILITY
+from ..hyperparameters import T
 
 class PPOReplayBuffer:
     successful_buffer_size: int

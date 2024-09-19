@@ -28,7 +28,6 @@ on every learning step.
 # This value (epsilon) is based on best performing clipping strategy
 # in Table 1, pg. 7 (PPO paper).
 PPO_PROBABILITY_RATIO_CLIP_THRESHOLD = 0.2
-PPO_DEMONSRATION_SAMPLING_PROBABILITY = 0.1
 PPO_SUCCESSFUL_BUFFER_SIZE = 256
 
 GAMMA = 0.999

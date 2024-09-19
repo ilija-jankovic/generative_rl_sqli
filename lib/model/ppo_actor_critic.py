@@ -131,14 +131,15 @@ class PPOActorCritic:
             return_sequences=True,
             return_state=True,
             unroll=True,
+            activation='tanh',
             
             # Initialise LSTMs with normal distribution (stddev=1.0) and biases of zero,
             # as stated under section "5 LSTM implementation details" from the ICLR PPO 
             # research guide:
             # https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
             kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
-
             bias_initializer='zeros',
+
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3),

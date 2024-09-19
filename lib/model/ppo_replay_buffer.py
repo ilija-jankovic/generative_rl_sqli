@@ -77,9 +77,9 @@ class PPOReplayBuffer:
 
         index = self.__get_next_successful_buffer_index()
 
-        self.__successful_states[index] = np.array(states)
-        self.__successful_actions[index] = np.array(actions)
-        self.__successful_rewards[index] = np.array(rewards)
+        self.__successful_states[index] = np.array(states, dtype=np.float64)
+        self.__successful_actions[index] = np.array(actions, dtype=np.float64)
+        self.__successful_rewards[index] = np.array(rewards, dtype=np.float64)
 
         self.__successful_transitions_counter += 1
 

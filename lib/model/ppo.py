@@ -151,8 +151,6 @@ class PPO:
 
         probability_ratios = tf.math.divide_no_nan(y, y_old)
 
-        print(probability_ratios)
-
         advantages = [
             self.calculate_advantages_batch(
                 t,
@@ -162,12 +160,12 @@ class PPO:
                 rewards
             ) for t in range(self.timestep, self.timestep + T)
         ]
-
+        
         advantages = tf.squeeze(advantages)
         advantages = tf.expand_dims(advantages, axis=-1)
 
         minimums = self.calculate_clipped_probability_ratios(probability_ratios, advantages)
-
+        
         # The goal of the policy is to maximise the surrogate objective (pg. 3, para. 1),
         # and so our loss should negate this value.
         return -tf.reduce_mean(minimums)

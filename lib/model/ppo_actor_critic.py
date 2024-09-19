@@ -56,15 +56,11 @@ class PPOActorCritic:
         )
 
         return tf.keras.mixed_precision.LossScaleOptimizer(
-            tf.keras.optimizers.Adam(
+            tf.keras.optimizers.Nadam(
                 learning_rate=learning_rate_schedule,
                 beta_1=ADAM_BETA1,
                 beta_2=ADAM_BETA2,
                 epsilon=ADAM_EPSILON,
-
-                # Critical for mitigating NaNs from demonstration
-                # action probability ratios when calculating actor loss.
-                clipvalue=1.0,
             ))
 
     def __init_models(self):

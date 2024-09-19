@@ -358,7 +358,7 @@ class PPO:
                 
                 state, reward = environment.perform_action(
                     actions_env[batch_index],
-                    timestep=self.timestep + batch_index + 1,
+                    timestep=self.timestep + 1,
                     reporter=reporter,
                 )
                 

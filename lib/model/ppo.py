@@ -338,12 +338,17 @@ class PPO:
 
             # Replay successful demonstrations.
             # ===================================
-            action_batch, probabilities_batch = self.actor_critic.policy(
+            action_batch, _ = self.actor_critic.policy(
                 tf.convert_to_tensor(states[i][:PPO_SUCCESSFUL_BATCH_SIZE]),
                 PolicyType.OLD.value,
                 batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
                 actions_reference=trajectories[1][:,i],
                 use_actions_reference=True,
+            )
+            
+            probabilities_batch = tf.ones(
+                [PPO_SUCCESSFUL_BATCH_SIZE, 1,],
+                dtype=tf.float64,
             )
             
             actions_old_combined.extend(action_batch)

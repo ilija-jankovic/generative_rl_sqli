@@ -141,8 +141,8 @@ class PPOActorCritic:
             # research guide:
             # https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
             kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+
             bias_initializer='zeros',
-            
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3),
@@ -152,6 +152,8 @@ class PPOActorCritic:
         return tf.keras.layers.Dense(
             units,
             activation=activation,
+            kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+            bias_initializer='zeros',
             kernel_regularizer=tf.keras.regularizers.l2(L2_WEIGHT),
             kernel_constraint=tf.keras.constraints.max_norm(3),
             bias_constraint=tf.keras.constraints.max_norm(3),

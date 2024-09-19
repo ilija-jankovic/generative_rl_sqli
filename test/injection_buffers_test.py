@@ -1,6 +1,7 @@
 import unittest
 
 from lib.model.injection_buffers import InjectionBuffers
+from lib.model.payload import Payload
 
 
 class TestInjectionBuffers(unittest.TestCase):
@@ -328,6 +329,100 @@ class TestInjectionBuffers(unittest.TestCase):
         )
         
         self.assertListEqual(new_tokens, ['test9', 'test8',])
+
+
+    def test_no_payload_recorded_not_attempted(self):
+        '''
+        An unrecorded payload was not attempted.
+        '''
+        
+        was_attempted = self.__buffers.was_payload_attempted(
+            payload=Payload('test'),
+        )
+        
+        self.assertEqual(was_attempted, False)
+
+
+    def test_recorded_payload_attempted(self):
+        '''
+        A recorded payload was attempted.
+        '''
+        
+        self.__buffers.record_payload(payload=Payload('test'))
+        
+        was_attempted = self.__buffers.was_payload_attempted(
+            payload=Payload('test'),
+        )
+        
+        self.assertEqual(was_attempted, True)
+
+
+    def test_record_payload_another_not_attempted(self):
+        '''
+        A recorded payload does not mark another payload as attempted.
+        '''
+        
+        self.__buffers.record_payload(payload=Payload('test1'))
+        
+        was_attempted = self.__buffers.was_payload_attempted(
+            payload=Payload('test2'),
+        )
+        
+        self.assertEqual(was_attempted, False)
+
+
+    def test_record_three_payloads_one_attempted_others_not(self):
+        '''
+        Three recorded payloads mark one of them as attempted with
+        other payloads marked as not attempted.
+        '''
+        
+        self.__buffers.record_payload(payload=Payload('test1'))
+        self.__buffers.record_payload(payload=Payload('test2'))
+        self.__buffers.record_payload(payload=Payload('test3'))
+        
+        was_attempted_1 = self.__buffers.was_payload_attempted(
+            payload=Payload('test3'),
+        )
+
+        was_attempted_2 = self.__buffers.was_payload_attempted(
+            payload=Payload('test4'),
+        )
+        
+        was_attempted_3 = self.__buffers.was_payload_attempted(
+            payload=Payload('test5'),
+        )
+
+        self.assertEqual(was_attempted_1, True)
+        self.assertEqual(was_attempted_2, False)
+        self.assertEqual(was_attempted_3, False)
+
+
+    def test_record_three_payloads_all_three_attempted(self):
+        '''
+        Three recorded payloads are marked as attempted.
+        '''
+        
+        self.__buffers.record_payload(payload=Payload('test1'))
+        self.__buffers.record_payload(payload=Payload('test2'))
+        self.__buffers.record_payload(payload=Payload('test3'))
+        
+        was_attempted_1 = self.__buffers.was_payload_attempted(
+            payload=Payload('test1'),
+        )
+
+        was_attempted_2 = self.__buffers.was_payload_attempted(
+            payload=Payload('test2'),
+        )
+        
+        was_attempted_3 = self.__buffers.was_payload_attempted(
+            payload=Payload('test3'),
+        )
+        
+        self.assertEqual(was_attempted_1, True)
+        self.assertEqual(was_attempted_2, True)
+        self.assertEqual(was_attempted_3, True)
+
 
 
 if __name__ == '__main__':

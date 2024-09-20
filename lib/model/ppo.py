@@ -446,7 +446,7 @@ class PPO:
         rewards = tf.convert_to_tensor(rewards, dtype=tf.float64)
 
         # Record successful on-policy transitions from environment.
-        for i in range(PPO_SUCCESSFUL_BATCH_SIZE):
+        for i in range(ENVIRONMENT_BATCH_SIZE):
             trajectory_reward = np.sum(rewards[:, i])
 
             if trajectory_reward > 0.0:

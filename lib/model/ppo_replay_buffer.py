@@ -1,3 +1,4 @@
+import math
 import tensorflow as tf
 import numpy as np
 
@@ -11,9 +12,16 @@ class PPOReplayBuffer:
     __successful_states: np.ndarray
     __successful_actions: np.ndarray
     __successful_rewards: np.ndarray
+
     __successful_transitions_counter: int
 
-    # Split into multiple demonstrations for lower rollout.
+    __max_mean_demonstration_reward: int
+    '''
+    Used to proportionally calculate how many demonstration
+    transitions to sample for a replay batch.
+    '''
+
+
     def __init__(
         self,
         state_size: int,
@@ -51,6 +59,8 @@ class PPOReplayBuffer:
         self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards.copy()
 
         self.__successful_transitions_counter = successful_buffer_size
+        self.__max_mean_demonstration_reward = np.max(np.mean(self.__successful_rewards, axis=-1))
+
     @property
     def __successful_transitions_count(self):
         return min(
@@ -83,11 +93,52 @@ class PPOReplayBuffer:
         self.__successful_rewards[index] = np.array(rewards, dtype=np.float64)
 
         self.__successful_transitions_counter += 1
+        
+    def __get_demonstration_indices(
+        self,
+        batch_size: int,
+        mean_exploration_reward: float,
+    ):
+        assert(self.__max_mean_demonstration_reward > 0.0)
+                
+        exploration_proportion = np.clip(
+            a=mean_exploration_reward / self.__max_mean_demonstration_reward,
+            a_min=0.0,
+            a_max=1.0,
+        )
+        
+        demonstration_batch_size = math.floor((1.0 - exploration_proportion) * batch_size)
+        
+        return np.random.choice(
+            self.__demonstrations_count,
+            size=demonstration_batch_size,
+        ) if demonstration_batch_size > 0 else np.array([], dtype=np.int32)
 
-    def sample_successful_trajectories(self, batch_size: int):
+    def sample_successful_trajectories(
+        self,
+        batch_size: int,
+        mean_exploration_reward: float,
+    ):
+        '''
+        Mean exploration reward is proportionally compared against
+        max mean demonstration reward to determine the number of
+        demonstration transitions to sample for replay batch.
+        '''
         assert(batch_size > 0)
         
-        indices = np.random.choice(self.__successful_transitions_count, size=batch_size)
+        demonstration_indices = self.__get_demonstration_indices(
+            batch_size=batch_size,
+            mean_exploration_reward=mean_exploration_reward,
+        )
+        
+        exploration_batch_size = batch_size - demonstration_indices.shape[0]
+ 
+        exploration_indices = np.random.choice(
+            self.__successful_transitions_count,
+            size=exploration_batch_size,
+        ) if exploration_batch_size > 0 else np.array([], dtype=np.int32)
+        
+        indices = np.concatenate([demonstration_indices, exploration_indices,],)
 
         states = self.__successful_states[indices]
         actions = self.__successful_actions[indices]

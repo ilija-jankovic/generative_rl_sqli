@@ -310,6 +310,7 @@ class PPO:
     def __explore(
         self,
         states: List[tf.Tensor],
+        mean_exploration_reward: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):
@@ -319,6 +320,7 @@ class PPO:
 
         trajectories = self.buffer.sample_successful_trajectories(
             batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
+            mean_exploration_reward=mean_exploration_reward,
         )
         
         # Demonstration initial states are appended first as samples
@@ -495,6 +497,7 @@ class PPO:
     def __run_training_step(
         self,
         states: List[tf.Tensor],
+        mean_exploration_reward: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
@@ -506,6 +509,7 @@ class PPO:
         
         states, next_states, actions_old, action_probabilities_old, rewards = self.__explore(
             states=states,
+            mean_exploration_reward=mean_exploration_reward,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
         )
@@ -547,7 +551,7 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        return [next_states]
+        return [next_states], mean_exploration_reward
         
 
     def run(
@@ -570,10 +574,12 @@ class PPO:
         reporter.start()
         
         starting_states = [self.__create_empty_states()]
+        mean_exploration_reward = 0.0
 
         while True:
-            starting_states = self.__run_training_step(
+            starting_states, mean_exploration_reward = self.__run_training_step(
                 states=starting_states,
+                mean_exploration_reward=mean_exploration_reward,
                 reporter=reporter,
                 episodic_rewards_reporter=episodic_rewards_reporter,
             )

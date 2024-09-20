@@ -533,11 +533,11 @@ class PPO:
         
         total_seconds = time.time() - total_seconds
         
-        mean_batch_rollout_reward = np.mean(rewards)
+        mean_exploration_reward = np.mean(rewards[:, :ENVIRONMENT_BATCH_SIZE])
 
         running_stats = PPORunningStatistics(
             timestep=self.timestep,
-            mean_batch_reward=mean_batch_rollout_reward,
+            mean_batch_reward=mean_exploration_reward,
             mean_actor_loss=mean_actor_loss,
             mean_critic_loss=mean_critic_loss,
             exploration_seconds=exploration_seconds,

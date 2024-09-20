@@ -9,7 +9,7 @@ EPOCHS = 10
 BATCH_SIZE = 512
 MINIBATCH_SIZE = 256
 
-PPO_SUCCESSFUL_BATCH_SIZE = 32
+PPO_SUCCESSFUL_BATCH_SIZE = 256
 '''
 The number of successful trajectories to replay on every learning
 step.

@@ -104,7 +104,7 @@ class Environment:
         reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
         reward = new_tokens_count * reward_weight
 
-        # Map reward to [-1, 1].
+        # Map reward to [0.0, 1.0].
         #
         # Approximately linearly scaled down for low reward values, then
         # tapers off to upper/lower bound.

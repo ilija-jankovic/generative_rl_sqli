@@ -54,7 +54,7 @@ class PPO:
         actions = []
         rewards = []
 
-        for i in range(T):
+        for i in range(len(demonstration_actions)):
             action = demonstration_actions[i]
 
             state, reward = demonstration_environment.perform_demonstration_action(action)

@@ -11,7 +11,7 @@ class PPOReplayBuffer:
     __successful_states: np.ndarray
     __successful_actions: np.ndarray
     __successful_rewards: np.ndarray
-    __successful_transitions_counter = 1
+    __successful_transitions_counter: int
 
     # Split into multiple demonstrations for lower rollout.
     def __init__(
@@ -50,6 +50,7 @@ class PPOReplayBuffer:
         self.__successful_actions[0:self.__demonstrations_count] = demonstrated_successful_actions.copy()
         self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards.copy()
 
+        self.__successful_transitions_counter = successful_buffer_size
     @property
     def __successful_transitions_count(self):
         return min(

@@ -15,12 +15,23 @@ class PPOReplayBuffer:
 
     __successful_transitions_counter: int
 
-    __max_mean_demonstration_reward: int
+    __mean_demonstration_reward: int
     '''
     Used to proportionally calculate how many demonstration
     transitions to sample for a replay batch.
     '''
 
+
+    def __get_clipped_mean_reward(self, rewards):
+        # Ensure negative rewards do not affect payload quality
+        # proportions.
+        clipped_rewards = np.clip(
+            rewards,
+            a_min=0.0,
+            a_max=None,
+        )
+
+        return np.mean(clipped_rewards)
 
     def __init__(
         self,
@@ -59,7 +70,10 @@ class PPOReplayBuffer:
         self.__successful_rewards[0:self.__demonstrations_count] = demonstrated_successful_rewards.copy()
 
         self.__successful_transitions_counter = successful_buffer_size
-        self.__max_mean_demonstration_reward = np.max(np.mean(self.__successful_rewards, axis=-1))
+
+        self.__mean_demonstration_reward = self.__get_clipped_mean_reward(
+            rewards=demonstrated_successful_rewards,
+        )
 
     @property
     def __successful_transitions_count(self):
@@ -97,13 +111,17 @@ class PPOReplayBuffer:
     def __get_demonstration_indices(
         self,
         batch_size: int,
-        mean_exploration_reward: float,
+        exploration_rewards: tf.Tensor,
     ):
-        assert(self.__max_mean_demonstration_reward > 0.0)
+        assert(self.__mean_demonstration_reward > 0.0)
+
+        mean_exploration_reward = self.__get_clipped_mean_reward(
+            rewards=exploration_rewards,
+        )
                 
         exploration_proportion = np.clip(
-            a=mean_exploration_reward / self.__max_mean_demonstration_reward,
-            a_min=0.0,
+            a=mean_exploration_reward / self.__mean_demonstration_reward,
+            a_min=None,
             a_max=1.0,
         )
         
@@ -117,7 +135,7 @@ class PPOReplayBuffer:
     def sample_successful_trajectories(
         self,
         batch_size: int,
-        mean_exploration_reward: float,
+        exploration_rewards: tf.Tensor,
     ):
         '''
         Mean exploration reward is proportionally compared against
@@ -128,7 +146,7 @@ class PPOReplayBuffer:
         
         demonstration_indices = self.__get_demonstration_indices(
             batch_size=batch_size,
-            mean_exploration_reward=mean_exploration_reward,
+            exploration_rewards=exploration_rewards,
         )
         
         exploration_batch_size = batch_size - demonstration_indices.shape[0]

@@ -310,7 +310,7 @@ class PPO:
     def __explore(
         self,
         states: List[tf.Tensor],
-        mean_exploration_reward: float,
+        exploration_rewards: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):
@@ -320,7 +320,7 @@ class PPO:
 
         trajectories = self.buffer.sample_successful_trajectories(
             batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
-            mean_exploration_reward=mean_exploration_reward,
+            exploration_rewards=exploration_rewards,
         )
         
         # Demonstration initial states are appended first as samples
@@ -497,7 +497,7 @@ class PPO:
     def __run_training_step(
         self,
         states: List[tf.Tensor],
-        mean_exploration_reward: float,
+        exploration_rewards: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
@@ -509,7 +509,7 @@ class PPO:
         
         states, next_states, actions_old, action_probabilities_old, rewards = self.__explore(
             states=states,
-            mean_exploration_reward=mean_exploration_reward,
+            exploration_rewards=exploration_rewards,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
         )
@@ -537,11 +537,11 @@ class PPO:
         
         total_seconds = time.time() - total_seconds
         
-        mean_exploration_reward = np.mean(rewards[:, :ENVIRONMENT_BATCH_SIZE])
+        exploration_rewards = rewards[:, :ENVIRONMENT_BATCH_SIZE]
 
         running_stats = PPORunningStatistics(
             timestep=self.timestep,
-            mean_batch_reward=mean_exploration_reward,
+            mean_batch_reward=np.mean(exploration_rewards),
             mean_actor_loss=mean_actor_loss,
             mean_critic_loss=mean_critic_loss,
             exploration_seconds=exploration_seconds,
@@ -551,7 +551,7 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        return [next_states], mean_exploration_reward
+        return [next_states], exploration_rewards
         
 
     def run(
@@ -574,12 +574,12 @@ class PPO:
         reporter.start()
         
         starting_states = [self.__create_empty_states()]
-        mean_exploration_reward = 0.0
+        exploration_rewards = tf.zeros([T, ENVIRONMENT_BATCH_SIZE,])
 
         while True:
-            starting_states, mean_exploration_reward = self.__run_training_step(
+            starting_states, exploration_rewards = self.__run_training_step(
                 states=starting_states,
-                mean_exploration_reward=mean_exploration_reward,
+                exploration_rewards=exploration_rewards,
                 reporter=reporter,
                 episodic_rewards_reporter=episodic_rewards_reporter,
             )

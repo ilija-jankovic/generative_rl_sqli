@@ -21,7 +21,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import tensorflow as tf
 
 class PPO:
-    timestep = 0
+    timestep = 1
 
     actor_critic: PPOActorCritic
     buffer: PPOReplayBuffer
@@ -360,7 +360,7 @@ class PPO:
                 
                 state, reward = environment.perform_action(
                     actions_env[batch_index],
-                    timestep=self.timestep + 1,
+                    timestep=self.timestep,
                     reporter=reporter,
                 )
                 
@@ -439,6 +439,10 @@ class PPO:
                     ))
             else:
                 states.append(next_states_env)
+            
+            
+            self.timestep += 1
+
         # Convert last states separately as last index of states
         # does not contain demonstration states. A tensor requires
         # all elements to conform to the same shape.
@@ -534,15 +538,13 @@ class PPO:
         learning_seconds = time.time() - learning_seconds
         # ===================================
         
-        
-        self.timestep += T
-        
+
         total_seconds = time.time() - total_seconds
         
         exploration_rewards = rewards[:, :ENVIRONMENT_BATCH_SIZE]
 
         running_stats = PPORunningStatistics(
-            timestep=self.timestep,
+            timestep=self.timestep - 1,
             mean_batch_reward=np.mean(exploration_rewards),
             mean_actor_loss=mean_actor_loss,
             mean_critic_loss=mean_critic_loss,

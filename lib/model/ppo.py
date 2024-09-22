@@ -372,27 +372,26 @@ class PPO:
                     
                 env_tuples.append((state, reward,))
 
-            states_env = [env_tuple[0] for env_tuple in env_tuples]
+            next_states_env = [env_tuple[0] for env_tuple in env_tuples]
             rewards_env = [env_tuple[1] for env_tuple in env_tuples]
             # ===================================
 
 
             # Get trajectory from demonstration samples.
             # ===================================
-            actions_demo = trajectories[1][:,i]
+            states_demo = trajectories[0][:, i]
+            actions_demo = trajectories[1][:, i]
 
             # Demonstrations actions are set with a probability of 100%,
             # as outlined in the PPO using a Single Demonstration paper
             # (p.3).
-            probabilities_demo =  tf.ones(
-                [PPO_SUCCESSFUL_BATCH_SIZE, 1,],
-                dtype=tf.float64,
+            _, probabilities_demo = self.actor_critic.policy(
+                states_demo,
+                PolicyType.OLD.value,
+                batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
+                actions_reference=actions_demo,
+                use_actions_reference=True,
             )
-
-            # Demonstration states are offset by one from first initial
-            # states. They do not contain states after the last rollout
-            # action at index T.
-            states_demo = trajectories[0][:, i + 1] if i < T - 1 else []
 
             rewards_demo = trajectories[2][:, i]
             # ===================================
@@ -416,18 +415,6 @@ class PPO:
                     axis=0,
                 ))
 
-            if len(states_demo) > 0:
-                states.append(
-                    tf.concat(
-                        values=[
-                            states_env,
-                            states_demo,
-                        ],
-                        axis=0,
-                    ))
-            else:
-                states.append(states_env)
-
             rewards.append(
                 tf.concat(
                     values=[
@@ -437,6 +424,21 @@ class PPO:
                     axis=0,
                 ))
 
+            next_states_index = i + 1
+            next_states_demo = trajectories[0][:, next_states_index] \
+                if next_states_index < T else []
+
+            if len(next_states_demo) > 0:
+                states.append(
+                    tf.concat(
+                        values=[
+                            next_states_env,
+                            next_states_demo,
+                        ],
+                        axis=0,
+                    ))
+            else:
+                states.append(next_states_env)
         # Convert last states separately as last index of states
         # does not contain demonstration states. A tensor requires
         # all elements to conform to the same shape.

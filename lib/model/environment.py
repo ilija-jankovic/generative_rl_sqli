@@ -160,7 +160,7 @@ class Environment:
         A zero reward (no punishment) is given if the syntax is
         correct but the payload was not successful.
         '''
-        return 0.0 if payload.is_syntax_correct else -0.01
+        return 0.0 #if payload.is_syntax_correct else -0.01
 
 
     def __update_episode(self):

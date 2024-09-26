@@ -7,7 +7,8 @@ from lib.configuration import Configuration
 from lib.injected_request import send_request
 from lib.network.attacker import attack
 
-from .hyperparameters import ACTION_SIZE, EMBEDDING_DIM, ENVIRONMENT_BATCH_SIZE, STATE_SIZE
+from .hyperparameters import STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
+    INITIAL_EPISODE_LENGTH, ENVIRONMENT_BATCH_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO, T
 from .network.sqlmap_runner import SqlmapRunner
@@ -151,7 +152,7 @@ environments = [
         dictionary=dictionary,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
-        frames_per_episode=T,
+        frames_per_episode=INITIAL_EPISODE_LENGTH,
         attack_callback=lambda payload: attack(
             send_request_callback=lambda: send_request(payload, config=config),
             payload=payload,

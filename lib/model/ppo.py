@@ -379,21 +379,21 @@ class PPO:
 
             # Get trajectory from demonstration samples.
             # ===================================
-            states_demo = trajectories[0][:, i]
             actions_demo = trajectories[1][:, i]
 
             # Demonstrations actions are set with a probability of 100%,
             # as outlined in the PPO using a Single Demonstration paper
             # (p.3).
-            _, probabilities_demo = self.actor_critic.policy(
-                states_demo,
-                PolicyType.OLD.value,
-                batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
-                actions_reference=actions_demo,
-                use_actions_reference=True,
+            probabilities_demo = tf.ones(
+                shape=[PPO_SUCCESSFUL_BATCH_SIZE, 1],
+                dtype=tf.float64,
             )
 
             rewards_demo = trajectories[2][:, i]
+
+            next_states_index = i + 1
+            next_states_demo = trajectories[0][:, next_states_index] \
+                if next_states_index < T else []
             # ===================================
 
 
@@ -423,10 +423,6 @@ class PPO:
                     ],
                     axis=0,
                 ))
-
-            next_states_index = i + 1
-            next_states_demo = trajectories[0][:, next_states_index] \
-                if next_states_index < T else []
 
             if len(next_states_demo) > 0:
                 states.append(

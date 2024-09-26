@@ -1,3 +1,6 @@
+import math
+
+
 class EpisodeState:
     initial_frames: int
 
@@ -34,6 +37,14 @@ class EpisodeState:
     def has_episode_ended(self):
         return self.__frames_since_last_episode >= self.__frames
     
-    def extend_episode(self):
-        self.__frames += self.initial_frames
+    def extend_episode(self, proportion: float):
+        '''
+        Extends the episode by the ceiling of
+        `initial_frames * proportion`.
+        '''
+
+        assert(proportion > 0.0)
+        assert(proportion <= 1.0)
+
+        self.__frames += math.ceil(self.initial_frames * proportion)
         

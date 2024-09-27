@@ -25,8 +25,8 @@ class SqlmapRunner:
         self.domain_name = domain_name.split(':')[0]
 
         self.__dirname = os.path.dirname(__file__)
-        self.__sqlmap_path = f'{self.__dirname}/../../sqlmap-dev/sqlmap.py'
-        self.__sqlmap_log_path = f'{self.__dirname}/../sqlmap-log'
+        self.__sqlmap_path = f'{self.__dirname}/../../../sqlmap-dev/sqlmap.py'
+        self.__sqlmap_log_path = f'{self.__dirname}/../../sqlmap-log'
 
     def __write_sqlmap_output(self, output: List[str]):
         lines = '\n'.join(output)

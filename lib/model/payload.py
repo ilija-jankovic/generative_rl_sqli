@@ -1,4 +1,5 @@
 from sqltree import sqltree
+from sqltree.dialect import Dialect, Vendor
 from typing import Self
 
 
@@ -34,14 +35,14 @@ class Payload:
 
     def __is_query_syntax_correct(self, query: str):
         try:
-            sqltree(query)
+            sqltree(query, dialect=Dialect(Vendor.ansi))
             return True
         except:
             return False
 
 
     def __str__(self):
-        return self.__payload    
+        return self.__payload
 
 
     # Hash must be overriden if equality also is. Outlined in the Python

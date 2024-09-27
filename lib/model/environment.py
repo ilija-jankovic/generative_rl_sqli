@@ -74,7 +74,7 @@ class Environment:
 
 
     def __inject_initial_payloads(self):
-        self.__inject_payload('1', is_expected=True)
+        self.__inject_payload('', is_expected=True)
         
         
     def __is_successful_payload(

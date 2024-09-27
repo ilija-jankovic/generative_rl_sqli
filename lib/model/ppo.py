@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import numpy as np
@@ -43,19 +44,20 @@ class PPO:
         demonstration_environment: Environment,
         demonstration_actions: tf.Tensor,
     ):
+        demonstration_transitions_count = len(demonstration_actions)
+
+        assert(demonstration_transitions_count > 0)
         assert(demonstration_environment not in self.environments)
-        
-        assert(len(demonstration_actions) > 0)
-        assert(len(demonstration_actions) % T == 0)
-        
-        assert(PPO_SUCCESSFUL_BUFFER_SIZE > len(demonstration_actions) % T)
+        assert(PPO_SUCCESSFUL_BUFFER_SIZE > demonstration_transitions_count % T)
 
         states = []
         actions = []
         rewards = []
 
-        for i in range(len(demonstration_actions)):
-            action = demonstration_actions[i]
+        for i in range(math.ceil(demonstration_transitions_count / T) * demonstration_transitions_count):
+            # Loop around if demonstrations do not divide cleanly
+            # by rollout.
+            action = demonstration_actions[i % demonstration_transitions_count]
 
             state, reward = demonstration_environment.perform_demonstration_action(action)
 

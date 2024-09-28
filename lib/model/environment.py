@@ -1,4 +1,3 @@
-import math
 from typing import List, Set
 from typing import Callable
 import tensorflow as tf
@@ -7,7 +6,7 @@ from .payload import Payload
 
 from .injection_buffers import InjectionBuffers
 from . import payload_factory
-from . import state_factory
+from .state_factory import StateFactory
 from .ppo_reporter import PPOReporter
 from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
@@ -33,6 +32,9 @@ class Environment:
 
     __episode: EpisodeState
     __injection_buffers: InjectionBuffers
+    __state_factory: StateFactory
+    
+    __successful_payloads_count: int
 
 
     @property
@@ -57,11 +59,14 @@ class Environment:
         self.action_size = action_size
         self.state_size = state_size
         self.attack_callback = attack_callback
-        
+
         self.__episode = EpisodeState(frames_per_episode)
         self.__injection_buffers = InjectionBuffers(
             expected_responses=expected_responses,
         )
+        self.__state_factory = StateFactory(dictionary=dictionary)
+        
+        self.__successful_payloads_count = 0
 
 
     def __inject_payload(self, payload: Payload):
@@ -70,21 +75,19 @@ class Environment:
         min_levenshtein_norm = self.__injection_buffers.record_response(
             response,
         )
+        
+        self.__state_factory.add_response(
+            state_size=self.state_size,
+            response=response,
+        )
 
         return response, min_levenshtein_norm
 
         
     def __calculate_reward(self, min_levenshtein_norm: float):
-        reward = min_levenshtein_norm
-        
-        extension_threshold = 0.5
-        
-        if reward >= extension_threshold:
-            self.__episode.extend_episode(proportion=reward)
-        
-        return reward
-    
-    
+        return max(min_levenshtein_norm - 0.5, 0.0) * 2.0
+
+
     def __try_report_payload_statistics(
         self,
         payload: Payload,
@@ -147,22 +150,21 @@ class Environment:
         if episode_ended:
             self.__episode.next_episode()
             self.__injection_buffers.clear()
+            self.__successful_payloads_count = 0
 
         return episode_ended
     
     
     def __create_next_state(
         self,
-        response: str,
         is_episode_done: bool,
     ):
-        return state_factory.create_empty_state(
+        return StateFactory.create_empty_state(
             state_size=self.state_size,
         ) if is_episode_done \
-            else state_factory.create_state_from_response(
+            else self.__state_factory.create_state(
                 state_size=self.state_size,
-                response=response,
-                dictionary=self.dictionary,
+                successful_payloads_count=self.__successful_payloads_count,
             )
 
 
@@ -201,6 +203,10 @@ class Environment:
         )
         
         if reward > 0.0:
+            self.__successful_payloads_count += 1
+
+            self.__episode.extend_episode(proportion=reward)
+            
             self.__try_report_payload_statistics(
                 payload=payload,
                 reporter=reporter,
@@ -213,7 +219,6 @@ class Environment:
         is_episode_done = self.__update_episode()
 
         state = self.__create_next_state(
-            response=response,
             is_episode_done=is_episode_done,
         )
 

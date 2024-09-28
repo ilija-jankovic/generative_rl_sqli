@@ -1,110 +1,83 @@
 from typing import List
+import numpy as np
 import tensorflow as tf
 
-
-def __sort_dictionary(dictionary: List[str]):
-    '''
-    Since tokens may be a subset of each other, longer ones must be prioritied
-    during this tokenization.
-
-    The sorted dictionary is expected to have two layers of sorting: first by
-    negative length, then by alphabetical order (for the case of multiple tokens
-    of the same length existing).
-    '''
-
-    # Second condition prioritises alphabetically, as stated by Johannes from:
-    # https://stackoverflow.com/a/44835987
-    return sorted(
-        dictionary,
-        key=lambda token: (-len(token), token),
-    )
+from . import any_string_tokeniser
 
 
-def __string_to_indices(
-    tokens: str,
-    max_size: int,
-    dictionary: List[str],
-    sorted_dictionary: List[str],
-):
-    dictionary_length = len(dictionary)
+class StateFactory:
+    
+    dictionary: List[str]
 
-    indices: List[int] = []
+    __sorted_dictionary: List[str]
+    __tokenised_responses: List[List[int]]
 
-    # Prioritise dictionary indices.
-    #
-    # Fall back to shifted ASCII indices.
-    while len(tokens) > 0 and len(indices) < max_size:
-        appended = False
+    
+    @staticmethod
+    def create_empty_state(
+        state_size: int,
+    ):
+        return tf.zeros([state_size,], dtype=tf.float64)
 
-        for token in sorted_dictionary:
-            if tokens.startswith(token):
-                index = dictionary.index(token)
-                indices.append(index)
 
-                # Remove token from prefix.
-                tokens = tokens[len(token):]
-                appended = True
+    def __sort_dictionary(self, dictionary: List[str]):
+        '''
+        Since tokens may be a subset of each other, longer ones must be prioritied
+        during tokenisation.
 
-                break
+        The sorted dictionary is expected to have two layers of sorting: first by
+        negative length, then by alphabetical order (for the case of multiple tokens
+        of the same length existing).
+        '''
 
-        if appended:
-            continue
+        # Second condition prioritises alphabetically, as stated by Johannes from:
+        # https://stackoverflow.com/a/44835987
+        return sorted(
+            dictionary,
+            key=lambda token: (-len(token), token),
+        )
+
+
+    def __init__(self, dictionary: List[str]) -> None:
+        self.dictionary = dictionary
         
-        # Append ASCII code shifted by max dictionary index.
-        indices.append(ord(tokens[0]) + dictionary_length)
-
-        tokens = tokens[1:]
-
-    return indices
-
-
-def __pad_index_list(indices: List[int], padded_length: int):
-    indices_length = len(indices)
+        self.__sorted_dictionary = self.__sort_dictionary(dictionary)
+        self.__tokenised_responses = []
     
-    assert(padded_length >= indices_length)
     
-    return indices + [-1] * (padded_length - indices_length)
+    def add_response(self, state_size: int, response: str):
+        assert(state_size > 2)
+
+        tokens = any_string_tokeniser.tokens_to_indices(
+            tokens=response,
+            index_list_length=state_size - 2,
+            dictionary=self.dictionary,
+            sorted_dictionary=self.__sorted_dictionary,
+        )
+
+        self.__tokenised_responses.append(tokens)
 
 
-def __tokens_to_indices(
-    tokens: str,
-    index_list_length: int,
-    dictionary: List[str],
-    sorted_dictionary: List[str],
-) -> List[int]:
-    indices = __string_to_indices(
-        tokens=tokens,
-        max_size=index_list_length,
-        dictionary=dictionary,
-        sorted_dictionary=sorted_dictionary,
-    )
-    
-    indices = __pad_index_list(
-        indices=indices,
-        padded_length=index_list_length,
-    )
-    
-    return indices
+    def create_state(
+        self,
+        state_size: int,
+        successful_payloads_count: int,
+    ):
+        max_response_length = max([
+            len(response) for response in self.__tokenised_responses
+        ])
 
+        zero_padded_responses = [
+            response + [0] * (max_response_length - len(response)) \
+                for response in self.__tokenised_responses
+        ]
+        
+        average_response = np.average(zero_padded_responses, axis=0)
 
-def create_state_from_response(
-    state_size: int,
-    response: str,
-    dictionary: List[str],
-):
-    sorted_dictionary = __sort_dictionary(dictionary)
-    
-    state = __tokens_to_indices(
-        tokens=response,
-        index_list_length=state_size,
-        dictionary=dictionary,
-        sorted_dictionary=sorted_dictionary,
-    )
+        state = [float(successful_payloads_count), -1.0]
+        state.extend(average_response)
+        state.extend([-1.0] * (state_size - max_response_length - 2))
 
-    assert(len(state) == state_size)
-    
-    return tf.convert_to_tensor(state, dtype=tf.float64)
-
-
-def create_empty_state(state_size: int):
-    return tf.zeros([state_size,], dtype=tf.float64)
+        assert(len(state) == state_size)
+        
+        return tf.convert_to_tensor(state, dtype=tf.float64)

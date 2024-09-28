@@ -5,7 +5,7 @@ from .policy_type import PolicyType
 from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
 from typing import List
-from . import state_factory
+from .state_factory import StateFactory
 from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
@@ -78,7 +78,7 @@ class PPO:
 
     def __create_empty_states(self):
         return tf.convert_to_tensor([
-            state_factory.create_empty_state(state_size=STATE_SIZE)
+            StateFactory.create_empty_state(state_size=STATE_SIZE)
                 for _ in range(ENVIRONMENT_BATCH_SIZE)
         ])
 

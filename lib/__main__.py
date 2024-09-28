@@ -154,7 +154,10 @@ environments = [
         state_size=STATE_SIZE,
         frames_per_episode=INITIAL_EPISODE_LENGTH,
         attack_callback=lambda payload: attack(
-            send_request_callback=lambda: send_request(payload, config=config),
+            send_request_callback=lambda: send_request(
+                payload=str(payload),
+                config=config,
+            ),
             payload=payload,
             perform_double_requests=double_requests,
         ))

@@ -2,12 +2,20 @@ import re
 from typing import Callable, List
 from bs4 import BeautifulSoup
 
+from ..model.payload import Payload
+
 
 SendRequestCallback = Callable[[], str]
 
 
-def __filter_payload_from_text(text: str, payload: str):
-    return text.replace(payload, '')
+def __filter_payload_from_text(
+    text: str,
+    payload: Payload,
+):
+    for token in payload.tokens:
+        text = text.replace(token, '')
+        
+    return text
 
 
 def __strip_lxml(text: str):
@@ -30,7 +38,7 @@ def __find_visible_text(text: str) -> List[str]:
 
 def __send_single_request(
     send_request_callback: SendRequestCallback,
-    payload: str,
+    payload: Payload,
 ):
     response = send_request_callback()
 
@@ -53,7 +61,7 @@ def __filter_non_matching_text(text1: str, text2: str):
 
 def __send_double_requests(
     send_request_callback: SendRequestCallback,
-    payload: str,
+    payload: Payload,
 ):
     response1 = send_request_callback()
     response2 = send_request_callback()
@@ -69,7 +77,7 @@ def __send_double_requests(
 
 def attack(
     send_request_callback: SendRequestCallback,
-    payload: str,
+    payload: Payload,
     perform_double_requests: bool,
 ):
     return \

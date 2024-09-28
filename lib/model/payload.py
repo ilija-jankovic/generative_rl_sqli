@@ -1,6 +1,6 @@
 from sqltree import sqltree
 from sqltree.dialect import Dialect, Vendor
-from typing import Self
+from typing import Self, Set
 
 
 class Payload:
@@ -10,6 +10,12 @@ class Payload:
     '''
 
     __payload: str
+    __tokens: Set[str]
+    
+    
+    @property
+    def tokens(self):
+        return self.__tokens
     
     
     @property
@@ -29,8 +35,13 @@ class Payload:
         )
     
 
-    def __init__(self, payload: str) -> None:
+    def __init__(
+        self,
+        payload: str,
+        payload_tokens: Set[str],
+    ) -> None:
         self.__payload = payload
+        self.__tokens = payload_tokens
 
 
     def __is_query_syntax_correct(self, query: str):

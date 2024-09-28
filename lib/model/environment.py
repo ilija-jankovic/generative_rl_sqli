@@ -1,5 +1,5 @@
 import math
-from typing import List
+from typing import List, Set
 from typing import Callable
 import tensorflow as tf
 
@@ -13,10 +13,11 @@ from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
 
 
-AttackCallback = Callable[[str], List[str]]
+AttackCallback = Callable[[Payload], List[str]]
 '''
 Use for injecting a payload and returning a list of filtered
-response tokens.
+response tokens. The set of payload's individual tokens are
+filtered from reponse tokens.
 '''
 
 
@@ -39,8 +40,8 @@ class Environment:
         return self.__episode.episode
         
 
-    def __inject_payload(self, payload_text: str, is_expected: bool):
-        response_tokens = self.attack_callback(payload_text)
+    def __inject_payload(self, payload: Payload, is_expected: bool):
+        response_tokens = self.attack_callback(payload)
 
         new_tokens = self.__injection_buffers.record_tokens(
             response_tokens,
@@ -74,7 +75,10 @@ class Environment:
 
 
     def __inject_initial_payloads(self):
-        self.__inject_payload('', is_expected=True)
+        self.__inject_payload(
+            Payload(payload='', payload_tokens={''}),
+            is_expected=True,
+        )
         
         
     def __is_successful_payload(
@@ -226,7 +230,7 @@ class Environment:
         )
         
         response_tokens, new_tokens = self.__inject_payload(
-            payload_text=str(payload),
+            payload=payload,
             is_expected=False,
         )
 

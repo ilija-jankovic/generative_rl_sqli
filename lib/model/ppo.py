@@ -1,4 +1,3 @@
-import math
 import os
 import time
 import numpy as np
@@ -47,6 +46,7 @@ class PPO:
         demonstration_transitions_count = len(demonstration_actions)
 
         assert(demonstration_transitions_count > 0)
+        assert(demonstration_transitions_count % T == 0)
         assert(demonstration_environment not in self.environments)
         assert(PPO_SUCCESSFUL_BUFFER_SIZE > demonstration_transitions_count % T)
 
@@ -54,10 +54,8 @@ class PPO:
         actions = []
         rewards = []
 
-        for i in range(math.ceil(demonstration_transitions_count / T) * demonstration_transitions_count):
-            # Loop around if demonstrations do not divide cleanly
-            # by rollout.
-            action = demonstration_actions[i % demonstration_transitions_count]
+        for i in range(demonstration_transitions_count):
+            action = demonstration_actions[i]
 
             state, reward = demonstration_environment.perform_demonstration_action(action)
 

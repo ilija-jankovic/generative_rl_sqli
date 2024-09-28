@@ -67,7 +67,7 @@ def __pad_index_list(indices: List[int], padded_length: int):
 
 
 def __tokens_to_indices(
-    tokens: List[str],
+    tokens: str,
     index_list_length: int,
     dictionary: List[str],
     sorted_dictionary: List[str],
@@ -87,43 +87,19 @@ def __tokens_to_indices(
     return indices
 
 
-def create_state_from_tokens(
+def create_state_from_response(
     state_size: int,
-    new_tokens_buffer: List[str],
-    tokens: List[str],
+    response: str,
     dictionary: List[str],
 ):
-    total_new_tokens_count = len(new_tokens_buffer)
-
-    joined_new_tokens = ''.join(new_tokens_buffer)
-    joined_tokens = ''.join(tokens)
-
     sorted_dictionary = __sort_dictionary(dictionary)
     
-    buffer_section_size = (state_size - 3) // 2
-    
-    new_tokens_indices = __tokens_to_indices(
-        tokens=joined_new_tokens,
-        index_list_length=buffer_section_size,
+    state = __tokens_to_indices(
+        tokens=response,
+        index_list_length=state_size,
         dictionary=dictionary,
         sorted_dictionary=sorted_dictionary,
     )
-    
-    token_indices = __tokens_to_indices(
-        tokens=joined_tokens, 
-        index_list_length=buffer_section_size,
-        dictionary=dictionary,
-        sorted_dictionary=sorted_dictionary,
-    )
-    
-    state = [total_new_tokens_count, -1] + \
-        new_tokens_indices + [-1] + token_indices
-
-    # Account for even state sizes, as the two buffers evenly
-    # expand into the remaining space - state size minus three
-    # slots.
-    if state_size % 2 == 0:
-        state.append(-1)
 
     assert(len(state) == state_size)
     

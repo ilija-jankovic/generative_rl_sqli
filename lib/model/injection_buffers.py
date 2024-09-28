@@ -1,70 +1,42 @@
+from Levenshtein import ratio as levenshteinRatio
 
-
-from typing import List
+from typing import List, Set
 from .payload import Payload
 
 
 class InjectionBuffers:
-    
-    __found_tokens: List[str]
 
-    __new_tokens: List[str]
-    '''
-    Buffer of unique newfound tokens in reverse chronological
-    order.
-    '''
+    expected_responses: Set[str]
     
+    __responses: Set[str]
     __attempted_payloads: List[Payload]
 
     
-    @property
-    def new_tokens(self):
-        return self.__new_tokens
-
-    
-    def __init__(self) -> None:
-        self.__found_tokens = []
-        self.__new_tokens = []
+    def __init__(self, expected_responses: Set[str]) -> None:
+        self.expected_responses = expected_responses
+        
+        self.__responses = expected_responses.copy()
         self.__attempted_payloads = []
+
         
-        
-    def record_tokens(
+    def record_response(
         self,
-        tokens: List[str],
-        is_expected: bool,
+        response: str,
     ):
-        '''
-        If unknown tokens are found in `tokens`, these tokens
-        are appended to the 'found tokens' buffer.
-        
-        These newfound tokens are prepended to the 'new tokens'
-        buffer if `is_expected` is `False`.
-        
-        Returns the newfound tokens if added to the respective
-        buffer.
-        '''
-        new_tokens: List[str] = []
-        
-        for token in tokens:
+        min_distance_norm = 1.0
+
+        for recorded_response in self.__responses:
+            distance_norm = 1.0 - levenshteinRatio(
+                response,
+                recorded_response,
+            )
             
-            # Avoid sets for token processing, as their order
-            # is non-deterministic. This is undesirable for
-            # tests, as well as consistency for the agent.
-            #
-            # We therefore check whether a token is in the
-            # 'found tokens' buffer for ensuring uniqueness.
-            if token not in self.__found_tokens:
-                self.__found_tokens.append(token)
+            if distance_norm < min_distance_norm:
+                min_distance_norm = distance_norm
+        
+        self.__responses.add(response)
 
-                if(not is_expected):
-                    new_tokens.insert(0, token)
-
-        # Prepend new tokens for most recent representation of
-        # new tokens with capped buffer size, supporting FIFO
-        # buffer reading operations.
-        self.__new_tokens = new_tokens + self.__new_tokens
-
-        return new_tokens
+        return min_distance_norm
 
 
     def record_payload(self, payload: Payload):
@@ -76,6 +48,5 @@ class InjectionBuffers:
     
 
     def clear(self):
-        self.__found_tokens.clear()
-        self.__new_tokens.clear()
+        self.__responses = self.expected_responses.copy()
         self.__attempted_payloads.clear()

@@ -1,11 +1,13 @@
 #!/usr/local/bin/python
 import sys
+from typing import Set
+from bs4 import BeautifulSoup
 import numpy as np
 import os
 
 from lib.configuration import Configuration
 from lib.injected_request import send_request
-from lib.network.attacker import attack
+from lib.model.payload import Payload
 
 from .hyperparameters import STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
     INITIAL_EPISODE_LENGTH, ENVIRONMENT_BATCH_SIZE
@@ -52,7 +54,6 @@ args = sys.argv[1:]
 
 run_sqlmap = '--no-run-sqlmap' not in args
 use_cache = '--from-cache' in args
-double_requests = '--no-double-requests' not in args
 profile = '--profile' in args
 
 embedding_data_rows = None
@@ -147,21 +148,42 @@ else:
 
     sql_data_service.save_embeddings(embeddings.numpy().tolist())
 
+
+def attack_callback(payload: Payload):
+    response = send_request(
+        payload=str(payload),
+        config=config,
+    )
+    
+    # Strip LXML.
+    return BeautifulSoup(response, "lxml").get_text(separator='\0')
+
+
+print('Gathering expected responses...')
+
+expected_responses: Set[str] = set()
+
+for token in dictionary:
+    print(f'Injecting {token}...')
+
+    response = attack_callback(Payload(
+        payload=token,
+        payload_tokens={token},
+    ))
+    
+    expected_responses.add(response)
+
+print('Expected responses gathered.')
+
 environments = [
     Environment(
         dictionary=dictionary,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
         frames_per_episode=INITIAL_EPISODE_LENGTH,
-        attack_callback=lambda payload: attack(
-            send_request_callback=lambda: send_request(
-                payload=str(payload),
-                config=config,
-            ),
-            payload=payload,
-            perform_double_requests=double_requests,
-        ))
-            for _ in range(ENVIRONMENT_BATCH_SIZE + 1)
+        attack_callback=attack_callback,
+        expected_responses=expected_responses,
+    ) for _ in range(ENVIRONMENT_BATCH_SIZE + 1)
 ]
 
 demonstration_environment = environments[0]

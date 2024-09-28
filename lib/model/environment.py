@@ -13,7 +13,7 @@ from .ppo_payload_statistics import PPOPayloadStatistics
 from .episode_state import EpisodeState
 
 
-AttackCallback = Callable[[Payload], List[str]]
+AttackCallback = Callable[[Payload], str]
 '''
 Use for injecting a payload and returning a list of filtered
 response tokens. The set of payload's individual tokens are
@@ -38,18 +38,7 @@ class Environment:
     @property
     def episode(self):
         return self.__episode.episode
-        
 
-    def __inject_payload(self, payload: Payload, is_expected: bool):
-        response_tokens = self.attack_callback(payload)
-
-        new_tokens = self.__injection_buffers.record_tokens(
-            response_tokens,
-            is_expected=is_expected,
-        )
-
-        return response_tokens, new_tokens
-    
 
     def __init__(
         self,
@@ -57,6 +46,7 @@ class Environment:
         action_size: int,
         state_size: int,
         attack_callback: AttackCallback,
+        expected_responses: Set[str],
         frames_per_episode: int,
     ):
         assert(action_size > 0)
@@ -69,52 +59,28 @@ class Environment:
         self.attack_callback = attack_callback
         
         self.__episode = EpisodeState(frames_per_episode)
-        self.__injection_buffers = InjectionBuffers()
-        
-        self.__inject_initial_payloads()
-
-
-    def __inject_initial_payloads(self):
-        self.__inject_payload(
-            Payload(payload='', payload_tokens={''}),
-            is_expected=True,
+        self.__injection_buffers = InjectionBuffers(
+            expected_responses=expected_responses,
         )
-        
-        
-    def __is_successful_payload(
-        self,
-        payload: Payload,
-        new_tokens_count: int,
-    ):
-        assert(new_tokens_count >= 0)
-        
-        # Do not mark repeated payloads as successful, even in the case
-        # of a non-deterministic network response.
-        #
-        # A pen-tester is unlikely to repeat the same injection multiple
-        # times unless checking a previous result.
-        return new_tokens_count > 0 and \
-            not self.__injection_buffers.was_payload_attempted(payload)
-        
-        
-    def __calculate_successful_reward(self, new_tokens_count: int):
-        assert(new_tokens_count > 0)
-        
-        # Successful payloads further along the episode are more greatly
-        # rewarded.
-        #
-        # They are less likely to be the result of simple injections, as
-        # these were already likely rewarded.
-        reward_weight = 1.0 + self.__episode.frames_since_last_episode / self.__episode.initial_frames
-        reward = new_tokens_count * reward_weight
 
-        # Map reward to (0.0, 1.0].
-        #
-        # Approximately linearly scaled down for low reward values, then
-        # tapers off to upper/lower bound.
-        reward = math.tanh(reward / 20.0)
+
+    def __inject_payload(self, payload: Payload):
+        response = self.attack_callback(payload)
+
+        min_levenshtein_norm = self.__injection_buffers.record_response(
+            response,
+        )
+
+        return response, min_levenshtein_norm
+
         
-        self.__episode.extend_episode(proportion=reward)
+    def __calculate_reward(self, min_levenshtein_norm: float):
+        reward = min_levenshtein_norm
+        
+        extension_threshold = 0.5
+        
+        if reward >= extension_threshold:
+            self.__episode.extend_episode(proportion=reward)
         
         return reward
     
@@ -187,16 +153,15 @@ class Environment:
     
     def __create_next_state(
         self,
-        response_tokens: List[str],
+        response: str,
         is_episode_done: bool,
     ):
         return state_factory.create_empty_state(
             state_size=self.state_size,
         ) if is_episode_done \
-            else state_factory.create_state_from_tokens(
+            else state_factory.create_state_from_response(
                 state_size=self.state_size,
-                tokens=response_tokens,
-                new_tokens_buffer=self.__injection_buffers.new_tokens,
+                response=response,
                 dictionary=self.dictionary,
             )
 
@@ -229,30 +194,18 @@ class Environment:
             dictionary=self.dictionary,
         )
         
-        response_tokens, new_tokens = self.__inject_payload(
-            payload=payload,
-            is_expected=False,
-        )
+        response, min_levenshtein_norm = self.__inject_payload(payload)
 
-        new_tokens_count = len(new_tokens)
+        reward = self.__calculate_reward(
+            min_levenshtein_norm=min_levenshtein_norm,
+        )
         
-        if self.__is_successful_payload(
-            payload=payload,
-            new_tokens_count=new_tokens_count
-        ):
-            reward = self.__calculate_successful_reward(
-                new_tokens_count=new_tokens_count,
-            )
-            
+        if reward > 0.0:
             self.__try_report_payload_statistics(
                 payload=payload,
                 reporter=reporter,
                 timestep=timestep,
                 reward=reward,
-            )
-        else:
-            reward = self.__calculate_unsuccessful_reward(
-                payload=payload,
             )
 
         self.__injection_buffers.record_payload(payload)
@@ -260,7 +213,7 @@ class Environment:
         is_episode_done = self.__update_episode()
 
         state = self.__create_next_state(
-            response_tokens=response_tokens,
+            response=response,
             is_episode_done=is_episode_done,
         )
 

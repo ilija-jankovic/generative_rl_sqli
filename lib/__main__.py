@@ -1,7 +1,6 @@
 #!/usr/local/bin/python
 import sys
 from typing import Set
-from bs4 import BeautifulSoup
 import numpy as np
 import os
 
@@ -12,12 +11,12 @@ from lib.model.payload import Payload
 from .hyperparameters import STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
     INITIAL_EPISODE_LENGTH, ENVIRONMENT_BATCH_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
-from .model.ppo import PPO, T
+from .model.ppo import PPO
 from .network.sqlmap_runner import SqlmapRunner
 from .nlp.token_parser import TokenParser
 from .sql_parser import sql_data_service, training_data_generator
 from .sql_parser.schema_parser import get_column_tokens_from_schema, get_table_tokens_from_schema
-from .nlp.token_embedder import TokenEmbedder 
+from .nlp.token_embedder import TokenEmbedder
 from .model.environment import Environment
 
 import tensorflow as tf
@@ -150,13 +149,10 @@ else:
 
 
 def attack_callback(payload: Payload):
-    response = send_request(
+    return send_request(
         payload=str(payload),
         config=config,
     )
-    
-    # Strip LXML.
-    return BeautifulSoup(response, "lxml").get_text(separator='\0')
 
 
 print('Gathering expected responses...')

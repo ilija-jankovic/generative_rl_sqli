@@ -10,8 +10,11 @@ class StateFactory:
     dictionary: List[str]
 
     __sorted_dictionary: List[str]
-    __tokenised_responses: List[List[int]]
 
+    __tokenised_responses: List[List[int]]
+    '''
+    Indexed response tokens offset by an increment of one.
+    '''
     
     @staticmethod
     def create_empty_state(
@@ -48,14 +51,18 @@ class StateFactory:
     def add_response(self, state_size: int, response: str):
         assert(state_size > 2)
 
-        tokens = any_string_tokeniser.tokens_to_indices(
+        indices = any_string_tokeniser.tokens_to_indices(
             tokens=response,
             index_list_length=state_size - 2,
             dictionary=self.dictionary,
             sorted_dictionary=self.__sorted_dictionary,
         )
 
-        self.__tokenised_responses.append(tokens)
+        # Add one to ensure 0-index does not interfere with
+        # padding during averaging.
+        indices = [index + 1 for index in indices]
+
+        self.__tokenised_responses.append(indices)
 
 
     def create_state(

@@ -3,6 +3,7 @@ ACTION_SIZE = 64
 EMBEDDING_DIM = 128
 
 INITIAL_EPISODE_LENGTH = 50
+MAX_EPISODE_EXTENSION = 10
 
 # T << episode length pg. 5 (PPO paper).
 T = 10

@@ -51,6 +51,7 @@ class Environment:
         attack_callback: AttackCallback,
         expected_responses: Set[str],
         frames_per_episode: int,
+        max_episode_extension: int,
     ):
         assert(action_size > 0)
         assert(state_size > 0)
@@ -61,7 +62,10 @@ class Environment:
         self.state_size = state_size
         self.attack_callback = attack_callback
 
-        self.__episode = EpisodeState(frames_per_episode)
+        self.__episode = EpisodeState(
+            initial_frames=frames_per_episode,
+            max_episode_extension=max_episode_extension,
+        )
         self.__injection_buffers = InjectionBuffers(
             expected_responses=expected_responses,
         )

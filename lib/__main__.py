@@ -8,7 +8,7 @@ from lib.configuration import Configuration
 from lib.injected_request import send_request
 from lib.model.payload import Payload
 
-from .hyperparameters import STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
+from .hyperparameters import MAX_EPISODE_EXTENSION, STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
     INITIAL_EPISODE_LENGTH, ENVIRONMENT_BATCH_SIZE
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO
@@ -177,9 +177,10 @@ environments = [
         dictionary=dictionary,
         action_size=ACTION_SIZE,
         state_size=STATE_SIZE,
-        frames_per_episode=INITIAL_EPISODE_LENGTH,
         attack_callback=attack_callback,
         expected_responses=expected_responses,
+        frames_per_episode=INITIAL_EPISODE_LENGTH,
+        max_episode_extension=MAX_EPISODE_EXTENSION,
     ) for _ in range(ENVIRONMENT_BATCH_SIZE + 1)
 ]
 

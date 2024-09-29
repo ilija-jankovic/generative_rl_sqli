@@ -3,6 +3,7 @@ import math
 
 class EpisodeState:
     initial_frames: int
+    max_episode_extension: int
 
     __frames: int
     __frames_since_last_episode: int
@@ -17,10 +18,15 @@ class EpisodeState:
     def episode(self):
         return self.__episode
 
-    def __init__(self, initial_frames: int):
+    def __init__(
+        self,
+        initial_frames: int,
+        max_episode_extension: int,
+    ):
         self.initial_frames = initial_frames
-        self.__frames_since_last_episode = 0
+        self.max_episode_extension = max_episode_extension
         
+        self.__frames_since_last_episode = 0
         self.__episode = 0
         
         self.next_episode()
@@ -46,5 +52,5 @@ class EpisodeState:
         assert(proportion > 0.0)
         assert(proportion <= 1.0)
 
-        self.__frames += math.ceil(self.initial_frames * proportion)
+        self.__frames += math.ceil(self.max_episode_extension * proportion)
         

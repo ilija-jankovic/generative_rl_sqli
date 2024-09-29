@@ -1,3 +1,4 @@
+import math
 from typing import List, Set
 from typing import Callable
 import tensorflow as tf
@@ -72,7 +73,7 @@ class Environment:
     def __inject_payload(self, payload: Payload):
         response = self.attack_callback(payload)
 
-        min_levenshtein_norm = self.__injection_buffers.record_response(
+        scaled_new_tokens_count = self.__injection_buffers.record_response(
             response,
         )
         
@@ -81,11 +82,13 @@ class Environment:
             response=response,
         )
 
-        return response, min_levenshtein_norm
+        return scaled_new_tokens_count
 
         
-    def __calculate_reward(self, min_levenshtein_norm: float):
-        return max(min_levenshtein_norm - 0.5, 0.0) * 2.0
+    def __calculate_reward(self, scaled_new_tokens_count: float):
+        normalised_scaled_count = math.tanh(scaled_new_tokens_count / 20.0)
+        
+        return max((normalised_scaled_count - 0.5) / 2.0, 0.0)
 
 
     def __try_report_payload_statistics(
@@ -196,10 +199,10 @@ class Environment:
             dictionary=self.dictionary,
         )
         
-        response, min_levenshtein_norm = self.__inject_payload(payload)
+        scaled_new_tokens_count = self.__inject_payload(payload)
 
         reward = self.__calculate_reward(
-            min_levenshtein_norm=min_levenshtein_norm,
+            scaled_new_tokens_count=scaled_new_tokens_count,
         )
         
         if reward > 0.0:

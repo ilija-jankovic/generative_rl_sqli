@@ -159,8 +159,9 @@ print('Gathering expected responses...')
 
 expected_responses: Set[str] = set()
 
-for token in dictionary:
-    print(f'Injecting {token}...')
+# ASCII from '0' to 'Z' and 'a' to 'Z'.
+for token in [chr(code) for code in range(48, 91)] + [chr(code) for code in range(97, 123)]:
+    print(f'Passing expected token \'{token}\'...')
 
     response = attack_callback(Payload(
         payload=token,

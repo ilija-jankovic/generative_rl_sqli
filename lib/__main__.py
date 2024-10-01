@@ -8,8 +8,8 @@ from lib.configuration import Configuration
 from lib.injected_request import send_request
 from lib.model.payload import Payload
 
-from .hyperparameters import MAX_EPISODE_EXTENSION, STATE_SIZE, ACTION_SIZE, EMBEDDING_DIM, \
-    INITIAL_EPISODE_LENGTH, ENVIRONMENT_BATCH_SIZE
+from .hyperparameters import BATCH_SIZE, MAX_EPISODE_EXTENSION, STATE_SIZE, ACTION_SIZE, \
+    EMBEDDING_DIM, INITIAL_EPISODE_LENGTH
 from .model.ppo_actor_critic import PPOActorCritic
 from .model.ppo import PPO
 from .network.sqlmap_runner import SqlmapRunner
@@ -181,7 +181,7 @@ environments = [
         expected_responses=expected_responses,
         frames_per_episode=INITIAL_EPISODE_LENGTH,
         max_episode_extension=MAX_EPISODE_EXTENSION,
-    ) for _ in range(ENVIRONMENT_BATCH_SIZE + 1)
+    ) for _ in range(BATCH_SIZE + 1)
 ]
 
 demonstration_environment = environments[0]

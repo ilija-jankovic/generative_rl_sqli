@@ -17,9 +17,15 @@ class PPOReplayBuffer:
 
     __mean_demonstration_reward: int
     '''
-    Used to proportionally calculate how many demonstration
-    transitions to sample for a replay batch.
+    Used to calculate probability of sampling demonstrations.
+    
+    Should be non-negative. This is asserted against.
     '''
+    
+    
+    @property
+    def mean_demonstration_reward(self):
+        return self.__mean_demonstration_reward
 
 
     def __get_clipped_mean_reward(self, rewards):
@@ -74,6 +80,8 @@ class PPOReplayBuffer:
         self.__mean_demonstration_reward = self.__get_clipped_mean_reward(
             rewards=demonstrated_successful_rewards,
         )
+        
+        assert(self.__mean_demonstration_reward >= 0.0)
 
     @property
     def __successful_transitions_count(self):
@@ -108,55 +116,17 @@ class PPOReplayBuffer:
 
         self.__successful_transitions_counter += 1
         
-    def __get_demonstration_indices(
-        self,
-        batch_size: int,
-        exploration_rewards: tf.Tensor,
-    ):
-        assert(self.__mean_demonstration_reward > 0.0)
-
-        mean_exploration_reward = self.__get_clipped_mean_reward(
-            rewards=exploration_rewards,
-        )
-                
-        exploration_proportion = np.clip(
-            a=mean_exploration_reward / self.__mean_demonstration_reward,
-            a_min=None,
-            a_max=1.0,
-        )
-        
-        demonstration_batch_size = math.floor((1.0 - exploration_proportion) * batch_size)
-        
-        return np.random.choice(
-            self.__demonstrations_count,
-            size=demonstration_batch_size,
-        ) if demonstration_batch_size > 0 else np.array([], dtype=np.int32)
 
     def sample_successful_trajectories(
         self,
         batch_size: int,
-        exploration_rewards: tf.Tensor,
     ):
-        '''
-        Mean exploration reward is proportionally compared against
-        max mean demonstration reward to determine the number of
-        demonstration transitions to sample for replay batch.
-        '''
         assert(batch_size > 0)
         
-        demonstration_indices = self.__get_demonstration_indices(
-            batch_size=batch_size,
-            exploration_rewards=exploration_rewards,
+        indices = np.random.choice(
+            self.__demonstrations_count,
+            size=batch_size,
         )
-        
-        exploration_batch_size = batch_size - demonstration_indices.shape[0]
- 
-        exploration_indices = np.random.choice(
-            self.__successful_transitions_count,
-            size=exploration_batch_size,
-        ) if exploration_batch_size > 0 else np.array([], dtype=np.int32)
-        
-        indices = np.concatenate([demonstration_indices, exploration_indices,],)
 
         states = self.__successful_states[indices]
         actions = self.__successful_actions[indices]

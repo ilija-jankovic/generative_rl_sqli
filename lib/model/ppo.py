@@ -10,8 +10,8 @@ from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
 from .ppo_replay_buffer import PPOReplayBuffer
-from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, PPO_SUCCESSFUL_BATCH_SIZE, \
-    ENVIRONMENT_BATCH_SIZE, T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE
+from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, \
+    T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE
     
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
@@ -32,7 +32,7 @@ class PPO:
         actor_critic: PPOActorCritic,
         environments: List[Environment],
     ):
-        assert(len(environments) == ENVIRONMENT_BATCH_SIZE)
+        assert(len(environments) == BATCH_SIZE)
         assert(len(environments) == len(set(environments)))
 
         self.actor_critic = actor_critic
@@ -79,7 +79,7 @@ class PPO:
     def __create_empty_states(self):
         return tf.convert_to_tensor([
             StateFactory.create_empty_state(state_size=STATE_SIZE)
-                for _ in range(ENVIRONMENT_BATCH_SIZE)
+                for _ in range(BATCH_SIZE)
         ])
 
     def calculate_advantages_batch(
@@ -309,8 +309,8 @@ class PPO:
 
     def __explore(
         self,
-        states: List[tf.Tensor],
-        exploration_rewards: float,
+        explored_states: List[tf.Tensor],
+        previous_mean_reward: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):
@@ -318,135 +318,90 @@ class PPO:
         probabilities = []
         rewards = []
 
-        trajectories = self.buffer.sample_successful_trajectories(
-            batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
-            exploration_rewards=exploration_rewards,
-        )
+        sample_demonstrations_probability = 1.0 - np.clip(previous_mean_reward / self.buffer.mean_demonstration_reward, 0.0, 1.0)
         
-        # Demonstration initial states are appended first as samples
-        # trajectories do not contain the states after the final action
-        # is taken, i.e., no state for rollout index T.
-        states = [
-            tf.concat(
-                values=[
-                    states[0],
-                    trajectories[0][:, 0],
-                ],
-                axis=0,
-            )
-        ]
+        sample_demonstrations = np.random.rand() < sample_demonstrations_probability
+        
+        #TODO: Ignore 0 demonstrations setting.
+        if sample_demonstrations:
+            trajectories = self.buffer.sample_successful_trajectories(batch_size=BATCH_SIZE)
+
+        states = [trajectories[0][:, 0]] if sample_demonstrations else explored_states
 
         for i in range(T):
-            # Interact with environments.
-            # ===================================
-            actions_env, probabilities_env = self.actor_critic.policy(
-                states[i][:ENVIRONMENT_BATCH_SIZE],
-                PolicyType.OLD.value,
-                batch_size=ENVIRONMENT_BATCH_SIZE,
-                actions_reference=tf.fill([ENVIRONMENT_BATCH_SIZE, ACTION_SIZE,], -1),
-                use_actions_reference=False,
-            )
-
-            env_tuples = []
-
-            for batch_index in range(ENVIRONMENT_BATCH_SIZE):
-                environment = self.environments[batch_index]
-
-                # Retrieve epsiode before its potential update.
-                #
-                # Otherwise, if the episode is updated, the reward returned
-                # will match the previous episode.
-                episode = environment.episode
-                
-                state, reward = environment.perform_action(
-                    actions_env[batch_index],
-                    timestep=self.timestep,
-                    reporter=reporter,
+            if not sample_demonstrations:
+                # Interact with environments.
+                # ===================================
+                actions_env, probabilities_env = self.actor_critic.policy(
+                    states[i],
+                    PolicyType.OLD.value,
+                    batch_size=BATCH_SIZE,
+                    actions_reference=tf.fill([BATCH_SIZE, ACTION_SIZE,], -1),
+                    use_actions_reference=False,
                 )
-                
-                episodic_rewards_reporter.record_episodic_statistics(
-                    episode=episode,
-                    reward=reward,
-                    batch_index=batch_index,
-                )
+
+                env_tuples = []
+
+                for batch_index in range(BATCH_SIZE):
+                    environment = self.environments[batch_index]
+
+                    # Retrieve epsiode before its potential update.
+                    #
+                    # Otherwise, if the episode is updated, the reward returned
+                    # will match the previous episode.
+                    episode = environment.episode
                     
-                env_tuples.append((state, reward,))
+                    state, reward = environment.perform_action(
+                        actions_env[batch_index],
+                        timestep=self.timestep,
+                        reporter=reporter,
+                    )
+                    
+                    episodic_rewards_reporter.record_episodic_statistics(
+                        episode=episode,
+                        reward=reward,
+                        batch_index=batch_index,
+                    )
+                        
+                    env_tuples.append((state, reward,))
 
-            next_states_env = [env_tuple[0] for env_tuple in env_tuples]
-            rewards_env = [env_tuple[1] for env_tuple in env_tuples]
-            # ===================================
+                next_states_env = [env_tuple[0] for env_tuple in env_tuples]
+                rewards_env = [env_tuple[1] for env_tuple in env_tuples]
+                # ===================================
 
-
-            # Get trajectory from demonstration samples.
-            # ===================================
-            states_demo = trajectories[0][:, i]
-            actions_demo = trajectories[1][:, i]
-
-            # Demonstrations actions are set with a probability of 100%,
-            # as outlined in the PPO using a Single Demonstration paper
-            # (p.3).
-            _, probabilities_demo = self.actor_critic.policy(
-                states_demo,
-                PolicyType.OLD.value,
-                batch_size=PPO_SUCCESSFUL_BATCH_SIZE,
-                actions_reference=actions_demo,
-                use_actions_reference=True,
-            )
-
-            rewards_demo = trajectories[2][:, i]
-
-            next_states_index = i + 1
-            next_states_demo = trajectories[0][:, next_states_index] \
-                if next_states_index < T else []
-            # ===================================
-
-
-            actions.append(
-                tf.concat(
-                    values=[
-                        actions_env,
-                        actions_demo,
-                    ],
-                    axis=0,
-                ))
-
-            probabilities.append(
-                tf.concat(
-                    values=[
-                        probabilities_env,
-                        probabilities_demo,
-                    ],
-                    axis=0,
-                ))
-
-            rewards.append(
-                tf.concat(
-                    values=[
-                        rewards_env,
-                        rewards_demo,
-                    ],
-                    axis=0,
-                ))
-
-            if len(next_states_demo) > 0:
-                states.append(
-                    tf.concat(
-                        values=[
-                            next_states_env,
-                            next_states_demo,
-                        ],
-                        axis=0,
-                    ))
             else:
-                states.append(next_states_env)
-            
-            
-            self.timestep += 1
+                # Get trajectory from demonstration samples.
+                # ===================================
+                states_env = trajectories[0][:, i]
+                actions_env = trajectories[1][:, i]
 
-        # Convert last states separately as last index of states
-        # does not contain demonstration states. A tensor requires
-        # all elements to conform to the same shape.
-        next_states = tf.convert_to_tensor(states[-1], dtype=tf.float64)
+                # Demonstrations actions are set with a probability of 100%,
+                # as outlined in the PPO using a Single Demonstration paper
+                # (p.3).
+                _, probabilities_env = self.actor_critic.policy(
+                    states_env,
+                    PolicyType.OLD.value,
+                    batch_size=BATCH_SIZE,
+                    actions_reference=actions_env,
+                    use_actions_reference=True,
+                )
+
+                rewards_env = trajectories[2][:, i]
+
+                next_states_index = i + 1
+                next_states_env = trajectories[0][:, next_states_index] \
+                    if next_states_index < T else []
+                # ===================================
+
+            actions.append(tf.convert_to_tensor(actions_env, dtype=tf.int32))
+            probabilities.append(tf.convert_to_tensor(probabilities_env, dtype=tf.float64))
+            rewards.append(tf.convert_to_tensor(rewards_env, dtype=tf.float64))
+            states.append(tf.convert_to_tensor(next_states_env, dtype=tf.float64))
+            
+            if not sample_demonstrations:
+                self.timestep += 1
+
+        next_states = tf.convert_to_tensor(explored_states[-1] if sample_demonstrations else states[-1], dtype=tf.float64)
         states = tf.convert_to_tensor(states[:-1], dtype=tf.float64)
 
         actions = tf.convert_to_tensor(actions, dtype=tf.int32)
@@ -454,7 +409,7 @@ class PPO:
         rewards = tf.convert_to_tensor(rewards, dtype=tf.float64)
 
         # Record successful on-policy transitions from environment.
-        for i in range(ENVIRONMENT_BATCH_SIZE):
+        for i in range(BATCH_SIZE):
             trajectory_reward = np.sum(rewards[:, i])
 
             if trajectory_reward > 0.0:
@@ -503,7 +458,7 @@ class PPO:
     def __run_training_step(
         self,
         states: List[tf.Tensor],
-        exploration_rewards: float,
+        previous_mean_reward: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
@@ -514,8 +469,8 @@ class PPO:
         exploration_seconds = time.time()
         
         states, next_states, actions_old, action_probabilities_old, rewards = self.__explore(
-            states=states,
-            exploration_rewards=exploration_rewards,
+            explored_states=states,
+            previous_mean_reward=previous_mean_reward,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
         )
@@ -541,7 +496,7 @@ class PPO:
 
         total_seconds = time.time() - total_seconds
         
-        exploration_rewards = rewards[:, :ENVIRONMENT_BATCH_SIZE]
+        exploration_rewards = rewards[:, :BATCH_SIZE]
 
         running_stats = PPORunningStatistics(
             timestep=self.timestep - 1,
@@ -555,7 +510,7 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        return [next_states], exploration_rewards
+        return [next_states], np.mean(exploration_rewards)
         
 
     def run(
@@ -571,19 +526,19 @@ class PPO:
         reporter = PPOReporter()
         
         episodic_rewards_reporter = PPOEpisodicReporter(
-            batch_size=ENVIRONMENT_BATCH_SIZE,
+            batch_size=BATCH_SIZE,
             reporter=reporter,
         )
 
         reporter.start()
         
         starting_states = [self.__create_empty_states()]
-        exploration_rewards = tf.zeros([T, ENVIRONMENT_BATCH_SIZE,])
+        previous_mean_reward = 0.0
 
         while True:
-            starting_states, exploration_rewards = self.__run_training_step(
+            starting_states, previous_mean_reward = self.__run_training_step(
                 states=starting_states,
-                exploration_rewards=exploration_rewards,
+                previous_mean_reward=previous_mean_reward,
                 reporter=reporter,
                 episodic_rewards_reporter=episodic_rewards_reporter,
             )

@@ -90,9 +90,11 @@ class Environment:
 
         
     def __calculate_reward(self, scaled_new_tokens_count: float):
+        THRESHOLD = 0.05
+
         normalised_scaled_count = math.tanh(scaled_new_tokens_count / 20.0)
         
-        return max((normalised_scaled_count - 0.5) * 2.0, 0.0)
+        return max((normalised_scaled_count - THRESHOLD) / (1.0 - THRESHOLD), 0.0)
 
 
     def __try_report_payload_statistics(

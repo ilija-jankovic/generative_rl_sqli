@@ -310,7 +310,7 @@ class PPO:
     def __explore(
         self,
         explored_states: List[tf.Tensor],
-        previous_mean_reward: float,
+        previous_mean_reward_sum: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):
@@ -318,7 +318,7 @@ class PPO:
         probabilities = []
         rewards = []
 
-        sample_demonstrations_probability = 1.0 - np.clip(previous_mean_reward / self.buffer.mean_demonstration_reward, 0.0, 1.0)
+        sample_demonstrations_probability = 1.0 - np.clip(previous_mean_reward_sum / self.buffer.max_demonstration_reward_sum, 0.0, 1.0)
         
         sample_demonstrations = np.random.rand() < sample_demonstrations_probability
         
@@ -419,7 +419,7 @@ class PPO:
                     rewards[:, i],
                 )
 
-        return states, next_states, actions, probabilities, rewards
+        return states, next_states, actions, probabilities, rewards, sample_demonstrations
     
     def __learn_sgd(
         self,
@@ -458,7 +458,7 @@ class PPO:
     def __run_training_step(
         self,
         states: List[tf.Tensor],
-        previous_mean_reward: float,
+        previous_mean_reward_sum: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
@@ -468,9 +468,9 @@ class PPO:
         # ===================================
         exploration_seconds = time.time()
         
-        states, next_states, actions_old, action_probabilities_old, rewards = self.__explore(
+        states, next_states, actions_old, action_probabilities_old, rewards, from_demonstrations = self.__explore(
             explored_states=states,
-            previous_mean_reward=previous_mean_reward,
+            previous_mean_reward_sum=previous_mean_reward_sum,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
         )
@@ -495,12 +495,10 @@ class PPO:
         
 
         total_seconds = time.time() - total_seconds
-        
-        exploration_rewards = rewards[:, :BATCH_SIZE]
 
         running_stats = PPORunningStatistics(
             timestep=self.timestep - 1,
-            mean_batch_reward=np.mean(exploration_rewards),
+            mean_batch_reward=np.mean(rewards),
             mean_actor_loss=mean_actor_loss,
             mean_critic_loss=mean_critic_loss,
             exploration_seconds=exploration_seconds,
@@ -510,7 +508,9 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        return [next_states], np.mean(exploration_rewards)
+        print(np.mean(np.sum(rewards, axis=0)))
+
+        return [next_states], self.buffer.max_demonstration_reward_sum if from_demonstrations else np.mean(np.sum(rewards, axis=0))
         
 
     def run(
@@ -533,12 +533,12 @@ class PPO:
         reporter.start()
         
         starting_states = [self.__create_empty_states()]
-        previous_mean_reward = 0.0
+        previous_mean_reward_sum = 0.0
 
         while True:
-            starting_states, previous_mean_reward = self.__run_training_step(
+            starting_states, previous_mean_reward_sum = self.__run_training_step(
                 states=starting_states,
-                previous_mean_reward=previous_mean_reward,
+                previous_mean_reward_sum=previous_mean_reward_sum,
                 reporter=reporter,
                 episodic_rewards_reporter=episodic_rewards_reporter,
             )

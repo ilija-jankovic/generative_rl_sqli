@@ -15,7 +15,7 @@ class PPOReplayBuffer:
 
     __successful_transitions_counter: int
 
-    __mean_demonstration_reward: int
+    __max_demonstration_reward_sum: int
     '''
     Used to calculate probability of sampling demonstrations.
     
@@ -24,20 +24,13 @@ class PPOReplayBuffer:
     
     
     @property
-    def mean_demonstration_reward(self):
-        return self.__mean_demonstration_reward
+    def max_demonstration_reward_sum(self):
+        return self.__max_demonstration_reward_sum
 
 
     def __get_clipped_mean_reward(self, rewards):
-        # Ensure negative rewards do not affect payload quality
-        # proportions.
-        clipped_rewards = np.clip(
-            rewards,
-            a_min=0.0,
-            a_max=None,
-        )
+        return np.max(np.sum(rewards, axis=-1))
 
-        return np.mean(clipped_rewards)
 
     def __init__(
         self,
@@ -77,11 +70,14 @@ class PPOReplayBuffer:
 
         self.__successful_transitions_counter = successful_buffer_size
 
-        self.__mean_demonstration_reward = self.__get_clipped_mean_reward(
+        self.__max_demonstration_reward_sum = self.__get_clipped_mean_reward(
             rewards=demonstrated_successful_rewards,
         )
-        
-        assert(self.__mean_demonstration_reward >= 0.0)
+
+        print(f'Max demonstration rollout reward sum: {self.__max_demonstration_reward_sum}')
+
+        assert self.__max_demonstration_reward_sum > 0.0, \
+            'Max demonstration reward sum is above zero for use as divisor.'
 
     @property
     def __successful_transitions_count(self):

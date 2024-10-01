@@ -508,8 +508,6 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        print(np.mean(np.sum(rewards, axis=0)))
-
         return [next_states], self.buffer.max_demonstration_reward_sum if from_demonstrations else np.mean(np.sum(rewards, axis=0))
         
 

@@ -75,6 +75,7 @@ class PPOReporter:
             'EMBEDDING_DIM': hyperparameters.EMBEDDING_DIM,
             'T': hyperparameters.T,
             'INITIAL_EPISODE_LENGTH': hyperparameters.INITIAL_EPISODE_LENGTH,
+            'PRETRAINING_STEPS': hyperparameters.PRETRAINING_STEPS,
             'MAX_EPISODE_EXTENSION': hyperparameters.MAX_EPISODE_EXTENSION,
             'EPOCHS': hyperparameters.EPOCHS,
             'BATCH_SIZE': hyperparameters.BATCH_SIZE,

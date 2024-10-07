@@ -34,8 +34,16 @@ class PPOActorCritic:
     actor_model_old: tf.keras.Model
     critic_model: tf.keras.Model
 
+    actor_pretraining_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
+
     actor_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
     critic_optimizer: tf.keras.mixed_precision.LossScaleOptimizer
+    
+    
+    def __create_pretraining_optimizer(self):
+        return tf.keras.mixed_precision.LossScaleOptimizer(
+            tf.keras.optimizers.Nadam(learning_rate=0.0001),
+        )
     
     # Mixed precision gives significant performance increase:
     # https://developer.nvidia.com/automatic-mixed-precision
@@ -46,7 +54,7 @@ class PPOActorCritic:
     #
     # Nadam for RNNs recommended by OverLordGoldDragon:
     # https://stackoverflow.com/questions/48714407/rnn-regularization-which-component-to-regularize/58868383#58868383
-    def __create_optimizer(self, initial_learning_rate: float):
+    def __create_rl_optimizer(self, initial_learning_rate: float):
         assert(initial_learning_rate > 0.0)
         
         learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -73,8 +81,10 @@ class PPOActorCritic:
         self.actor_model.summary()
         self.critic_model.summary()
 
-        self.actor_optimizer = self.__create_optimizer(INITIAL_ACTOR_LEARNING_RATE)
-        self.critic_optimizer = self.__create_optimizer(INITIAL_CRITIC_LEARNING_RATE)
+        self.actor_pretraining_optimizer = self.__create_pretraining_optimizer()
+        
+        self.actor_optimizer = self.__create_rl_optimizer(INITIAL_ACTOR_LEARNING_RATE)
+        self.critic_optimizer = self.__create_rl_optimizer(INITIAL_CRITIC_LEARNING_RATE)
         
         self.update_old_actor_weights()
 

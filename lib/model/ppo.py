@@ -9,8 +9,7 @@ from .state_factory import StateFactory
 from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
-from .ppo_replay_buffer import PPOReplayBuffer
-from ..hyperparameters import STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, \
+from ..hyperparameters import PRETRAINING_STEPS, STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, \
     T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE
     
 
@@ -21,11 +20,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import tensorflow as tf
 
 class PPO:
+    actor_critic: PPOActorCritic
+    environments: List[Environment]
     timestep = 1
 
-    actor_critic: PPOActorCritic
-    buffer: PPOReplayBuffer
-    environments: List[Environment]
 
     def __init__(
         self,
@@ -38,49 +36,13 @@ class PPO:
         self.actor_critic = actor_critic
         self.environments = environments
 
-    def __init_buffer(
-        self,
-        demonstration_environment: Environment,
-        demonstration_actions: tf.Tensor,
-    ):
-        demonstration_transitions_count = len(demonstration_actions)
-
-        assert(demonstration_transitions_count > 0)
-        assert(demonstration_transitions_count % T == 0)
-        assert(demonstration_environment not in self.environments)
-        assert(PPO_SUCCESSFUL_BUFFER_SIZE > demonstration_transitions_count % T)
-
-        states = []
-        actions = []
-        rewards = []
-
-        for i in range(demonstration_transitions_count):
-            action = demonstration_actions[i]
-
-            state, reward = demonstration_environment.perform_demonstration_action(action)
-
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-
-        states = np.reshape(states, [-1, T, STATE_SIZE,])
-        actions = np.reshape(actions, [-1, T, ACTION_SIZE,])
-        rewards = np.reshape(rewards, [-1, T,])
-
-        self.buffer = PPOReplayBuffer(
-            state_size=STATE_SIZE,
-            action_size=ACTION_SIZE,
-            successful_buffer_size=PPO_SUCCESSFUL_BUFFER_SIZE,
-            demonstrated_successful_states=states,
-            demonstrated_successful_actions=actions,
-            demonstrated_successful_rewards=rewards,
-        )
 
     def __create_empty_states(self):
         return tf.convert_to_tensor([
             StateFactory.create_empty_state(state_size=STATE_SIZE)
                 for _ in range(BATCH_SIZE)
         ])
+
 
     def calculate_advantages_batch(
         self,
@@ -123,6 +85,7 @@ class PPO:
 
         return advantages
 
+
     def calculate_clipped_probability_ratios(self, probability_ratios, advantages):
         tf.Assert(tf.equal(probability_ratios.shape[0], T), [probability_ratios])
         tf.Assert(tf.equal(advantages.shape[0], T), [advantages])
@@ -137,6 +100,7 @@ class PPO:
             tf.multiply(probability_ratios, advantages),
             tf.multiply(clipped, advantages),
         )
+
 
     def clipped_surrogate_loss(
         self,
@@ -170,6 +134,7 @@ class PPO:
         # and so our loss should negate this value.
         return -tf.reduce_mean(minimums)
 
+
     def mse(self, y: tf.Tensor, rewards: tf.Tensor):
         tf.Assert(tf.equal(y.shape[0], T), [y])
         tf.Assert(tf.equal(rewards.shape[0], T), [rewards])
@@ -179,7 +144,8 @@ class PPO:
         y_error = tf.cast(y, dtype=tf.float64) - rewards
 
         return 0.5 * tf.math.reduce_mean(tf.math.square(y_error))
-    
+
+
     # Modified solution for shuffling along non-first axis by Faris Hijazi from:
     # https://github.com/tensorflow/swift/issues/394#issuecomment-779729550
     def __tf_shuffle_axis(self, value: tf.Tensor, axis: int, seed: int):
@@ -190,6 +156,7 @@ class PPO:
         value = tf.random.shuffle(tf.transpose(value, perm=perm), seed=seed)
         value = tf.transpose(value, perm=perm)
         return value
+
 
     def train_actor(
         self,
@@ -233,6 +200,7 @@ class PPO:
         
         return actor_loss
 
+
     def train_critic(
         self,
         states_minibatch: tf.Tensor,
@@ -261,6 +229,7 @@ class PPO:
         critic_optimizer.apply_gradients(zip(critic_grad, critic_model.trainable_variables))
 
         return critic_loss
+
 
     def __learn(
         self,
@@ -307,120 +276,77 @@ class PPO:
             
         return actor_losses, critic_losses
 
+
+    def __run_exploration_policy(self, states: tf.Tensor):
+        return self.actor_critic.policy(
+            states,
+            PolicyType.OLD.value,
+            batch_size=BATCH_SIZE,
+            actions_reference=tf.fill([BATCH_SIZE, ACTION_SIZE,], -1),
+            use_actions_reference=False,
+        )
+
+
     def __explore(
         self,
-        explored_states: List[tf.Tensor],
-        previous_mean_reward_sum: float,
+        states: List[tf.Tensor],
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):
         actions = []
         probabilities = []
         rewards = []
-
-        sample_demonstrations_probability = 1.0 - np.clip(previous_mean_reward_sum / self.buffer.max_demonstration_reward_sum, 0.0, 1.0)
         
-        sample_demonstrations = np.random.rand() < sample_demonstrations_probability
-        
-        #TODO: Ignore 0 demonstrations setting.
-        if sample_demonstrations:
-            trajectories = self.buffer.sample_successful_trajectories(batch_size=BATCH_SIZE)
-
-        states = [trajectories[0][:, 0]] if sample_demonstrations else explored_states
-
         for i in range(T):
-            if not sample_demonstrations:
-                # Interact with environments.
-                # ===================================
-                actions_env, probabilities_env = self.actor_critic.policy(
-                    states[i],
-                    PolicyType.OLD.value,
-                    batch_size=BATCH_SIZE,
-                    actions_reference=tf.fill([BATCH_SIZE, ACTION_SIZE,], -1),
-                    use_actions_reference=False,
+            actions_env, probabilities_env = self.__run_exploration_policy(
+                states=states[i],
+            )
+            
+            env_tuples = []
+
+            for batch_index in range(BATCH_SIZE):
+                environment = self.environments[batch_index]
+
+                # Retrieve epsiode before its potential update.
+                #
+                # Otherwise, if the episode is updated, the reward returned
+                # will match the previous episode.
+                episode = environment.episode
+                
+                state, reward = environment.perform_action(
+                    action=actions_env[batch_index],
+                    timestep=self.timestep,
+                    reporter=reporter,
                 )
-
-                env_tuples = []
-
-                for batch_index in range(BATCH_SIZE):
-                    environment = self.environments[batch_index]
-
-                    # Retrieve epsiode before its potential update.
-                    #
-                    # Otherwise, if the episode is updated, the reward returned
-                    # will match the previous episode.
-                    episode = environment.episode
+                
+                episodic_rewards_reporter.record_episodic_statistics(
+                    episode=episode,
+                    reward=reward,
+                    batch_index=batch_index,
+                )
                     
-                    state, reward = environment.perform_action(
-                        actions_env[batch_index],
-                        timestep=self.timestep,
-                        reporter=reporter,
-                    )
-                    
-                    episodic_rewards_reporter.record_episodic_statistics(
-                        episode=episode,
-                        reward=reward,
-                        batch_index=batch_index,
-                    )
-                        
-                    env_tuples.append((state, reward,))
+                env_tuples.append((state, reward,))
 
                 next_states_env = [env_tuple[0] for env_tuple in env_tuples]
                 rewards_env = [env_tuple[1] for env_tuple in env_tuples]
-                # ===================================
-
-            else:
-                # Get trajectory from demonstration samples.
-                # ===================================
-                states_env = trajectories[0][:, i]
-                actions_env = trajectories[1][:, i]
-
-                # Demonstrations actions are set with a probability of 100%,
-                # as outlined in the PPO using a Single Demonstration paper
-                # (p.3).
-                _, probabilities_env = self.actor_critic.policy(
-                    states_env,
-                    PolicyType.OLD.value,
-                    batch_size=BATCH_SIZE,
-                    actions_reference=actions_env,
-                    use_actions_reference=True,
-                )
-
-                rewards_env = trajectories[2][:, i]
-
-                next_states_index = i + 1
-                next_states_env = trajectories[0][:, next_states_index] \
-                    if next_states_index < T else []
-                # ===================================
 
             actions.append(tf.convert_to_tensor(actions_env, dtype=tf.int32))
             probabilities.append(tf.convert_to_tensor(probabilities_env, dtype=tf.float64))
             rewards.append(tf.convert_to_tensor(rewards_env, dtype=tf.float64))
             states.append(tf.convert_to_tensor(next_states_env, dtype=tf.float64))
             
-            if not sample_demonstrations:
-                self.timestep += 1
+            self.timestep += 1
 
-        next_states = tf.convert_to_tensor(explored_states[-1] if sample_demonstrations else states[-1], dtype=tf.float64)
+        next_states = tf.convert_to_tensor(states[-1], dtype=tf.float64)
         states = tf.convert_to_tensor(states[:-1], dtype=tf.float64)
 
         actions = tf.convert_to_tensor(actions, dtype=tf.int32)
         probabilities = tf.convert_to_tensor(probabilities, dtype=tf.float64)
         rewards = tf.convert_to_tensor(rewards, dtype=tf.float64)
 
-        # Record successful on-policy transitions from environment.
-        for i in range(BATCH_SIZE):
-            trajectory_reward = np.sum(rewards[:, i])
+        return states, next_states, actions, probabilities, rewards
 
-            if trajectory_reward > 0.0:
-                self.buffer.record_successful_transitions(
-                    states[:, i],
-                    actions[:, i],
-                    rewards[:, i],
-                )
 
-        return states, next_states, actions, probabilities, rewards, sample_demonstrations
-    
     def __learn_sgd(
         self,
         states: List[tf.Tensor],
@@ -454,11 +380,11 @@ class PPO:
         self.actor_critic.update_old_actor_weights()
         
         return np.mean(actor_losses), np.mean(critic_losses)
-            
+
+
     def __run_training_step(
         self,
         states: List[tf.Tensor],
-        previous_mean_reward_sum: float,
         reporter: PPOReporter,
         episodic_rewards_reporter: PPOEpisodicReporter,
     ):        
@@ -468,9 +394,8 @@ class PPO:
         # ===================================
         exploration_seconds = time.time()
         
-        states, next_states, actions_old, action_probabilities_old, rewards, from_demonstrations = self.__explore(
-            explored_states=states,
-            previous_mean_reward_sum=previous_mean_reward_sum,
+        states, next_states, actions_old, action_probabilities_old, rewards = self.__explore(
+            states=states,
             reporter=reporter,
             episodic_rewards_reporter=episodic_rewards_reporter,
         )
@@ -508,7 +433,70 @@ class PPO:
 
         reporter.record_running_statistics(running_stats)
 
-        return [next_states], self.buffer.max_demonstration_reward_sum if from_demonstrations else np.mean(np.sum(rewards, axis=0))
+        return [next_states]
+    
+
+    def __pretrain_actor(
+        self,
+        demonstration_environment: Environment,
+        demonstration_actions: tf.Tensor,
+    ):
+        demonstration_actions_count = len(demonstration_actions)
+        
+        states = [StateFactory.create_empty_state(state_size=STATE_SIZE)]
+        actions = []
+
+        for i in range(demonstration_actions_count):
+            action = demonstration_actions[i]
+
+            state, _ = demonstration_environment.perform_demonstration_action(action)
+
+            states.append(state)
+            actions.append(action)
+            
+        states = np.array(states[:-1])
+        actions = np.array(actions)
+        
+        for i in range(PRETRAINING_STEPS):
+            start = time.time()
+            
+            transition_indices = np.random.choice(
+                demonstration_actions_count,
+                size=MINIBATCH_SIZE,
+            )
+            
+            states_batch = states[transition_indices]
+            actions_batch = actions[transition_indices]
+            
+            actor_model = self.actor_critic.actor_model
+            actor_optimizer = self.actor_critic.actor_pretraining_optimizer
+        
+            with tf.GradientTape() as tape:
+                y = [
+                    self.actor_critic.policy(
+                        states_batch,
+                        PolicyType.NORMAL.value,
+                        batch_size=MINIBATCH_SIZE,
+                        actions_reference=actions_batch,
+                        use_actions_reference=True,
+                    )[1] for _ in range(T)
+                ]
+
+                y = tf.convert_to_tensor(y)
+
+                actor_loss = -tf.reduce_sum(tf.clip_by_value(tf.math.log(y), -99999.0, 0.0))
+
+                print(f'[{i+1}/{PRETRAINING_STEPS}] Unscaled demonstration loss: {actor_loss}, Seconds: {time.time() - start}')
+
+                actor_loss = actor_optimizer.scale_loss(actor_loss)
+                
+
+            actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables)
+            actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
+        
+        self.actor_critic.update_old_actor_weights()
+        
+        print('Behavioural cloning pretraining completed.')
         
 
     def run(
@@ -516,12 +504,12 @@ class PPO:
         demonstration_environment: Environment,
         demonstration_actions: tf.Tensor,
     ):
-        self.__init_buffer(
+        reporter = PPOReporter()
+        
+        self.__pretrain_actor(
             demonstration_environment=demonstration_environment,
             demonstration_actions=demonstration_actions,
         )
-        
-        reporter = PPOReporter()
         
         episodic_rewards_reporter = PPOEpisodicReporter(
             batch_size=BATCH_SIZE,
@@ -531,12 +519,10 @@ class PPO:
         reporter.start()
         
         starting_states = [self.__create_empty_states()]
-        previous_mean_reward_sum = 0.0
 
         while True:
-            starting_states, previous_mean_reward_sum = self.__run_training_step(
+            starting_states = self.__run_training_step(
                 states=starting_states,
-                previous_mean_reward_sum=previous_mean_reward_sum,
                 reporter=reporter,
                 episodic_rewards_reporter=episodic_rewards_reporter,
             )

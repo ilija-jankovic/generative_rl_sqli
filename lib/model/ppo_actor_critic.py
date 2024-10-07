@@ -3,7 +3,7 @@ from typing import List
 
 from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_SOFTMAX_TEMPERATURE, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
     INITIAL_CRITIC_LEARNING_RATE, L2_WEIGHT, ADAM_BETA1, ADAM_BETA2, ADAM_EPSILON, \
-    LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS
+    LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS, PRETRAINING_LEARNING_RATE
 
 # Sets TF logger level to ERROR.
 #
@@ -42,7 +42,7 @@ class PPOActorCritic:
     
     def __create_pretraining_optimizer(self):
         return tf.keras.mixed_precision.LossScaleOptimizer(
-            tf.keras.optimizers.Nadam(learning_rate=0.0001),
+            tf.keras.optimizers.Nadam(learning_rate=PRETRAINING_LEARNING_RATE),
         )
     
     # Mixed precision gives significant performance increase:

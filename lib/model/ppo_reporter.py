@@ -76,6 +76,7 @@ class PPOReporter:
             'T': hyperparameters.T,
             'INITIAL_EPISODE_LENGTH': hyperparameters.INITIAL_EPISODE_LENGTH,
             'PRETRAINING_STEPS': hyperparameters.PRETRAINING_STEPS,
+            'PRETRAINING_LEARNING_RATE': hyperparameters.PRETRAINING_LEARNING_RATE,
             'MAX_EPISODE_EXTENSION': hyperparameters.MAX_EPISODE_EXTENSION,
             'EPOCHS': hyperparameters.EPOCHS,
             'BATCH_SIZE': hyperparameters.BATCH_SIZE,

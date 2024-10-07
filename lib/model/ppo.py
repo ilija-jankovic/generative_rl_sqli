@@ -484,15 +484,14 @@ class PPO:
 
                 y = tf.convert_to_tensor(y)
 
-                actor_loss = -tf.reduce_sum(tf.clip_by_value(tf.math.log(y), -99999.0, 0.0))
-
-                print(f'[{i+1}/{PRETRAINING_STEPS}] Unscaled demonstration loss: {actor_loss}, Seconds: {time.time() - start}')
-
-                actor_loss = actor_optimizer.scale_loss(actor_loss)
+                unscaled_actor_loss = -tf.reduce_sum(tf.clip_by_value(tf.math.log(y), -99999.0, 0.0))
+                actor_loss = actor_optimizer.scale_loss(unscaled_actor_loss)
                 
 
             actor_grad = tape.gradient(actor_loss, actor_model.trainable_variables)
             actor_optimizer.apply_gradients(zip(actor_grad, actor_model.trainable_variables))
+            
+            print(f'[{i+1}/{PRETRAINING_STEPS}] Unscaled demonstration loss: {unscaled_actor_loss}, Seconds: {time.time() - start}')
         
         self.actor_critic.update_old_actor_weights()
         

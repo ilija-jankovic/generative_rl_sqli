@@ -504,6 +504,7 @@ class PPO:
         demonstration_actions: tf.Tensor,
     ):
         reporter = PPOReporter()
+        reporter.start()
         
         self.__pretrain_actor(
             demonstration_environment=demonstration_environment,
@@ -514,8 +515,6 @@ class PPO:
             batch_size=BATCH_SIZE,
             reporter=reporter,
         )
-
-        reporter.start()
         
         starting_states = [self.__create_empty_states()]
 

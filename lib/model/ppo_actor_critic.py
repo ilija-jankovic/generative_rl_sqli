@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from ..hyperparameters import ACTOR_DENSE_UNITS, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
+from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_SOFTMAX_TEMPERATURE, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
     INITIAL_CRITIC_LEARNING_RATE, L2_WEIGHT, ADAM_BETA1, ADAM_BETA2, ADAM_EPSILON, \
     LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS
 
@@ -226,7 +226,8 @@ class PPOActorCritic:
         
         dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
-        
+
+        dense = tf.keras.layers.Lambda(lambda dense: dense / ACTOR_SOFTMAX_TEMPERATURE)(dense)
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
         return tf.keras.Model(

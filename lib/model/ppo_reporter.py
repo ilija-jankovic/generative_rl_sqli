@@ -7,12 +7,7 @@ from .ppo_running_statistics import PPORunningStatistics
 from .total_episodic_statistics import TotalEpisodicStatistics
 from .ppo_payload_statistics import PPOPayloadStatistics
 
-from ..hyperparameters import ACTION_SIZE, ACTOR_DENSE_UNITS, INITIAL_ACTOR_LEARNING_RATE, \
-    ACTOR_LSTM_UNITS, BATCH_SIZE, INITIAL_CRITIC_LEARNING_RATE, L2_WEIGHT, EMBEDDING_DIM, \
-    EPOCHS, GAMMA, MINIBATCH_SIZE, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE, \
-    PPO_SUCCESSFUL_BATCH_SIZE, STATE_SIZE, T, ADAM_BETA1, ADAM_BETA2, \
-    ADAM_EPSILON, LR_SCHEDULE_DECAY_STEPS, LR_SCHEDULE_DECAY_RATE, INITIAL_EPISODE_LENGTH, \
-    MAX_EPISODE_EXTENSION
+from .. import hyperparameters
 
 class PPOReporter:
 
@@ -75,29 +70,30 @@ class PPOReporter:
         os.makedirs(os.path.dirname(self.__statistics_filename), exist_ok=True)
 
         params = {
-            'STATE_SIZE': STATE_SIZE,
-            'ACTION_SIZE': ACTION_SIZE,
-            'EMBEDDING_DIM': EMBEDDING_DIM,
-            'T': T,
-            'INITIAL_EPISODE_LENGTH': INITIAL_EPISODE_LENGTH,
-            'MAX_EPISODE_EXTENSION': MAX_EPISODE_EXTENSION,
-            'EPOCHS': EPOCHS,
-            'BATCH_SIZE': BATCH_SIZE,
-            'MINIBATCH_SIZE': MINIBATCH_SIZE,
-            'PPO_PROBABILITY_RATIO_CLIP_THRESHOLD': PPO_PROBABILITY_RATIO_CLIP_THRESHOLD,
-            'PPO_SUCCESSFUL_BATCH_SIZE': PPO_SUCCESSFUL_BATCH_SIZE,
-            'PPO_SUCCESSFUL_BUFFER_SIZE': PPO_SUCCESSFUL_BUFFER_SIZE,
-            'GAMMA': GAMMA,
-            'INITIAL_ACTOR_LEARNING_RATE': INITIAL_ACTOR_LEARNING_RATE,
-            'INITIAL_CRITIC_LEARNING_RATE': INITIAL_CRITIC_LEARNING_RATE,
-            'L2_WEIGHT': L2_WEIGHT,
-            'ACTOR_LSTM_UNITS': ACTOR_LSTM_UNITS,
-            'ACTOR_DENSE_UNITS': ACTOR_DENSE_UNITS,
-            'ADAM_BETA1': ADAM_BETA1,
-            'ADAM_BETA2': ADAM_BETA2,
-            'ADAM_EPSILON': ADAM_EPSILON,
-            'LR_SCHEDULE_DECAY_STEPS': LR_SCHEDULE_DECAY_STEPS,
-            'LR_SCHEDULE_DECAY_RATE': LR_SCHEDULE_DECAY_RATE,
+            'STATE_SIZE': hyperparameters.STATE_SIZE,
+            'ACTION_SIZE': hyperparameters.ACTION_SIZE,
+            'EMBEDDING_DIM': hyperparameters.EMBEDDING_DIM,
+            'T': hyperparameters.T,
+            'INITIAL_EPISODE_LENGTH': hyperparameters.INITIAL_EPISODE_LENGTH,
+            'MAX_EPISODE_EXTENSION': hyperparameters.MAX_EPISODE_EXTENSION,
+            'EPOCHS': hyperparameters.EPOCHS,
+            'BATCH_SIZE': hyperparameters.BATCH_SIZE,
+            'MINIBATCH_SIZE': hyperparameters.MINIBATCH_SIZE,
+            'PPO_PROBABILITY_RATIO_CLIP_THRESHOLD': hyperparameters.PPO_PROBABILITY_RATIO_CLIP_THRESHOLD,
+            'PPO_SUCCESSFUL_BATCH_SIZE': hyperparameters.PPO_SUCCESSFUL_BATCH_SIZE,
+            'PPO_SUCCESSFUL_BUFFER_SIZE': hyperparameters.PPO_SUCCESSFUL_BUFFER_SIZE,
+            'GAMMA': hyperparameters.GAMMA,
+            'INITIAL_ACTOR_LEARNING_RATE': hyperparameters.INITIAL_ACTOR_LEARNING_RATE,
+            'INITIAL_CRITIC_LEARNING_RATE': hyperparameters.INITIAL_CRITIC_LEARNING_RATE,
+            'L2_WEIGHT': hyperparameters.L2_WEIGHT,
+            'ACTOR_LSTM_UNITS': hyperparameters.ACTOR_LSTM_UNITS,
+            'ACTOR_DENSE_UNITS': hyperparameters.ACTOR_DENSE_UNITS,
+            'ACTOR_SOFTMAX_TEMPERATURE': hyperparameters.ACTOR_SOFTMAX_TEMPERATURE,
+            'ADAM_BETA1': hyperparameters.ADAM_BETA1,
+            'ADAM_BETA2': hyperparameters.ADAM_BETA2,
+            'ADAM_EPSILON': hyperparameters.ADAM_EPSILON,
+            'LR_SCHEDULE_DECAY_STEPS': hyperparameters.LR_SCHEDULE_DECAY_STEPS,
+            'LR_SCHEDULE_DECAY_RATE': hyperparameters.LR_SCHEDULE_DECAY_RATE,
         }
 
         with open(self.__statistics_filename, 'w', encoding='utf-8') as f:

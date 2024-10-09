@@ -1,9 +1,11 @@
 import os
 from typing import List
 
-from ..hyperparameters import ACTOR_DENSE_UNITS, ACTOR_SOFTMAX_TEMPERATURE, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
+from lib.pretrain_actor_type import PretrainActorType
+
+from ..hyperparameters import ACTOR_DENSE_UNITS, INITIAL_ACTOR_LEARNING_RATE, ACTOR_LSTM_UNITS, \
     INITIAL_CRITIC_LEARNING_RATE, L2_WEIGHT, ADAM_BETA1, ADAM_BETA2, ADAM_EPSILON, \
-    LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS, PRETRAINING_LEARNING_RATE
+    LR_SCHEDULE_DECAY_RATE, LR_SCHEDULE_DECAY_STEPS, PRETRAIN_ACTOR_TYPE, PRETRAINING_LEARNING_RATE
 
 # Sets TF logger level to ERROR.
 #
@@ -22,6 +24,7 @@ from .policy_type import PolicyType
 #strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
 
 #device_count = strategy.num_replicas_in_sync
+
 
 class PPOActorCritic:
     dictionary_length: int
@@ -74,8 +77,18 @@ class PPOActorCritic:
     def __init_models(self):
         tf.keras.backend.set_floatx('float64')
 
-        self.actor_model = self.get_actor(name='ACTOR')
-        self.actor_model_old = self.get_actor(name='ACTOR_OLD')
+        if PRETRAIN_ACTOR_TYPE == PretrainActorType.LOAD_PRETRAINED:
+            dirname = os.path.dirname(__file__)
+
+            # Allow Lambda layer loading.
+            tf.keras.config.enable_unsafe_deserialization()
+            
+            self.actor_model = tf.keras.models.load_model(f'{dirname}/../../pretrained_actor.keras')
+            self.actor_model_old = tf.keras.models.load_model(f'{dirname}/../../pretrained_actor.keras')
+        else:
+            self.actor_model = self.get_actor(name='ACTOR')
+            self.actor_model_old = self.get_actor(name='ACTOR_OLD')
+        
         self.critic_model = self.get_critic(name='CRITIC')
 
         self.actor_model.summary()
@@ -226,7 +239,7 @@ class PPOActorCritic:
         dense = self.__create_hidden_dense_layer(ACTOR_DENSE_UNITS, activation='tanh')(dense)
         dense = tf.keras.layers.BatchNormalization()(dense)
 
-        dense = tf.keras.layers.Lambda(lambda dense: dense / ACTOR_SOFTMAX_TEMPERATURE)(dense)
+        dense = tf.keras.layers.Lambda(lambda dense: dense / 2.0, output_shape=(ACTOR_DENSE_UNITS,))(dense)
         dense = tf.keras.layers.Dense(self.dictionary_length, activation='softmax')(dense)
 
         return tf.keras.Model(

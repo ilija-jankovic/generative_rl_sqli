@@ -1,6 +1,8 @@
 import os
 import time
 import numpy as np
+
+from lib.pretrain_actor_type import PretrainActorType
 from .policy_type import PolicyType
 from .environment import Environment
 from .ppo_actor_critic import PPOActorCritic
@@ -9,15 +11,15 @@ from .state_factory import StateFactory
 from .ppo_episodic_reporter import PPOEpisodicReporter
 from .ppo_reporter import PPOReporter
 from .ppo_running_statistics import PPORunningStatistics
-from ..hyperparameters import PRETRAINING_STEPS, STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, \
-    T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD, PPO_SUCCESSFUL_BUFFER_SIZE
-    
+from ..hyperparameters import PRETRAIN_ACTOR_TYPE, PRETRAINING_STEPS, STATE_SIZE, ACTION_SIZE, BATCH_SIZE, MINIBATCH_SIZE, \
+    T, EPOCHS, GAMMA, PPO_PROBABILITY_RATIO_CLIP_THRESHOLD
 
 # Important to place before TF import, as stated by Matt Haythornthwaite
 # from: https://stackoverflow.com/a/64448286
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 import tensorflow as tf
+
 
 class PPO:
     actor_critic: PPOActorCritic
@@ -459,7 +461,7 @@ class PPO:
         
         for i in range(PRETRAINING_STEPS):
             start = time.time()
-            
+ 
             transition_indices = np.random.choice(
                 demonstration_actions_count,
                 size=MINIBATCH_SIZE,
@@ -470,6 +472,8 @@ class PPO:
             
             actor_model = self.actor_critic.actor_model
             actor_optimizer = self.actor_critic.actor_pretraining_optimizer
+            
+            actor_model.save(f'{os.path.dirname(__file__)}/../../pretrained_actor.keras')
         
             with tf.GradientTape() as tape:
                 y = [
@@ -506,10 +510,11 @@ class PPO:
         reporter = PPOReporter()
         reporter.start()
         
-        self.__pretrain_actor(
-            demonstration_environment=demonstration_environment,
-            demonstration_actions=demonstration_actions,
-        )
+        if(PRETRAIN_ACTOR_TYPE == PretrainActorType.PRETRAIN):
+            self.__pretrain_actor(
+                demonstration_environment=demonstration_environment,
+                demonstration_actions=demonstration_actions,
+            )
         
         episodic_rewards_reporter = PPOEpisodicReporter(
             batch_size=BATCH_SIZE,

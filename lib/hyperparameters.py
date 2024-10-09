@@ -1,8 +1,12 @@
+from lib.pretrain_actor_type import PretrainActorType
+
+
 STATE_SIZE = 1024
 ACTION_SIZE = 80
 EMBEDDING_DIM = 128
 
-PRETRAINING_STEPS = 3000
+PRETRAIN_ACTOR_TYPE = PretrainActorType.NO_PRETRAIN
+PRETRAINING_STEPS = 2
 PRETRAINING_LEARNING_RATE = 0.0001
 
 INITIAL_EPISODE_LENGTH = 5
@@ -51,7 +55,17 @@ LR_SCHEDULE_DECAY_RATE=0.9
 ACTOR_LSTM_UNITS = 64
 ACTOR_DENSE_UNITS = 128
 
-ACTOR_SOFTMAX_TEMPERATURE = 2.0
+# Cannot easily be a global due to lambda layer loading
+# with Keras.
+#
+# Implied value of 2.0.
+#
+# Do not uncomment unless integrating with PPO actor
+# lambda layer.
+#
+# Make sure to update in PPO reporter as well if used.
+#
+# ACTOR_SOFTMAX_TEMPERATURE = 2.0
 
 # NOTE: State needs a few tokens of leeway for sectioning.
 assert(STATE_SIZE >= 8)

@@ -12,6 +12,12 @@ class InjectionBuffers:
     __responses: Set[str]
     __response_tokens: Set[str]
     __attempted_payloads: List[Payload]
+    __private_tokens_count: int
+    
+    
+    @property
+    def private_tokens_count(self):
+        return self.__private_tokens_count
 
 
     def __record_response_tokens(self, response: str):
@@ -33,6 +39,7 @@ class InjectionBuffers:
         self.__reset_response_tokens()
  
         self.__attempted_payloads = []
+        self.__private_tokens_count = 0
 
         
     def record_response(
@@ -60,6 +67,8 @@ class InjectionBuffers:
         
         self.__responses.add(response)
         self.__record_response_tokens(response=response)
+        
+        self.__private_tokens_count += new_tokens_count
 
         return min_distance_norm * new_tokens_count
 
@@ -76,3 +85,4 @@ class InjectionBuffers:
         self.__responses = self.expected_responses.copy()
         self.__reset_response_tokens()
         self.__attempted_payloads.clear()
+        self.__private_tokens_count = 0

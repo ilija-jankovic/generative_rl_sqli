@@ -173,7 +173,7 @@ class Environment:
         ) if is_episode_done \
             else self.__state_factory.create_state(
                 state_size=self.state_size,
-                successful_payloads_count=self.__successful_payloads_count,
+                total_private_tokens_count=self.__injection_buffers.private_tokens_count,
             )
 
 

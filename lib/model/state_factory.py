@@ -68,7 +68,7 @@ class StateFactory:
     def create_state(
         self,
         state_size: int,
-        successful_payloads_count: int,
+        total_private_tokens_count: int,
     ):
         max_response_length = max([
             len(response) for response in self.__tokenised_responses
@@ -81,7 +81,7 @@ class StateFactory:
         
         average_response = np.average(zero_padded_responses, axis=0)
 
-        state = [float(successful_payloads_count), -1.0]
+        state = [float(total_private_tokens_count), -1.0]
         state.extend(average_response)
         state.extend([-1.0] * (state_size - max_response_length - 2))
 

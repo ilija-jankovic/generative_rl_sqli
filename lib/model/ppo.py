@@ -300,15 +300,17 @@ class PPO:
         rewards = []
         
         for i in range(T):
-            actions_env, probabilities_env = self.__run_exploration_policy(
-                states=states[i],
-            )
+            #actions_env, probabilities_env = self.__run_exploration_policy(
+            #    states=states[i],
+            #)
             
+            actions_env, probabilities_env = np.reshape(np.random.choice(len(self.environments[0].dictionary), BATCH_SIZE * ACTION_SIZE), [BATCH_SIZE, ACTION_SIZE,]), np.ones([BATCH_SIZE, ACTION_SIZE,])
+             
             env_tuples = []
 
             for batch_index in range(BATCH_SIZE):
                 environment = self.environments[batch_index]
-
+                
                 # Retrieve epsiode before its potential update.
                 #
                 # Otherwise, if the episode is updated, the reward returned
@@ -410,12 +412,13 @@ class PPO:
         # ===================================
         learning_seconds = time.time()
 
-        mean_actor_loss, mean_critic_loss = self.__learn_sgd(
-            states=states,
-            actions_old=actions_old,
-            action_probabilities_old=action_probabilities_old,
-            rewards=rewards,
-        )
+        mean_actor_loss, mean_critic_loss = 0.0, 0.0
+        #mean_actor_loss, mean_critic_loss = self.__learn_sgd(
+        #    states=states,
+        #    actions_old=actions_old,
+        #    action_probabilities_old=action_probabilities_old,
+        #    rewards=rewards,
+        #)
         
         learning_seconds = time.time() - learning_seconds
         # ===================================

@@ -49,8 +49,6 @@ class SqlmapRunner:
         f.close()
 
     def run(self, headers: Dict[str, str], cookie: str):
-        url = self.open_url + self.default_vulnerable_param_value
-
         headers_str = [f'{key}: {value}' for key, value in headers.items()]
         headers_str = '\n'.join(headers_str)
 
@@ -58,15 +56,19 @@ class SqlmapRunner:
         # --batch ensures no blocking for user input.
         output = subprocess.check_output([
             'python', self.__sqlmap_path,
-            '-u', url,
+            '-u', self.open_url,
             '-p', self.vulernable_param,
+            '--data', self.default_vulnerable_param_value,
+            '--method', 'POST',
             '--headers', headers_str,
             '--cookie', cookie,
             '--level', '5',
             '-v', '5',
             '--flush-session',
             '--batch',
-            '--output-dir', self.__sqlmap_log_path])
+            '--output-dir', self.__sqlmap_log_path,
+            '--ignore-code', '401',
+        ])
         
         output = output.decode("utf-8").split('\n')
         

@@ -76,12 +76,12 @@ except:
 visible_chars = [chr(i) for i in range(32, 127)]
 
 config = Configuration(
-    open_url='http://localhost:3000/rest/products/search?q=',
+    open_url='http://localhost:3000/rest/user/login',
     headers={},
     cookie='',
 )
 
-sqlmap = SqlmapRunner(config.open_url, vulernable_param='q', default_vulnerable_param_value='1')
+sqlmap = SqlmapRunner(config.open_url, vulernable_param='email', default_vulnerable_param_value='email=test@test.com')
 
 if run_sqlmap:
     print('Running sqlmap...')

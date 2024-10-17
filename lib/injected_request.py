@@ -13,7 +13,7 @@ def send_request(payload: str, config: Configuration) -> str:
     '''
     
     respose = requests.post(
-        config.open_url + payload,
+        config.open_url,
         headers=config.headers_with_cookie,
         json={
             'username': payload,

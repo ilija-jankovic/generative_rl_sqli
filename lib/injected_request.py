@@ -16,7 +16,7 @@ def send_request(payload: str, config: Configuration) -> str:
         config.open_url,
         headers=config.headers_with_cookie,
         json={
-            'username': payload,
+            'email': payload,
         }
     )
     

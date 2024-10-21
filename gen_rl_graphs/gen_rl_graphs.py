@@ -1,4 +1,5 @@
-from typing import Dict, List
+import os
+from typing import Dict
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -40,12 +41,28 @@ random_search_endpoint = [
 ]
 
 
-def show_plot(df_dict: Dict[str, pd.DataFrame]):
-    df = pd.DataFrame(df_dict)
+def show_plot(
+    demonstrations: pd.DataFrame,
+    no_demonstrations: pd.DataFrame,
+    random: pd.DataFrame,
+    filename: str,
+):
+    df = pd.DataFrame({
+        'With Demonstrations': pd.concat(demonstrations)['Mean Cumulative Episodic Reward'],
+        'Without Demonstrations': pd.concat(no_demonstrations)['Mean Cumulative Episodic Reward'],
+        'Random': pd.concat(random)['Mean Cumulative Episodic Reward'],
+    })
 
     plot = sns.relplot(
         data=df,
         kind='line',
+        palette=['#c91818', '#3961db', '#898989',],
+        linewidth=1.0,
+        dashes={
+            'With Demonstrations': '',
+            'Without Demonstrations': '',
+            'Random': '',
+        },
     )
 
     plot.set_axis_labels(
@@ -55,20 +72,19 @@ def show_plot(df_dict: Dict[str, pd.DataFrame]):
     
     plot.figure.suptitle('Mean Cumulative Reward over Episodes')
 
-    plt.show()
+    file_path = os.path.dirname(__file__) + '/' + filename
+    plot.figure.savefig(file_path, dpi=600)
 
+show_plot(
+    demonstrations=demonstrations_search_endpoint,
+    no_demonstrations=no_demonstrations_search_endpoint,
+    random=random_search_endpoint,
+    filename='search_endpoint.png',
+)
 
-search_endpoint_df_dict = {
-    'With Demonstrations': pd.concat(demonstrations_search_endpoint)['Mean Cumulative Episodic Reward'],
-    'Without Demonstrations': pd.concat(no_demonstrations_search_endpoint)['Mean Cumulative Episodic Reward'],
-    'Random': pd.concat(random_search_endpoint)['Mean Cumulative Episodic Reward'],
-}
-
-auth_endpoint_df_dict = {
-    'With Demonstrations': pd.concat(demonstrations_auth_endpoint)['Mean Cumulative Episodic Reward'],
-    'Without Demonstrations': pd.concat(no_demonstrations_auth_endpoint)['Mean Cumulative Episodic Reward'],
-    'Random': pd.concat(random_auth_endpoint)['Mean Cumulative Episodic Reward'],
-}
-
-show_plot(search_endpoint_df_dict)
-show_plot(auth_endpoint_df_dict)
+show_plot(
+    demonstrations=demonstrations_auth_endpoint,
+    no_demonstrations=no_demonstrations_auth_endpoint,
+    random=random_auth_endpoint,
+    filename='auth_endpoint.png',
+)

@@ -56,7 +56,7 @@ def show_plot(
     plot = sns.relplot(
         data=df,
         kind='line',
-        palette=['#c91818', '#1742c7', '#6b6b6b',],
+        palette=['#c91818', '#1742c7', '#585858',],
         linewidth=1.0,
         dashes={
             'With Demonstrations': '',

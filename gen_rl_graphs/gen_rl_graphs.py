@@ -70,7 +70,7 @@ def show_plot(
         y_var='Mean Cumulative Reward',
     )
     
-    plot.figure.set_figwidth(7.5)
+    plot.figure.set_figwidth(6.5)
     
     plot.figure.tight_layout()
 

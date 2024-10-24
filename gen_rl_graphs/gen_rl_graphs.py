@@ -70,6 +70,14 @@ def show_plot(
         y_var='Mean Cumulative Reward',
     )
     
+    plot.figure.set_figwidth(7.5)
+    
+    plot.figure.tight_layout()
+
+    sns.move_legend(plot, 'lower center', ncol=3)
+    
+    plot.figure.subplots_adjust(top=0.9, bottom=0.18)
+    
     plot.figure.suptitle('Mean Cumulative Reward over Episodes')
 
     file_path = os.path.dirname(__file__) + '/' + filename

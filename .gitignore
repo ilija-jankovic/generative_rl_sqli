@@ -1,0 +1,10 @@
+**/venv
+.DS_Store
+__pycache__
+**/sqlmap-log
+wikisql/parsed_queries.txt
+embeddings.json
+reports/
+contextual_payloads.txt
+tensorboard_log
+parsed_query_templates.txt

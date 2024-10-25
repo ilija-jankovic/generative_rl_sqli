@@ -1,0 +1,9 @@
+{
+    "sqlite_master": [
+        "type",
+        "name",
+        "tbl_name",
+        "rootpage",
+        "sql"
+    ]
+}
